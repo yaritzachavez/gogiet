@@ -1,0 +1,672 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   Int                    @id @default(autoincrement())
+  firstName            String                 @map("first_name") @db.VarChar(80)
+  lastName             String?                @map("last_name") @db.VarChar(80)
+  email                String                 @unique(map: "uk_users_email") @db.VarChar(120)
+  phone                String?                @unique(map: "uk_users_phone") @db.VarChar(20)
+  passwordHash         String                 @map("password_hash") @db.VarChar(255)
+  birthDate            DateTime?              @map("birth_date") @db.Date
+  profileImageUrl      String?                @map("profile_image_url") @db.Text
+  statusId             Int                    @map("status_id")
+  lastLogin            DateTime?              @map("last_login") @db.DateTime(0)
+  createdAt            DateTime               @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  addresses            addresses[]
+  business_managers    business_managers[]
+  business_owners      business_owners[]
+  cart                 cart[]
+  delivery             delivery[]
+  delivery_payments    delivery_payments[]
+  delivery_settlements delivery_settlements[]
+  delivery_tips        delivery_tips[]
+  favorites            favorites[]
+  admin_messages       admin_messages[]
+  order_notes          order_notes[]
+  orders               orders[]
+  reviews              reviews[]
+  support_assigned_conversations support_conversations[] @relation("support_assigned_admin")
+  support_requested_conversations support_conversations[] @relation("support_requester")
+  support_sent_messages support_messages[] @relation("support_message_sender")
+  user_roles           user_roles[]
+  status_catalog       status_catalog         @relation(fields: [statusId], references: [id], map: "fk_users_status")
+
+  @@index([statusId], map: "fk_users_status")
+  @@map("users")
+}
+
+model addresses {
+  id              Int            @id @default(autoincrement())
+  user_id         Int?
+  label           String?        @db.VarChar(50)
+  recipient_name  String?        @db.VarChar(120)
+  phone           String?        @db.VarChar(20)
+  street          String         @db.VarChar(120)
+  external_number String?        @db.VarChar(20)
+  internal_number String?        @db.VarChar(20)
+  neighborhood    String         @db.VarChar(120)
+  city            String         @db.VarChar(100)
+  state           String         @db.VarChar(100)
+  postal_code     String         @db.VarChar(10)
+  reference_notes String?        @db.VarChar(255)
+  latitude        Decimal?       @db.Decimal(10, 7)
+  longitude       Decimal?       @db.Decimal(10, 7)
+  is_default      Boolean        @default(false)
+  status_id       Int
+  created_at      DateTime       @default(now()) @db.DateTime(0)
+  updated_at      DateTime       @default(now()) @db.DateTime(0)
+  status_catalog  status_catalog @relation(fields: [status_id], references: [id], map: "fk_addresses_status")
+  users           User?          @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_addresses_user")
+  orders          orders[]
+
+  @@index([status_id], map: "fk_addresses_status")
+  @@index([user_id], map: "fk_addresses_user")
+}
+
+model business {
+  id                         Int                     @id @default(autoincrement())
+  name                       String                  @db.VarChar(120)
+  legal_name                 String?                 @db.VarChar(150)
+  tax_id                     String?                 @db.VarChar(30)
+  city                       String                  @db.VarChar(100)
+  district                   String?                 @db.VarChar(100)
+  address                    String                  @db.VarChar(180)
+  address_notes              String?                 @db.VarChar(255)
+  phone                      String?                 @db.VarChar(20)
+  email                      String?                 @db.VarChar(120)
+  logo_url                   String?                 @db.VarChar(255)
+  cover_image_url            String?                 @db.VarChar(255)
+  min_order_amount           Decimal?                @db.Decimal(10, 2)
+  estimated_delivery_minutes Int?
+  rating_average             Decimal                 @default(0.00) @db.Decimal(3, 2)
+  is_open                    Boolean                 @default(true)
+  status_id                  Int
+  created_at                 DateTime                @default(now()) @db.DateTime(0)
+  updated_at                 DateTime                @default(now()) @db.DateTime(0)
+  status_catalog             status_catalog          @relation(fields: [status_id], references: [id], map: "fk_business_status")
+  business_category_map      business_category_map[]
+  business_details           business_details?
+  business_hours             business_hours[]
+  business_images            business_images[]
+  business_managers          business_managers[]
+  business_owners            business_owners[]
+  orders                     orders[]
+  products                   products[]
+
+  @@index([status_id], map: "fk_business_status")
+}
+
+model business_categories {
+  id                    Int                     @id @default(autoincrement())
+  name                  String                  @unique(map: "uk_business_categories_name") @db.VarChar(80)
+  description           String?                 @db.VarChar(150)
+  icon                  String?                 @db.VarChar(100)
+  created_at            DateTime                @default(now()) @db.DateTime(0)
+  updated_at            DateTime                @default(now()) @db.DateTime(0)
+  business_category_map business_category_map[]
+}
+
+model business_category_map {
+  business_id         Int
+  category_id         Int
+  assigned_at         DateTime            @default(now()) @db.DateTime(0)
+  business            business            @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_category_map_business")
+  business_categories business_categories @relation(fields: [category_id], references: [id], map: "fk_business_category_map_category")
+
+  @@id([business_id, category_id])
+  @@index([category_id], map: "fk_business_category_map_category")
+}
+
+model business_details {
+  business_id      Int      @id
+  description_long String?  @db.Text
+  slogan           String?  @db.VarChar(180)
+  specialties      String?  @db.VarChar(255)
+  service_notes    String?  @db.VarChar(255)
+  accepts_pickup   Boolean  @default(true)
+  accepts_delivery Boolean  @default(true)
+  has_own_delivery Boolean  @default(false)
+  pet_friendly     Boolean  @default(false)
+  instagram_url    String?  @db.VarChar(255)
+  facebook_url     String?  @db.VarChar(255)
+  whatsapp_phone   String?  @db.VarChar(20)
+  website_url      String?  @db.VarChar(255)
+  created_at       DateTime @default(now()) @db.DateTime(0)
+  updated_at       DateTime @default(now()) @db.DateTime(0)
+  business         business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_details_business")
+}
+
+model business_hours {
+  id          Int       @id @default(autoincrement())
+  business_id Int
+  day_of_week Int       @db.TinyInt
+  open_time   DateTime? @db.Time(0)
+  close_time  DateTime? @db.Time(0)
+  is_closed   Boolean   @default(false)
+  created_at  DateTime  @default(now()) @db.DateTime(0)
+  updated_at  DateTime  @default(now()) @db.DateTime(0)
+  business    business  @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_hours_business")
+
+  @@unique([business_id, day_of_week], map: "uk_business_hours_day")
+}
+
+model business_images {
+  id          Int      @id @default(autoincrement())
+  business_id Int
+  image_url   String   @db.VarChar(255)
+  alt_text    String?  @db.VarChar(150)
+  sort_order  Int      @default(1)
+  is_cover    Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  updated_at  DateTime @default(now()) @db.DateTime(0)
+  business    business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_images_business")
+
+  @@index([business_id], map: "fk_business_images_business")
+}
+
+model business_managers {
+  business_id Int
+  user_id     Int
+  position    String?  @db.VarChar(100)
+  assigned_at DateTime @default(now()) @db.DateTime(0)
+  is_active   Boolean  @default(true)
+  business    business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_managers_business")
+  users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_business_managers_user")
+
+  @@id([business_id, user_id])
+  @@index([user_id], map: "fk_business_managers_user")
+}
+
+model business_owners {
+  business_id Int
+  user_id     Int
+  assigned_at DateTime @default(now()) @db.DateTime(0)
+  notes       String?  @db.VarChar(255)
+  business    business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_owners_business")
+  users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_business_owners_user")
+
+  @@id([business_id, user_id])
+  @@index([user_id], map: "fk_business_owners_user")
+}
+
+model cart {
+  id            Int             @id @default(autoincrement())
+  user_id       Int
+  status        String          @default("activo") @db.VarChar(30)
+  created_at    DateTime        @default(now()) @db.DateTime(0)
+  updated_at    DateTime        @default(now()) @db.DateTime(0)
+  users         User            @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_cart_user")
+  orders        orders[]
+  products_cart products_cart[]
+
+  @@index([user_id], map: "fk_cart_user")
+}
+
+model delivery {
+  id                      Int                     @id @default(autoincrement())
+  order_id                Int                     @unique(map: "uk_delivery_order_id")
+  driver_user_id          Int
+  vehicle_type_id         Int?
+  delivery_status_id      Int
+  assigned_at             DateTime?               @db.DateTime(0)
+  picked_up_at            DateTime?               @db.DateTime(0)
+  in_route_at             DateTime?               @db.DateTime(0)
+  delivered_at            DateTime?               @db.DateTime(0)
+  failed_at               DateTime?               @db.DateTime(0)
+  estimated_distance_km   Decimal?                @db.Decimal(8, 2)
+  estimated_duration_min  Int?
+  delivery_notes          String?                 @db.VarChar(255)
+  created_at              DateTime                @default(now()) @db.DateTime(0)
+  updated_at              DateTime                @default(now()) @db.DateTime(0)
+  users                   User                    @relation(fields: [driver_user_id], references: [id], map: "fk_delivery_driver")
+  orders                  orders                  @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_delivery_order")
+  delivery_status_catalog delivery_status_catalog @relation(fields: [delivery_status_id], references: [id], map: "fk_delivery_status")
+  vehicle_types           vehicle_types?          @relation(fields: [vehicle_type_id], references: [id], map: "fk_delivery_vehicle_type")
+  delivery_metrics        delivery_metrics?
+  delivery_payments       delivery_payments[]
+  delivery_tips           delivery_tips[]
+
+  @@index([driver_user_id], map: "fk_delivery_driver")
+  @@index([delivery_status_id], map: "fk_delivery_status")
+  @@index([vehicle_type_id], map: "fk_delivery_vehicle_type")
+}
+
+model delivery_metrics {
+  delivery_id            Int      @id
+  actual_distance_km     Decimal? @db.Decimal(8, 2)
+  actual_duration_min    Int?
+  wait_time_business_min Int?
+  wait_time_customer_min Int?
+  delay_minutes          Int?
+  was_on_time            Boolean  @default(true)
+  internal_score         Decimal? @db.Decimal(5, 2)
+  created_at             DateTime @default(now()) @db.DateTime(0)
+  updated_at             DateTime @default(now()) @db.DateTime(0)
+  delivery               delivery @relation(fields: [delivery_id], references: [id], onDelete: Cascade, map: "fk_delivery_metrics_delivery")
+}
+
+model delivery_payments {
+  id                Int       @id @default(autoincrement())
+  delivery_id       Int
+  driver_user_id    Int
+  base_amount       Decimal   @default(0.00) @db.Decimal(10, 2)
+  bonus_amount      Decimal   @default(0.00) @db.Decimal(10, 2)
+  adjustment_amount Decimal   @default(0.00) @db.Decimal(10, 2)
+  total_amount      Decimal   @db.Decimal(10, 2)
+  payment_status    String    @default("pendiente") @db.VarChar(30)
+  paid_at           DateTime? @db.DateTime(0)
+  notes             String?   @db.VarChar(255)
+  created_at        DateTime  @default(now()) @db.DateTime(0)
+  updated_at        DateTime  @default(now()) @db.DateTime(0)
+  delivery          delivery  @relation(fields: [delivery_id], references: [id], onDelete: Cascade, map: "fk_delivery_payments_delivery")
+  users             User      @relation(fields: [driver_user_id], references: [id], map: "fk_delivery_payments_driver")
+
+  @@index([delivery_id], map: "fk_delivery_payments_delivery")
+  @@index([driver_user_id], map: "fk_delivery_payments_driver")
+}
+
+model delivery_settlements {
+  id                 Int       @id @default(autoincrement())
+  driver_user_id     Int
+  period_start       DateTime  @db.DateTime(0)
+  period_end         DateTime  @db.DateTime(0)
+  total_deliveries   Int       @default(0)
+  gross_amount       Decimal   @default(0.00) @db.Decimal(10, 2)
+  adjustments_amount Decimal   @default(0.00) @db.Decimal(10, 2)
+  total_amount       Decimal   @default(0.00) @db.Decimal(10, 2)
+  settlement_status  String    @default("pendiente") @db.VarChar(30)
+  settled_at         DateTime? @db.DateTime(0)
+  notes              String?   @db.VarChar(255)
+  created_at         DateTime  @default(now()) @db.DateTime(0)
+  updated_at         DateTime  @default(now()) @db.DateTime(0)
+  users              User      @relation(fields: [driver_user_id], references: [id], map: "fk_delivery_settlements_driver")
+
+  @@index([driver_user_id], map: "fk_delivery_settlements_driver")
+}
+
+model delivery_status_catalog {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique(map: "uk_delivery_status_catalog_name") @db.VarChar(50)
+  description String?    @db.VarChar(150)
+  sort_order  Int        @default(1)
+  is_final    Boolean    @default(false)
+  created_at  DateTime   @default(now()) @db.DateTime(0)
+  updated_at  DateTime   @default(now()) @db.DateTime(0)
+  delivery    delivery[]
+}
+
+model delivery_tips {
+  id                  Int       @id @default(autoincrement())
+  delivery_id         Int
+  order_id            Int
+  driver_user_id      Int
+  amount              Decimal   @db.Decimal(10, 2)
+  tip_method          String    @default("digital") @db.VarChar(30)
+  delivered_to_driver Boolean   @default(false)
+  delivered_at        DateTime? @db.DateTime(0)
+  notes               String?   @db.VarChar(255)
+  created_at          DateTime  @default(now()) @db.DateTime(0)
+  updated_at          DateTime  @default(now()) @db.DateTime(0)
+  delivery            delivery  @relation(fields: [delivery_id], references: [id], onDelete: Cascade, map: "fk_delivery_tips_delivery")
+  users               User      @relation(fields: [driver_user_id], references: [id], map: "fk_delivery_tips_driver")
+  orders              orders    @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_delivery_tips_order")
+
+  @@index([delivery_id], map: "fk_delivery_tips_delivery")
+  @@index([driver_user_id], map: "fk_delivery_tips_driver")
+  @@index([order_id], map: "fk_delivery_tips_order")
+}
+
+model favorites {
+  id            Int      @id @default(autoincrement())
+  user_id       Int
+  favorite_type String   @db.VarChar(30)
+  target_id     Int
+  created_at    DateTime @default(now()) @db.DateTime(0)
+  users         User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_favorites_user")
+
+  @@unique([user_id, favorite_type, target_id], map: "uk_favorites_unique")
+}
+
+model order_items {
+  id                    Int      @id @default(autoincrement())
+  order_id              Int
+  product_id            Int
+  product_name_snapshot String   @db.VarChar(120)
+  unit_price            Decimal  @db.Decimal(10, 2)
+  quantity              Int      @default(1)
+  subtotal              Decimal  @db.Decimal(10, 2)
+  notes                 String?  @db.VarChar(255)
+  created_at            DateTime @default(now()) @db.DateTime(0)
+  updated_at            DateTime @default(now()) @db.DateTime(0)
+  orders                orders   @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_order_items_order")
+  products              products @relation(fields: [product_id], references: [id], map: "fk_order_items_product")
+
+  @@index([order_id], map: "fk_order_items_order")
+  @@index([product_id], map: "fk_order_items_product")
+}
+
+model order_notes {
+  id         Int      @id @default(autoincrement())
+  order_id   Int
+  user_id    Int?
+  note_type  String   @db.VarChar(50)
+  note_text  String   @db.VarChar(255)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  orders     orders   @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_order_notes_order")
+  users      User?    @relation(fields: [user_id], references: [id], map: "fk_order_notes_user")
+
+  @@index([order_id], map: "fk_order_notes_order")
+  @@index([user_id], map: "fk_order_notes_user")
+}
+
+model order_status_catalog {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique(map: "uk_order_status_catalog_name") @db.VarChar(50)
+  description String?  @db.VarChar(150)
+  sort_order  Int      @default(1)
+  is_final    Boolean  @default(false)
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  updated_at  DateTime @default(now()) @db.DateTime(0)
+  orders      orders[]
+}
+
+model orders {
+  id                   Int                  @id @default(autoincrement())
+  user_id              Int
+  cart_id              Int?
+  business_id          Int
+  address_id           Int
+  payment_method_id    Int
+  payment_method_label String?              @map("payment_method") @db.VarChar(50)
+  comprobante_pago_url String?              @db.MediumText
+  order_status_id      Int
+  subtotal             Decimal              @db.Decimal(10, 2)
+  terminal_fee         Decimal              @default(0.00) @db.Decimal(10, 2)
+  delivery_fee         Decimal              @default(0.00) @db.Decimal(10, 2)
+  service_fee          Decimal              @default(0.00) @db.Decimal(10, 2)
+  tip_amount           Decimal              @default(0.00) @db.Decimal(10, 2)
+  discount_amount      Decimal              @default(0.00) @db.Decimal(10, 2)
+  total_amount         Decimal              @db.Decimal(10, 2)
+  customer_notes       String?              @db.VarChar(255)
+  placed_at            DateTime             @default(now()) @db.DateTime(0)
+  confirmed_at         DateTime?            @db.DateTime(0)
+  delivered_at         DateTime?            @db.DateTime(0)
+  cancelled_at         DateTime?            @db.DateTime(0)
+  created_at           DateTime             @default(now()) @db.DateTime(0)
+  updated_at           DateTime             @default(now()) @db.DateTime(0)
+  delivery             delivery?
+  delivery_tips        delivery_tips[]
+  admin_messages       admin_messages[]
+  order_items          order_items[]
+  order_notes          order_notes[]
+  addresses            addresses            @relation(fields: [address_id], references: [id], map: "fk_orders_address")
+  business             business             @relation(fields: [business_id], references: [id], map: "fk_orders_business")
+  cart                 cart?                @relation(fields: [cart_id], references: [id], map: "fk_orders_cart")
+  order_status_catalog order_status_catalog @relation(fields: [order_status_id], references: [id], map: "fk_orders_order_status")
+  payment_methods      payment_methods      @relation(fields: [payment_method_id], references: [id], map: "fk_orders_payment_method")
+  users                User                 @relation(fields: [user_id], references: [id], map: "fk_orders_user")
+  payments             payments[]
+  reviews              reviews[]
+
+  @@index([address_id], map: "fk_orders_address")
+  @@index([business_id], map: "fk_orders_business")
+  @@index([cart_id], map: "fk_orders_cart")
+  @@index([order_status_id], map: "fk_orders_order_status")
+  @@index([payment_method_id], map: "fk_orders_payment_method")
+  @@index([user_id], map: "fk_orders_user")
+}
+
+model admin_messages {
+  id         Int      @id @default(autoincrement())
+  order_id   Int
+  user_id    Int
+  type       String   @db.VarChar(50)
+  message    String   @db.Text
+  file_url   String?  @db.MediumText
+  created_at DateTime @default(now()) @db.DateTime(0)
+  orders     orders   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  users      User     @relation(fields: [user_id], references: [id])
+
+  @@index([order_id], map: "idx_admin_messages_order_id")
+  @@index([user_id], map: "idx_admin_messages_user_id")
+}
+
+model payment_methods {
+  id                    Int        @id @default(autoincrement())
+  name                  String     @unique(map: "uk_payment_methods_name") @db.VarChar(50)
+  description           String?    @db.VarChar(150)
+  requires_verification Boolean    @default(false)
+  is_active             Boolean    @default(true)
+  created_at            DateTime   @default(now()) @db.DateTime(0)
+  updated_at            DateTime   @default(now()) @db.DateTime(0)
+  orders                orders[]
+  payments              payments[]
+}
+
+model payments {
+  id                    Int             @id @default(autoincrement())
+  order_id              Int
+  payment_method_id     Int
+  payment_status        String          @default("pendiente") @db.VarChar(30)
+  transaction_reference String?         @db.VarChar(120)
+  provider_name         String?         @db.VarChar(80)
+  amount                Decimal         @db.Decimal(10, 2)
+  paid_at               DateTime?       @db.DateTime(0)
+  created_at            DateTime        @default(now()) @db.DateTime(0)
+  updated_at            DateTime        @default(now()) @db.DateTime(0)
+  orders                orders          @relation(fields: [order_id], references: [id], onDelete: Cascade, map: "fk_payments_order")
+  payment_methods       payment_methods @relation(fields: [payment_method_id], references: [id], map: "fk_payments_payment_method")
+
+  @@index([order_id], map: "fk_payments_order")
+  @@index([payment_method_id], map: "fk_payments_payment_method")
+}
+
+model product_categories {
+  id                   Int                    @id @default(autoincrement())
+  name                 String                 @unique(map: "uk_product_categories_name") @db.VarChar(80)
+  description          String?                @db.VarChar(150)
+  icon                 String?                @db.VarChar(100)
+  created_at           DateTime               @default(now()) @db.DateTime(0)
+  updated_at           DateTime               @default(now()) @db.DateTime(0)
+  product_category_map product_category_map[]
+}
+
+model product_category_map {
+  product_id         Int
+  category_id        Int
+  assigned_at        DateTime           @default(now()) @db.DateTime(0)
+  product_categories product_categories @relation(fields: [category_id], references: [id], map: "fk_product_category_map_category")
+  products           products           @relation(fields: [product_id], references: [id], onDelete: Cascade, map: "fk_product_category_map_product")
+
+  @@id([product_id, category_id])
+  @@index([category_id], map: "fk_product_category_map_category")
+}
+
+model product_images {
+  id         Int      @id @default(autoincrement())
+  product_id Int
+  image_url  String   @db.VarChar(255)
+  alt_text   String?  @db.VarChar(150)
+  sort_order Int      @default(1)
+  is_primary Boolean  @default(false)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  updated_at DateTime @default(now()) @db.DateTime(0)
+  products   products @relation(fields: [product_id], references: [id], onDelete: Cascade, map: "fk_product_images_product")
+
+  @@index([product_id], map: "fk_product_images_product")
+}
+
+model products {
+  id                   Int                    @id @default(autoincrement())
+  business_id          Int
+  name                 String                 @db.VarChar(120)
+  sku                  String                 @unique(map: "uk_products_sku") @db.VarChar(60)
+  barcode              String?                @db.VarChar(80)
+  description_short    String?                @db.VarChar(255)
+  description_long     String?                @db.Text
+  price                Decimal                @db.Decimal(10, 2)
+  discount_price       Decimal?               @db.Decimal(10, 2)
+  currency             String                 @default("MXN") @db.VarChar(10)
+  sale_format          String?                @db.VarChar(50)
+  price_per_unit       Decimal?               @db.Decimal(10, 2)
+  tax_included         Boolean                @default(true)
+  tax_rate             Decimal?               @db.Decimal(5, 2)
+  commission_rate      Decimal?               @db.Decimal(5, 2)
+  is_stock_available   Boolean                @default(true)
+  stock_average        Int                    @default(0)
+  stock_danger         Int                    @default(0)
+  min_per_order        Int?
+  max_per_order        Int?
+  thumbnail_url        String?                @db.VarChar(255)
+  expires_at           DateTime?              @db.DateTime(0)
+  promotion_id         Int?
+  status_id            Int
+  created_at           DateTime               @default(now()) @db.DateTime(0)
+  updated_at           DateTime               @default(now()) @db.DateTime(0)
+  order_items          order_items[]
+  product_category_map product_category_map[]
+  product_images       product_images[]
+  business             business               @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_products_business")
+  promotions           promotions?            @relation(fields: [promotion_id], references: [id], map: "fk_products_promotion")
+  status_catalog       status_catalog         @relation(fields: [status_id], references: [id], map: "fk_products_status")
+  products_cart        products_cart[]
+
+  @@index([business_id], map: "fk_products_business")
+  @@index([promotion_id], map: "fk_products_promotion")
+  @@index([status_id], map: "fk_products_status")
+}
+
+model products_cart {
+  cart_id    Int
+  product_id Int
+  quantity   Int      @default(1)
+  unit_price Decimal  @db.Decimal(10, 2)
+  subtotal   Decimal  @db.Decimal(10, 2)
+  notes      String?  @db.VarChar(255)
+  added_at   DateTime @default(now()) @db.DateTime(0)
+  updated_at DateTime @default(now()) @db.DateTime(0)
+  cart       cart     @relation(fields: [cart_id], references: [id], onDelete: Cascade, map: "fk_products_cart_cart")
+  products   products @relation(fields: [product_id], references: [id], onDelete: Cascade, map: "fk_products_cart_product")
+
+  @@id([cart_id, product_id])
+  @@index([product_id], map: "fk_products_cart_product")
+}
+
+model promotions {
+  id             Int        @id @default(autoincrement())
+  name           String     @db.VarChar(100)
+  description    String?    @db.VarChar(200)
+  promo_type     String     @db.VarChar(30)
+  discount_value Decimal?   @db.Decimal(10, 2)
+  start_date     DateTime?  @db.DateTime(0)
+  end_date       DateTime?  @db.DateTime(0)
+  is_active      Boolean    @default(true)
+  created_at     DateTime   @default(now()) @db.DateTime(0)
+  updated_at     DateTime   @default(now()) @db.DateTime(0)
+  products       products[]
+}
+
+model reviews {
+  id           Int      @id @default(autoincrement())
+  user_id      Int
+  order_id     Int?
+  review_type  String   @db.VarChar(30)
+  target_id    Int
+  rating       Int
+  title        String?  @db.VarChar(120)
+  comment_text String?  @db.VarChar(500)
+  is_visible   Boolean  @default(true)
+  created_at   DateTime @default(now()) @db.DateTime(0)
+  updated_at   DateTime @default(now()) @db.DateTime(0)
+  orders       orders?  @relation(fields: [order_id], references: [id], map: "fk_reviews_order")
+  users        User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_reviews_user")
+
+  @@index([order_id], map: "fk_reviews_order")
+  @@index([user_id], map: "fk_reviews_user")
+}
+
+model roles {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique(map: "uk_roles_name") @db.VarChar(50)
+  description String?      @db.VarChar(150)
+  created_at  DateTime     @default(now()) @db.DateTime(0)
+  updated_at  DateTime     @default(now()) @db.DateTime(0)
+  user_roles  user_roles[]
+}
+
+model status_catalog {
+  id          Int         @id @default(autoincrement())
+  name        String      @unique(map: "uk_status_catalog_name") @db.VarChar(50)
+  description String?     @db.VarChar(150)
+  created_at  DateTime    @default(now()) @db.DateTime(0)
+  updated_at  DateTime    @default(now()) @db.DateTime(0)
+  addresses   addresses[]
+  business    business[]
+  products    products[]
+  users       User[]
+}
+
+model support_conversations {
+  id                Int               @id @default(autoincrement())
+  requester_user_id Int
+  requester_role    String            @db.VarChar(30)
+  assigned_admin_id Int?
+  status            String            @default("open") @db.VarChar(20)
+  subject           String?           @db.VarChar(255)
+  created_at        DateTime          @default(now()) @db.DateTime(0)
+  updated_at        DateTime          @default(now()) @db.DateTime(0)
+  requester         User              @relation("support_requester", fields: [requester_user_id], references: [id], onDelete: Cascade)
+  assigned_admin    User?             @relation("support_assigned_admin", fields: [assigned_admin_id], references: [id])
+  messages          support_messages[]
+
+  @@index([requester_user_id, requester_role], map: "idx_support_conversations_requester")
+  @@index([assigned_admin_id], map: "idx_support_conversations_admin")
+  @@index([status], map: "idx_support_conversations_status")
+}
+
+model support_messages {
+  id             Int                    @id @default(autoincrement())
+  conversation_id Int?
+  sender_user_id Int?
+  sender_role    String?                @db.VarChar(30)
+  message        String                 @db.Text
+  attachment_url String?                @db.MediumText
+  is_read        Boolean                @default(false)
+  created_at     DateTime               @default(now()) @db.DateTime(0)
+  conversations  support_conversations? @relation(fields: [conversation_id], references: [id])
+  sender         User?                  @relation("support_message_sender", fields: [sender_user_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id], map: "idx_support_messages_conversation")
+  @@index([sender_user_id], map: "idx_support_messages_sender_user")
+  @@index([is_read], map: "idx_support_messages_is_read")
+}
+
+model user_roles {
+  user_id     Int
+  role_id     Int
+  assigned_at DateTime @default(now()) @db.DateTime(0)
+  roles       roles    @relation(fields: [role_id], references: [id], map: "fk_user_roles_role")
+  users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_user_roles_user")
+
+  @@id([user_id, role_id])
+  @@index([role_id], map: "fk_user_roles_role")
+}
+
+model vehicle_types {
+  id          Int        @id @default(autoincrement())
+  name        String     @unique(map: "uk_vehicle_types_name") @db.VarChar(50)
+  description String?    @db.VarChar(150)
+  max_load_kg Decimal?   @db.Decimal(6, 2)
+  is_active   Boolean    @default(true)
+  created_at  DateTime   @default(now()) @db.DateTime(0)
+  updated_at  DateTime   @default(now()) @db.DateTime(0)
+  delivery    delivery[]
+}

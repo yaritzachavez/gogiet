@@ -1,0 +1,2 @@
+ALTER TABLE business
+ADD COLUMN avatar_url VARCHAR(255) NULL;

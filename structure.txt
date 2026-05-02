@@ -1,0 +1,313 @@
+-- ============================================
+-- DATABASE
+-- ============================================
+CREATE DATABASE IF NOT EXISTS foodygo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE foodygo;
+
+-- ============================================
+-- STATUS CATALOG (Base reference)
+-- ============================================
+CREATE TABLE status_catalog (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    entity VARCHAR(100) NOT NULL,
+    code VARCHAR(50) NOT NULL,
+    label VARCHAR(100) NOT NULL,
+    sort_order INT DEFAULT 0,
+    is_final BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
+
+-- ============================================
+-- USERS & ROLES
+-- ============================================
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    first_name VARCHAR(80) NOT NULL,
+    last_name VARCHAR(80) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    phone VARCHAR(20),
+    is_verified BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status_id INT NOT NULL,
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+CREATE TABLE roles (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(80) NOT NULL,
+    description VARCHAR(255)
+);
+
+CREATE TABLE user_roles (
+    user_id INT NOT NULL,
+    role_id INT NOT NULL,
+    PRIMARY KEY(user_id, role_id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+);
+
+
+-- ============================================
+-- BUSINESS
+-- ============================================
+CREATE TABLE business_categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(80) NOT NULL UNIQUE
+);
+
+CREATE TABLE business (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    business_category_id INT NOT NULL,
+    city VARCHAR(120) NOT NULL,
+    district VARCHAR(120) NOT NULL,
+    address VARCHAR(200) NOT NULL,
+    legal_name VARCHAR(200) NOT NULL,
+    tax_id VARCHAR(50) NOT NULL,
+    address_notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status_id INT NOT NULL,
+    FOREIGN KEY (business_category_id) REFERENCES business_categories(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+CREATE TABLE business_details (
+    business_id INT PRIMARY KEY,
+    is_open_now BOOLEAN DEFAULT FALSE,
+    status_id INT NOT NULL,
+    notes TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES business(id) ON DELETE CASCADE,
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+CREATE TABLE business_hours (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    business_id INT NOT NULL,
+    day_of_week TINYINT NOT NULL,
+    open_time TIME,
+    close_time TIME,
+    is_closed BOOLEAN DEFAULT FALSE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (business_id) REFERENCES business(id) ON DELETE CASCADE
+);
+
+
+-- ============================================
+-- OWNERS & MANAGERS
+-- ============================================
+CREATE TABLE business_owners (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    business_id INT NOT NULL,
+    user_id INT NOT NULL,
+    invited_by INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status_id INT NOT NULL,
+    FOREIGN KEY (business_id) REFERENCES business(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (invited_by) REFERENCES users(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+CREATE TABLE business_managers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    business_id INT NOT NULL,
+    user_id INT NOT NULL,
+    added_by INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    status_id INT NOT NULL,
+    FOREIGN KEY (business_id) REFERENCES business(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (added_by) REFERENCES users(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+
+-- ============================================
+-- PRODUCT CATALOG
+-- ============================================
+CREATE TABLE product_categories (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(120) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE promotions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    promo_price DECIMAL(10,2),
+    original_price DECIMAL(10,2),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME
+);
+
+CREATE TABLE products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    business_id INT NOT NULL,
+    sku VARCHAR(60) NOT NULL,
+    barcode VARCHAR(80),
+    name VARCHAR(120) NOT NULL,
+    description_long TEXT,
+    description_short VARCHAR(255),
+    product_category_id INT NOT NULL,
+    product_subcategory_id INT,
+    price DECIMAL(10,2) NOT NULL,
+    discount_price DECIMAL(10,2),
+    currency VARCHAR(10) DEFAULT 'MXN',
+    sale_format VARCHAR(50),
+    price_per_unit DECIMAL(10,2),
+    tax_included BOOLEAN DEFAULT TRUE,
+    tax_rate DECIMAL(5,2),
+    commission_rate DECIMAL(5,2),
+    is_stock_available BOOLEAN DEFAULT TRUE,
+    max_per_order INT,
+    min_per_order INT,
+    promotion_id INT,
+    thumbnail_url VARCHAR(250),
+    stock_average INT DEFAULT 0,
+    stock_danger INT DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    expires_at DATETIME,
+    status_id INT NOT NULL,
+    FOREIGN KEY (business_id) REFERENCES business(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_category_id) REFERENCES product_categories(id),
+    FOREIGN KEY (promotion_id) REFERENCES promotions(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+
+-- ============================================
+-- ORDERS SYSTEM
+-- ============================================
+CREATE TABLE orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    business_id INT NOT NULL,
+    delivery_id INT,
+    status_id INT NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    payment_method VARCHAR(60),
+    is_paid BOOLEAN DEFAULT FALSE,
+    delivery_commission DECIMAL(10,2),
+    app_commission DECIMAL(10,2),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (business_id) REFERENCES business(id),
+    FOREIGN KEY (delivery_id) REFERENCES delivery(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+CREATE TABLE order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    product_id INT NOT NULL,
+    quantity INT NOT NULL,
+    unit_price DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    promotion_amount DECIMAL(10,2),
+    discount DECIMAL(10,2),
+    total DECIMAL(10,2) NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    FOREIGN KEY (product_id) REFERENCES products(id)
+);
+
+CREATE TABLE order_notes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT NOT NULL,
+    client_note TEXT,
+    business_note TEXT,
+    delivery_note TEXT,
+    FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE
+);
+
+
+-- ============================================
+-- DELIVERY & PAYMENTS
+-- ============================================
+CREATE TABLE vehicle_types (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(80) NOT NULL,
+    description VARCHAR(255)
+);
+
+CREATE TABLE delivery (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    status_id INT NOT NULL,
+    vehicle_type_id INT NOT NULL,
+    vehicle_plate VARCHAR(20),
+    base_rate DECIMAL(10,2) DEFAULT 0,
+    accepts_tips BOOLEAN DEFAULT TRUE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id),
+    FOREIGN KEY (vehicle_type_id) REFERENCES vehicle_types(id)
+);
+
+CREATE TABLE delivery_payments (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    delivery_id INT NOT NULL,
+    order_id INT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (delivery_id) REFERENCES delivery(id),
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE delivery_tips (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    delivery_id INT NOT NULL,
+    order_id INT NOT NULL,
+    tip_amount DECIMAL(10,2) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (delivery_id) REFERENCES delivery(id),
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE delivery_settlements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    delivery_id INT NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    start_period DATETIME NOT NULL,
+    end_period DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status_id INT NOT NULL,
+    FOREIGN KEY (delivery_id) REFERENCES delivery(id),
+    FOREIGN KEY (status_id) REFERENCES status_catalog(id)
+);
+
+CREATE TABLE delivery_metrics (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    delivery_id INT NOT NULL,
+    order_id INT NOT NULL,
+    distance_km DECIMAL(6,2),
+    delivery_time_minutes INT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (delivery_id) REFERENCES delivery(id),
+    FOREIGN KEY (order_id) REFERENCES orders(id)
+);
+
+
+INSERT INTO status_catalog (entity, code, label, sort_order, is_final)
+VALUES
+("users", "ACTIVE", "Usuario Activo", 1, FALSE),
+("users", "INACTIVE", "Usuario Inactivo", 2, TRUE),
+("users", "PENDING", "Pendiente de Aprobación", 0, FALSE);
+
+ALTER TABLE users
+ALTER status_id SET DEFAULT (
+  SELECT id FROM status_catalog WHERE entity = "users" AND code = "ACTIVE" LIMIT 1
+);

@@ -1,0 +1,61 @@
+-- Tabla principal de usuarios
+
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  first_name VARCHAR(100) NOT NULL,
+  last_name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  phone VARCHAR(30),
+  role ENUM('OWNER','MANAGER','CUSTOMER') NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Businesses
+CREATE TABLE businesses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  owner_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (owner_id) REFERENCES users(id)
+);
+
+-- Branch Details
+CREATE TABLE branch_details (
+  id_bd INT AUTO_INCREMENT PRIMARY KEY,
+  address VARCHAR(255) NOT NULL,
+  phone1 VARCHAR(30),
+  phone2 VARCHAR(30),
+  phone3 VARCHAR(30),
+);
+
+-- Branches
+CREATE TABLE branches (
+  id_branch INT AUTO_INCREMENT PRIMARY KEY,
+  business_id INT NOT NULL,
+  branch_details_id INT NOT NULL,
+  branch_name VARCHAR(150) NOT NULL,
+  FOREIGN KEY (business_id) REFERENCES businesses(id),
+  FOREIGN KEY (branch_details_id) REFERENCES branch_details(id_bd)
+);
+
+-- Owners (relation with Users)
+CREATE TABLE owners (
+  owner_id INT PRIMARY KEY,
+  FOREIGN KEY (owner_id) REFERENCES users(id)
+);
+
+-- Managers (user assigned to a branch)
+CREATE TABLE managers (
+  manager_id INT PRIMARY KEY,
+  branch_id INT NOT NULL,
+  FOREIGN KEY (manager_id) REFERENCES users(id),
+  FOREIGN KEY (branch_id) REFERENCES branches(id_branch)
+);
+
+-- Customers
+CREATE TABLE customers (
+  customer_id INT PRIMARY KEY,
+  FOREIGN KEY (customer_id) REFERENCES users(id)
+);

@@ -1,0 +1,30 @@
+export interface DBProduct {
+  id: number;
+  business_id: number;
+  sku: string;
+  barcode: string | null;
+  name: string;
+  description_long: string | null;
+  description_short: string | null;
+  product_category_id: number;
+  product_subcategory_id: number | null;
+  price: number;
+  discount_price: number | null;
+  currency: string;
+  sale_format: string;
+  price_per_unit: number | null;
+  tax_included: boolean;
+  tax_rate: number;
+  commission_rate: number;
+  is_stock_available: boolean;
+  max_per_order: number | null;
+  min_per_order: number | null;
+  promotion_id: number | null;
+  thumbnail_url: string | null;
+  stock_average: number;
+  stock_danger: number;
+  created_at: Date;
+  updated_at: Date;
+  expires_at: Date | null;
+  status_id: number;
+}
