@@ -14,11 +14,86 @@ const ROLE_SEEDS = [
   { name: "cliente", description: "Cliente de la plataforma" },
 ];
 
+const BUSINESS_CATEGORY_SEEDS = [
+  {
+    name: "Restaurante",
+    description: "Comida preparada y menu general",
+    icon: "store",
+  },
+  {
+    name: "Tacos",
+    description: "Taquerias y antojitos mexicanos",
+    icon: "utensils-crossed",
+  },
+  {
+    name: "Hamburguesas",
+    description: "Hamburguesas, hot dogs y comida rapida",
+    icon: "burger",
+  },
+  {
+    name: "Pizza",
+    description: "Pizzerias y especialidades al horno",
+    icon: "pizza",
+  },
+  {
+    name: "Pollo",
+    description: "Pollerias, alitas y rostizados",
+    icon: "drumstick",
+  },
+  {
+    name: "Mariscos",
+    description: "Ceviches, cocteles y marisqueria",
+    icon: "fish",
+  },
+  {
+    name: "Sushi",
+    description: "Sushi, ramen y comida asiatica",
+    icon: "fish",
+  },
+  {
+    name: "Cafe y postres",
+    description: "Cafeterias, panaderias y reposteria",
+    icon: "coffee",
+  },
+  {
+    name: "Bebidas",
+    description: "Jugos, licuados y bebidas preparadas",
+    icon: "cup-soda",
+  },
+  {
+    name: "Farmacia",
+    description: "Medicamentos y articulos de farmacia",
+    icon: "pill",
+  },
+  {
+    name: "Supermercado",
+    description: "Abarrotes, despensa y articulos del hogar",
+    icon: "shopping-cart",
+  },
+  {
+    name: "Mascotas",
+    description: "Alimentos y accesorios para mascotas",
+    icon: "paw-print",
+  },
+];
+
 async function ensureRole(role) {
   return prisma.roles.upsert({
     where: { name: role.name },
     update: { description: role.description, updated_at: new Date() },
     create: role,
+  });
+}
+
+async function ensureBusinessCategory(category) {
+  return prisma.business_categories.upsert({
+    where: { name: category.name },
+    update: {
+      description: category.description,
+      icon: category.icon,
+      updated_at: new Date(),
+    },
+    create: category,
   });
 }
 
@@ -36,6 +111,10 @@ async function ensureActiveStatus() {
 async function main() {
   for (const role of ROLE_SEEDS) {
     await ensureRole(role);
+  }
+
+  for (const category of BUSINESS_CATEGORY_SEEDS) {
+    await ensureBusinessCategory(category);
   }
 
   const activeStatus = await ensureActiveStatus();
