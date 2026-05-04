@@ -52,7 +52,7 @@ type AdminSection =
 type BusinessInfo = {
   id: number;
   name: string;
-  avatarUrl: string | null;
+  logo_url: string | null;
   categoryName: string;
   categoryId: number | null;
   city: string;
@@ -646,9 +646,9 @@ export function BusinessAdminDashboard() {
       setBusiness({
         id: businessId,
         name: String(businessPayload.name ?? "Tu negocio"),
-        avatarUrl:
-          typeof businessPayload.avatar_url === "string"
-            ? businessPayload.avatar_url
+        logo_url:
+          typeof businessPayload.logo_url === "string"
+            ? businessPayload.logo_url
             : null,
         categoryName: String(
           businessPayload.category_name ??
@@ -1670,7 +1670,7 @@ export function BusinessAdminDashboard() {
         prev
           ? {
               ...prev,
-              avatarUrl: nextAvatarUrl,
+              logo_url: nextAvatarUrl,
             }
           : prev,
       );
@@ -1734,7 +1734,7 @@ export function BusinessAdminDashboard() {
         );
       }
 
-      setBusiness((prev) => (prev ? { ...prev, avatarUrl: null } : prev));
+      setBusiness((prev) => (prev ? { ...prev, logo_url: null } : prev));
       setAvatarPreview(null);
       setFeedback({
         type: "success",
@@ -1787,7 +1787,7 @@ export function BusinessAdminDashboard() {
                   <div className="relative">
                     <UserAvatar
                       name={business?.name ?? "Tu negocio"}
-                      src={avatarPreview || business?.avatarUrl}
+                      src={avatarPreview || business?.logo_url}
                       size={88}
                       className="rounded-[28px] border-4 border-white/30 shadow-xl"
                     />
@@ -1832,7 +1832,7 @@ export function BusinessAdminDashboard() {
                       <button
                         type="button"
                         onClick={handleRemoveBusinessAvatar}
-                        disabled={avatarUploading || !business?.avatarUrl}
+                        disabled={avatarUploading || !business?.logo_url}
                         className="rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-bold uppercase tracking-[0.18em] text-white disabled:opacity-40"
                       >
                         Eliminar foto

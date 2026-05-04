@@ -7,7 +7,7 @@ import pool, { logDbUsage } from "@/lib/db";
 type BusinessRow = RowDataPacket & {
   id: number;
   name: string;
-  avatar_url: string | null;
+  logo_url: string | null;
   business_category_id: number | null;
   category_name: string | null;
   city: string | null;
@@ -91,10 +91,10 @@ async function getBusinessImageSelectExpression() {
   ].filter((column) => availableColumns.has(column));
 
   if (!candidates.length) {
-    return "NULL AS avatar_url";
+    return "NULL AS logo_url";
   }
 
-  return `COALESCE(${candidates.map((column) => `b.${column}`).join(", ")}) AS avatar_url`;
+  return `COALESCE(${candidates.map((column) => `b.${column}`).join(", ")}) AS logo_url`;
 }
 
 export async function GET(req: NextRequest) {
@@ -365,7 +365,7 @@ export async function GET(req: NextRequest) {
       business: {
         id: Number(business.id),
         name: business.name,
-        avatar_url: business.avatar_url ?? null,
+        logo_url: business.logo_url ?? null,
         category: business.category_name,
         category_name: business.category_name,
         business_category_id: business.business_category_id,
