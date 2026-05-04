@@ -35,6 +35,8 @@ export default function NewProductClient({
   const [categories, setCategories] = useState<{ id: number; name: string }[]>(
     [],
   );
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [categoriesError, setCategoriesError] = useState("");
 
   const [categoryId, setCategoryId] = useState<number | null>(null);
 
@@ -88,27 +90,48 @@ export default function NewProductClient({
   // ============================
   useEffect(() => {
     async function loadCategories() {
+      setIsLoadingCategories(true);
+      setCategoriesError("");
+
       try {
-        const res = await fetch("/api/product-categories", {
+        const res = await fetch("/api/product/categories", {
           cache: "no-store",
         });
 
         const data = await res.json();
 
-        if (res.ok && Array.isArray(data.categories)) {
-          const nextCategories = data.categories as Array<{
-            id: number;
-            name: string;
-          }>;
+        if (!res.ok || !Array.isArray(data.categories)) {
+          setCategories([]);
+          setCategoryId(null);
+          setCategoriesError(
+            data?.error || "No se pudieron cargar las categorías.",
+          );
+          return;
+        }
 
-          setCategories(nextCategories);
+        const nextCategories = data.categories
+          .map((category: { id: number; name: string }) => ({
+            id: Number(category.id),
+            name: String(category.name ?? ""),
+          }))
+          .filter((category: { id: number; name: string }) =>
+            Number.isFinite(category.id),
+          );
 
-          if (nextCategories.length > 0) {
-            setCategoryId(nextCategories[0].id);
-          }
+        setCategories(nextCategories);
+
+        if (nextCategories.length > 0) {
+          setCategoryId(nextCategories[0].id);
+        } else {
+          setCategoryId(null);
         }
       } catch (err) {
         console.error("Error cargando categorías:", err);
+        setCategories([]);
+        setCategoryId(null);
+        setCategoriesError("No se pudieron cargar las categorías.");
+      } finally {
+        setIsLoadingCategories(false);
       }
     }
 
@@ -445,10 +468,18 @@ export default function NewProductClient({
                         id="category"
                         value={categoryId ?? ""}
                         onChange={(e) => setCategoryId(Number(e.target.value))}
+                        disabled={isLoadingCategories || categories.length === 0}
                         className={inputClass}
+                        required
                       >
-                        {categories.length === 0 ? (
+                        {isLoadingCategories ? (
                           <option value="">Cargando...</option>
+                        ) : categoriesError ? (
+                          <option value="">
+                            No se pudieron cargar las categorías
+                          </option>
+                        ) : categories.length === 0 ? (
+                          <option value="">Sin categorías disponibles</option>
                         ) : (
                           categories.map((cat) => (
                             <option key={cat.id} value={cat.id}>
