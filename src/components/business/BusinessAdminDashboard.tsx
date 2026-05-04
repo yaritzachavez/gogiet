@@ -1638,10 +1638,10 @@ export function BusinessAdminDashboard() {
       setAvatarUploading(true);
       const formData = new FormData();
       formData.append("business_id", String(business.id));
-      formData.append("avatar", file);
+      formData.append("file", file);
 
-      const response = await fetch("/api/business/avatar", {
-        method: "PATCH",
+      const response = await fetch("/api/business/photo", {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -1660,7 +1660,11 @@ export function BusinessAdminDashboard() {
       }
 
       const nextAvatarUrl =
-        typeof payload?.avatar_url === "string" ? payload.avatar_url : null;
+        typeof payload?.imageUrl === "string"
+          ? payload.imageUrl
+          : typeof payload?.avatar_url === "string"
+            ? payload.avatar_url
+            : null;
 
       setBusiness((prev) =>
         prev
@@ -1711,8 +1715,8 @@ export function BusinessAdminDashboard() {
       formData.append("business_id", String(business.id));
       formData.append("remove", "1");
 
-      const response = await fetch("/api/business/avatar", {
-        method: "PATCH",
+      const response = await fetch("/api/business/photo", {
+        method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },

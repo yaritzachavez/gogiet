@@ -186,6 +186,21 @@ async function main() {
     },
   });
 
+  await prisma.product_categories.createMany({
+    data: [
+      { name: "hamburguesas", description: "Productos tipo hamburguesa" },
+      { name: "pizzas", description: "Productos tipo pizza" },
+      { name: "bebidas", description: "Bebidas frías o calientes" },
+      { name: "postres", description: "Pasteles, pays y dulces" },
+      { name: "snacks", description: "Botanas y acompañamientos" },
+      { name: "restaurante", description: "Venta de comida preparada" },
+      { name: "cafeteria", description: "Bebidas y snacks" },
+      { name: "farmacia", description: "Medicamentos y productos de farmacia" },
+      { name: "supermercado", description: "Abarrotes y productos básicos" },
+    ],
+    skipDuplicates: true,
+  });
+
   console.log("Admin general inicial listo:", {
     email: adminUser.email,
     password: adminPassword,

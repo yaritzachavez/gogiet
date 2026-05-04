@@ -67,19 +67,34 @@ function toPositiveNumber(value: string | null) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-async function businessHasAvatarColumn() {
+async function getBusinessImageSelectExpression() {
   const [rows] = await pool.query<BusinessAvatarColumnRow[]>(
     `
       SELECT column_name
       FROM information_schema.columns
       WHERE table_schema = DATABASE()
         AND table_name = 'business'
-        AND column_name = 'avatar_url'
-      LIMIT 1
+        AND column_name IN ('logo_url', 'image_url', 'photo_url', 'logo', 'avatar_url')
     `,
   );
 
-  return rows.length > 0;
+  const availableColumns = new Set(
+    rows.map((row) => String(row.column_name).toLowerCase()),
+  );
+
+  const candidates = [
+    "logo_url",
+    "image_url",
+    "photo_url",
+    "logo",
+    "avatar_url",
+  ].filter((column) => availableColumns.has(column));
+
+  if (!candidates.length) {
+    return "NULL AS avatar_url";
+  }
+
+  return `COALESCE(${candidates.map((column) => `b.${column}`).join(", ")}) AS avatar_url`;
 }
 
 export async function GET(req: NextRequest) {
@@ -239,10 +254,7 @@ export async function GET(req: NextRequest) {
       rawBusinessRows,
     );
 
-    const hasAvatarColumn = await businessHasAvatarColumn();
-    const avatarSelect = hasAvatarColumn
-      ? "b.avatar_url"
-      : "NULL AS avatar_url";
+    const avatarSelect = await getBusinessImageSelectExpression();
 
     const [rows] = await pool.query<BusinessRow[]>(
       `
