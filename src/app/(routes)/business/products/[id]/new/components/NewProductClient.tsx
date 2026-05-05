@@ -270,6 +270,9 @@ export default function NewProductClient({
           const formData = new FormData();
           formData.append("file", imageFile);
 
+          console.error(
+            "[product-image] subiendo imagen con /api/upload/product-image",
+          );
           const uploadResponse = await fetch("/api/upload/product-image", {
             method: "POST",
             headers: {

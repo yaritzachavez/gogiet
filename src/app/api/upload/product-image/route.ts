@@ -23,6 +23,8 @@ async function uploadProductImage(file: File) {
 
 export async function POST(req: NextRequest) {
   try {
+    console.error("[product-image] usando endpoint Cloudinary /api/upload/product-image");
+
     const authUser = getAuthUser(req);
 
     if (!authUser?.user) {
