@@ -1,106 +1,180 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+
+import { getAuthUser } from "@/lib/admin-security";
 import pool from "@/lib/db";
 
-export async function POST(req: Request) {
-  try {
-    const { user_id } = await req.json();
+async function getActiveCartByUserId(userId: number) {
+  const [cartRows]: any = await pool.query(
+    `
+      SELECT *
+      FROM cart
+      WHERE user_id = ?
+        AND COALESCE(status, 'activo') = 'activo'
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+    `,
+    [userId],
+  );
 
-    if (!user_id) {
+  return cartRows[0] ?? null;
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const authUser = getAuthUser(req);
+    const body = await req.json().catch(() => ({}));
+    const requestedUserId = Number(body?.user_id);
+    const authUserId = Number(authUser?.user?.id ?? 0);
+    const userId =
+      Number.isInteger(authUserId) && authUserId > 0
+        ? authUserId
+        : requestedUserId;
+
+    if (!userId) {
       return NextResponse.json(
-        { error: "user_id es requerido" },
-        { status: 400 }
+        { success: false, error: "user_id es requerido" },
+        { status: 400 },
       );
     }
 
-    // Crear carrito vacío
+    if (
+      Number.isInteger(authUserId) &&
+      authUserId > 0 &&
+      requestedUserId &&
+      requestedUserId !== authUserId
+    ) {
+      return NextResponse.json(
+        { success: false, error: "No autorizado para este carrito" },
+        { status: 403 },
+      );
+    }
+
+    const existingCart = await getActiveCartByUserId(userId);
+
+    if (existingCart) {
+      return NextResponse.json({
+        success: true,
+        message: "Carrito activo encontrado",
+        cart_id: Number(existingCart.id),
+        cart: existingCart,
+      });
+    }
+
     const [result]: any = await pool.query(
-      `INSERT INTO cart (user_id, total) VALUES (?, 0.00)`,
-      [user_id]
+      `
+        INSERT INTO cart (user_id, status, created_at, updated_at)
+        VALUES (?, 'activo', NOW(), NOW())
+      `,
+      [userId],
     );
 
     return NextResponse.json({
+      success: true,
       message: "Carrito creado",
       cart_id: result.insertId,
     });
   } catch (err) {
-    console.error(err);
+    console.error("ADD TO CART ERROR:", err);
     return NextResponse.json(
-      { error: "Error al crear carrito" },
-      { status: 500 }
+      { success: false, error: "Error al crear carrito" },
+      { status: 500 },
     );
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    const authUser = getAuthUser(req);
     const url = new URL(req.url);
-    const user_id = url.searchParams.get("user_id");
+    const requestedUserId = Number(url.searchParams.get("user_id"));
+    const authUserId = Number(authUser?.user?.id ?? 0);
+    const userId =
+      Number.isInteger(authUserId) && authUserId > 0
+        ? authUserId
+        : requestedUserId;
 
-    if (!user_id) {
+    if (!userId) {
       return NextResponse.json(
-        { error: "user_id es requerido" },
-        { status: 400 }
+        { success: false, error: "user_id es requerido" },
+        { status: 400 },
       );
     }
 
-    // Obtener carrito activo
-    const [cartRows]: any = await pool.query(
-      `SELECT * FROM cart WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
-      [user_id]
-    );
+    if (
+      Number.isInteger(authUserId) &&
+      authUserId > 0 &&
+      requestedUserId &&
+      requestedUserId !== authUserId
+    ) {
+      return NextResponse.json(
+        { success: false, error: "No autorizado para este carrito" },
+        { status: 403 },
+      );
+    }
 
-    if (cartRows.length === 0) {
+    const cart = await getActiveCartByUserId(userId);
+
+    if (!cart) {
       return NextResponse.json({
+        success: true,
         message: "El usuario no tiene carrito",
         cart: null,
         products: [],
+        total: 0,
       });
     }
 
-    const cart = cartRows[0];
-
-    // Obtener productos del carrito
     const [productRows]: any = await pool.query(
       `
-      SELECT 
-        pc.id AS products_cart_id,
-        p.id AS product_id,
-        p.name,
-        p.price,
-        pc.quantity,
-        pc.discount,
-        pc.total
-      FROM products_cart pc
-      INNER JOIN products p ON p.id = pc.product_id
-      WHERE pc.cart_id = ?
+        SELECT
+          pc.product_id,
+          p.id AS product_id_ref,
+          p.name,
+          p.price,
+          p.thumbnail_url,
+          p.image_url,
+          pc.quantity,
+          COALESCE(pc.subtotal, pc.total, p.price * pc.quantity) AS total
+        FROM products_cart pc
+        INNER JOIN products p ON p.id = pc.product_id
+        WHERE pc.cart_id = ?
+        ORDER BY pc.added_at DESC, pc.product_id DESC
       `,
-      [cart.id]
+      [cart.id],
     );
 
-    // Recalcular total del carrito
     const [totalRow]: any = await pool.query(
-      `SELECT SUM(total) AS total FROM products_cart WHERE cart_id = ?`,
-      [cart.id]
+      `
+        SELECT COALESCE(SUM(COALESCE(subtotal, total, 0)), 0) AS total
+        FROM products_cart
+        WHERE cart_id = ?
+      `,
+      [cart.id],
     );
 
-    const updatedTotal = totalRow[0].total ?? 0;
+    const updatedTotal = Number(totalRow[0]?.total ?? 0);
 
-    // Actualizar total en DB (sync)
-    await pool.query(`UPDATE cart SET total = ? WHERE id = ?`, [
-      updatedTotal,
-      cart.id,
-    ]);
+    try {
+      await pool.query(
+        `UPDATE cart SET total = ?, updated_at = NOW() WHERE id = ?`,
+        [updatedTotal, cart.id],
+      );
+    } catch (error) {
+      console.error("ADD TO CART ERROR:", error);
+    }
 
     return NextResponse.json({
+      success: true,
       cart,
       products: productRows,
       total: updatedTotal,
     });
   } catch (err) {
-    console.error(err);
+    console.error("ADD TO CART ERROR:", err);
     return NextResponse.json(
-      { error: "Error al obtener carrito" },
-      { status: 500 }
+      { success: false, error: "Error al obtener carrito" },
+      { status: 500 },
     );
   }
 }
