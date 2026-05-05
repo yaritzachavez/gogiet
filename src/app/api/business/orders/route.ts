@@ -4,6 +4,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import {
+  getOrderStatusLabel,
+  resolveCanonicalOrderStatus,
+} from "@/lib/order-status";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
 
 type OrderRow = RowDataPacket & {
@@ -16,6 +20,7 @@ type OrderRow = RowDataPacket & {
   created_at: string;
   customer_name: string | null;
   payment_method: string | null;
+  payment_receipt_url: string | null;
   street: string | null;
   external_number: string | null;
   internal_number: string | null;
@@ -44,29 +49,6 @@ type OrderItemRow = RowDataPacket & {
 function toPositiveNumber(value: string | null) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function normalizeStatus(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, " ");
-}
-
-function formatStatusLabel(value: unknown) {
-  const normalized = normalizeStatus(value);
-  if (normalized === "listo para recoger") return "Listo para recoger";
-  if (normalized === "repartidor solicitado") return "Repartidor solicitado";
-  if (normalized === "repartidor asignado") return "Repartidor asignado";
-  if (normalized === "repartidor rechazado") return "Repartidor rechazado";
-  if (normalized === "pedido entregado") return "Pedido entregado";
-  if (normalized === "entregado") return "Pedido entregado";
-  if (normalized === "preparando") return "Preparando";
-  if (normalized === "pendiente") return "Pendiente";
-  if (normalized === "pago validado") return "Pago validado";
-  return String(value ?? "Pendiente")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function buildAddress(row: OrderRow) {
@@ -148,8 +130,9 @@ export async function GET(req: NextRequest) {
           a.city,
           a.state,
           o.customer_notes,
+          COALESCE(o.payment_receipt_url, o.comprobante_pago_url) AS payment_receipt_url,
           d.id AS delivery_id,
-          d.driver_user_id,
+          COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id,
           dsc.name AS delivery_status_name,
           ${deliveryAvatarSelect},
           TRIM(CONCAT_WS(' ', du.first_name, du.last_name)) AS delivery_name,
@@ -165,7 +148,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN delivery_status_catalog dsc ON dsc.id = d.delivery_status_id
         LEFT JOIN users du ON du.id = d.driver_user_id
         WHERE o.business_id = ?
-          AND LOWER(TRIM(COALESCE(osc.name, ''))) NOT IN ('cancelado')
+          AND LOWER(TRIM(COALESCE(osc.name, ''))) NOT IN ('cancelado', 'cancelled')
         ORDER BY COALESCE(o.placed_at, o.created_at) DESC, o.id DESC
       `,
       [access.businessId],
@@ -210,10 +193,12 @@ export async function GET(req: NextRequest) {
         businessId: Number(row.business_id),
         businessName: row.business_name,
         total: Number(row.total_amount ?? 0),
-        status: formatStatusLabel(row.status_name),
+        status: getOrderStatusLabel(row.status_name),
+        statusCode: resolveCanonicalOrderStatus(row.status_name),
         placedAt: row.placed_at ?? row.created_at,
         customerName: row.customer_name ?? "Cliente",
         paymentMethod: row.payment_method ?? "Sin método",
+        paymentReceiptUrl: row.payment_receipt_url ?? null,
         address: buildAddress(row),
         notes: row.customer_notes ?? "",
         deliveryUserId: Number(row.driver_user_id ?? 0) || null,

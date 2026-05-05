@@ -130,6 +130,7 @@ export async function GET(req: NextRequest) {
         SELECT
           pc.product_id,
           p.id AS product_id_ref,
+          p.business_id,
           p.name,
           p.price,
           p.thumbnail_url,

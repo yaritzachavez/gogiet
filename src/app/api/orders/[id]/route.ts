@@ -2,8 +2,17 @@ import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
 import { createNotificationsForAdminGeneral } from "@/lib/notifications";
+import {
+  getOrderStatusLabel,
+  resolveCanonicalOrderStatus,
+} from "@/lib/order-status";
+import {
+  ensureCanonicalOrderStatus,
+  ensureCoreOrderStatuses,
+} from "@/lib/order-status-server";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
 
@@ -60,6 +69,44 @@ function normalizeId(value: string) {
 }
 
 async function ensureOrdersColumns() {
+  await pool.query(
+    `
+      CREATE TABLE IF NOT EXISTS orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        cart_id INT NULL,
+        business_id INT NOT NULL,
+        driver_id INT NULL,
+        address_id INT NOT NULL,
+        payment_method_id INT NOT NULL,
+        payment_method VARCHAR(50) NULL,
+        payment_receipt_url MEDIUMTEXT NULL,
+        comprobante_pago_url MEDIUMTEXT NULL,
+        order_status_id INT NOT NULL,
+        subtotal DECIMAL(10,2) NOT NULL,
+        terminal_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        service_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        tip_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        total_amount DECIMAL(10,2) NOT NULL,
+        customer_notes VARCHAR(255) NULL,
+        placed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        confirmed_at DATETIME NULL,
+        delivered_at DATETIME NULL,
+        cancelled_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX fk_orders_user (user_id),
+        INDEX fk_orders_cart (cart_id),
+        INDEX fk_orders_business (business_id),
+        INDEX fk_orders_address (address_id),
+        INDEX fk_orders_payment_method (payment_method_id),
+        INDEX fk_orders_order_status (order_status_id)
+      )
+    `,
+  );
+
   const [columns] = await pool.query<ColumnRow[]>("SHOW COLUMNS FROM orders");
   const columnNames = new Set(columns.map((column) => String(column.Field)));
 
@@ -92,6 +139,47 @@ async function ensureOrdersColumns() {
       `,
     );
   }
+
+  if (!columnNames.has("payment_receipt_url")) {
+    await pool.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN payment_receipt_url MEDIUMTEXT NULL
+        AFTER payment_method
+      `,
+    );
+  }
+
+  if (!columnNames.has("driver_id")) {
+    await pool.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN driver_id INT NULL
+        AFTER business_id
+      `,
+    );
+  }
+}
+
+async function ensureOrderItemsTable() {
+  await pool.query(
+    `
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id INT NOT NULL,
+        product_id INT NOT NULL,
+        product_name_snapshot VARCHAR(120) NOT NULL,
+        unit_price DECIMAL(10,2) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        subtotal DECIMAL(10,2) NOT NULL,
+        notes VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX fk_order_items_order (order_id),
+        INDEX fk_order_items_product (product_id)
+      )
+    `,
+  );
 }
 
 async function ensureAdminMessagesTable() {
@@ -195,6 +283,8 @@ async function getOrCreateCatalogIdByName(
 
 async function getOrderById(orderId: number): Promise<any | null> {
   await ensureOrdersColumns();
+  await ensureOrderItemsTable();
+  await ensureCoreOrderStatuses();
   await ensureAdminMessagesTable();
   const avatarColumns = await getUserAvatarColumns();
   const courierAvatarSelect = buildUserAvatarSelect(
@@ -221,7 +311,7 @@ async function getOrderById(orderId: number): Promise<any | null> {
         a.city AS delivery_city,
         o.payment_method_id,
         COALESCE(o.payment_method, pm.name) AS payment_method,
-        o.comprobante_pago_url,
+        COALESCE(o.payment_receipt_url, o.comprobante_pago_url) AS payment_receipt_url,
         o.order_status_id,
         osc.name AS status_name,
         o.subtotal,
@@ -236,7 +326,7 @@ async function getOrderById(orderId: number): Promise<any | null> {
         o.created_at,
         o.updated_at
         ,
-        d.driver_user_id AS delivery_user_id,
+        COALESCE(o.driver_id, d.driver_user_id) AS delivery_user_id,
         TRIM(CONCAT_WS(' ', du.first_name, du.last_name)) AS delivery_name,
         du.phone AS delivery_phone,
         ${courierAvatarSelect},
@@ -345,9 +435,14 @@ export async function GET(req: NextRequest, context: RouteContext) {
       );
     }
 
+    const businessAccess = await resolveBusinessAccess(
+      authUser.id,
+      Number(order.business_id ?? 0),
+    );
     const canViewOrder =
       Number(order.user_id) === authUser.id ||
-      (await isAdminGeneral(authUser.id));
+      (await isAdminGeneral(authUser.id)) ||
+      businessAccess.businessIds.includes(Number(order.business_id ?? 0));
 
     if (!canViewOrder) {
       return NextResponse.json(
@@ -356,7 +451,12 @@ export async function GET(req: NextRequest, context: RouteContext) {
       );
     }
 
-    return NextResponse.json({ message: "OK", order });
+    return NextResponse.json({
+      message: "OK",
+      status: resolveCanonicalOrderStatus(order.status_name),
+      statusLabel: getOrderStatusLabel(order.status_name),
+      order,
+    });
   } catch (error) {
     console.error("Error GET /api/orders/:id:", error);
     return NextResponse.json(
@@ -400,16 +500,13 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     const body = await req.json();
     await ensureOrdersColumns();
+    await ensureCoreOrderStatuses();
     await ensureAdminMessagesTable();
     const fields: string[] = [];
     const values: Array<string | number | null> = [];
 
     if (body.status !== undefined) {
-      const statusName = normalizeCatalogName(body.status, "pendiente");
-      const statusId = await getOrCreateCatalogIdByName(
-        "order_status_catalog",
-        statusName,
-      );
+      const { statusId } = await ensureCanonicalOrderStatus(body.status);
 
       fields.push("order_status_id = ?");
       values.push(statusId);
@@ -431,9 +528,18 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       values.push(paymentMethodName);
     }
 
-    if (body.comprobante_pago_url !== undefined) {
+    if (
+      body.payment_receipt_url !== undefined ||
+      body.comprobante_pago_url !== undefined
+    ) {
+      const receiptUrl =
+        String(
+          body.payment_receipt_url ?? body.comprobante_pago_url ?? "",
+        ).trim() || null;
+      fields.push("payment_receipt_url = ?");
+      values.push(receiptUrl);
       fields.push("comprobante_pago_url = ?");
-      values.push(String(body.comprobante_pago_url ?? "").trim() || null);
+      values.push(receiptUrl);
     }
 
     if (body.customer_notes !== undefined) {
@@ -444,7 +550,8 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     if (
       !fields.length &&
       body.transfer_receipt_note === undefined &&
-      body.comprobante_pago_url === undefined
+      body.comprobante_pago_url === undefined &&
+      body.payment_receipt_url === undefined
     ) {
       return NextResponse.json(
         { error: "Nada que actualizar" },
@@ -476,8 +583,13 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       }
     }
 
-    if (body.comprobante_pago_url !== undefined) {
-      const proofUrl = String(body.comprobante_pago_url ?? "").trim();
+    if (
+      body.payment_receipt_url !== undefined ||
+      body.comprobante_pago_url !== undefined
+    ) {
+      const proofUrl = String(
+        body.payment_receipt_url ?? body.comprobante_pago_url ?? "",
+      ).trim();
 
       if (proofUrl) {
         await pool.query(

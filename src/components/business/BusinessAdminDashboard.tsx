@@ -86,6 +86,7 @@ type BusinessOrder = {
   businessName: string;
   total: number;
   status: string;
+  statusCode?: string;
   placedAt: string;
   customerName: string;
   paymentMethod: string;
@@ -998,7 +999,7 @@ export function BusinessAdminDashboard() {
         type: "success",
         message:
           (typeof data.message === "string" && data.message) ||
-          "Pedido listo correctamente.",
+          "Pedido listo. Ahora puedes solicitar repartidor.",
       });
       await refreshData();
     });
@@ -1646,10 +1647,9 @@ export function BusinessAdminDashboard() {
         },
         body: formData,
       });
-      const uploadPayload = (await uploadResponse.json().catch(() => null)) as Record<
-        string,
-        unknown
-      > | null;
+      const uploadPayload = (await uploadResponse
+        .json()
+        .catch(() => null)) as Record<string, unknown> | null;
 
       if (!uploadResponse.ok || uploadPayload?.success === false) {
         throw new Error(
@@ -1675,10 +1675,9 @@ export function BusinessAdminDashboard() {
           logo_url: uploadedUrl,
         }),
       });
-      const savePayload = (await saveResponse.json().catch(() => null)) as Record<
-        string,
-        unknown
-      > | null;
+      const savePayload = (await saveResponse
+        .json()
+        .catch(() => null)) as Record<string, unknown> | null;
 
       if (!saveResponse.ok || savePayload?.success === false) {
         throw new Error(
@@ -2191,6 +2190,13 @@ export function BusinessAdminDashboard() {
                             type="button"
                             onClick={() => handleRequestDriver(order.id)}
                             disabled={busyKey === `order-driver-${order.id}`}
+                            hidden={
+                              normalizeStatus(
+                                order.statusCode || order.status,
+                              ) !== "ready_for_pickup" ||
+                              order.deliveryRequested ||
+                              Boolean(order.deliveryUserId)
+                            }
                             className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-orange-700 disabled:opacity-60"
                           >
                             Solicitar repartidor

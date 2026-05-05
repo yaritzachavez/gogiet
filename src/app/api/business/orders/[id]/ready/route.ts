@@ -2,16 +2,19 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { ensureOrderStatus, resolveBusinessAccess } from "@/lib/business-panel";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
 import {
-  DeliveryAssignmentError,
-  requestCourierAssignment,
-} from "@/lib/delivery-assignments";
+  ensureCanonicalOrderStatus,
+  ensureCoreOrderStatuses,
+} from "@/lib/order-status-server";
 
 type OrderRow = RowDataPacket & {
   id: number;
   business_id: number;
+  business_name: string;
+  customer_user_id: number;
 };
 
 export async function PATCH(
@@ -49,9 +52,14 @@ export async function PATCH(
 
     const [orderRows] = await pool.query<OrderRow[]>(
       `
-        SELECT id, business_id
-        FROM orders
-        WHERE id = ?
+        SELECT
+          o.id,
+          o.business_id,
+          o.user_id AS customer_user_id,
+          b.name AS business_name
+        FROM orders o
+        INNER JOIN business b ON b.id = o.business_id
+        WHERE o.id = ?
         LIMIT 1
       `,
       [orderId],
@@ -81,11 +89,8 @@ export async function PATCH(
       );
     }
 
-    const statusId = await ensureOrderStatus(
-      "listo_para_recoger",
-      "Pedido listo para que el repartidor lo recoja",
-      4,
-    );
+    await ensureCoreOrderStatuses();
+    const { statusId } = await ensureCanonicalOrderStatus("ready_for_pickup");
 
     await pool.query<ResultSetHeader>(
       `
@@ -105,59 +110,24 @@ export async function PATCH(
       orderStatusId: statusId,
     });
 
-    try {
-      const result = await requestCourierAssignment({
-        orderId,
-        userId: authUser.user.id,
-      });
+    await createNotification({
+      userId: Number(orderRows[0].customer_user_id),
+      type: "pedido",
+      title: `Pedido listo #FG-${String(orderId).padStart(4, "0")}`,
+      message: `Tu pedido de ${orderRows[0].business_name} ya está listo para entrega.`,
+      relatedId: orderId,
+      dataJson: {
+        order_id: orderId,
+        business_id: Number(orderRows[0].business_id),
+        status: "ready_for_pickup",
+      },
+    });
 
-      console.log("[business-ready] Respuesta backend", {
-        orderId,
-        deliveryRequested: true,
-        result,
-      });
-
-      return NextResponse.json({
-        success: true,
-        deliveryRequested: true,
-        delivery_user_id: result.courierId,
-        delivery_name: result.courierName,
-        delivery_phone: result.courierPhone,
-        delivery_profile_image_url: result.courierAvatarUrl,
-        message: result.message,
-        data: result,
-      });
-    } catch (error) {
-      if (
-        error instanceof DeliveryAssignmentError &&
-        error.message ===
-          "Este pedido ya tiene un repartidor asignado o pendiente de respuesta."
-      ) {
-        return NextResponse.json({
-          success: true,
-          deliveryRequested: true,
-          message:
-            "Pedido listo. Ya existía una solicitud de repartidor activa.",
-        });
-      }
-
-      if (error instanceof DeliveryAssignmentError) {
-        console.error("[business-ready] Error real backend", {
-          orderId,
-          error: error.message,
-          status: error.status,
-          debug: error.debug,
-        });
-
-        return NextResponse.json({
-          success: false,
-          error: error.message,
-          debug: error.debug ?? null,
-        });
-      }
-
-      throw error;
-    }
+    return NextResponse.json({
+      success: true,
+      deliveryRequested: false,
+      message: "Pedido listo. Ahora puedes solicitar repartidor.",
+    });
   } catch (error) {
     console.error("[business-ready] Error real backend", error);
     return NextResponse.json(

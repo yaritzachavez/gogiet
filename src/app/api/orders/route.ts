@@ -10,6 +10,14 @@ import {
   createNotificationForBusiness,
   createNotificationsForAdminGeneral,
 } from "@/lib/notifications";
+import {
+  getOrderStatusLabel,
+  resolveCanonicalOrderStatus,
+} from "@/lib/order-status";
+import {
+  ensureCanonicalOrderStatus,
+  ensureCoreOrderStatuses,
+} from "@/lib/order-status-server";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 
 type JwtPayload = {
@@ -84,6 +92,44 @@ function toPositiveNumber(value: unknown) {
 }
 
 async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
+  await conn.query(
+    `
+      CREATE TABLE IF NOT EXISTS orders (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        cart_id INT NULL,
+        business_id INT NOT NULL,
+        driver_id INT NULL,
+        address_id INT NOT NULL,
+        payment_method_id INT NOT NULL,
+        payment_method VARCHAR(50) NULL,
+        payment_receipt_url MEDIUMTEXT NULL,
+        comprobante_pago_url MEDIUMTEXT NULL,
+        order_status_id INT NOT NULL,
+        subtotal DECIMAL(10,2) NOT NULL,
+        terminal_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        service_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        tip_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        total_amount DECIMAL(10,2) NOT NULL,
+        customer_notes VARCHAR(255) NULL,
+        placed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        confirmed_at DATETIME NULL,
+        delivered_at DATETIME NULL,
+        cancelled_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX fk_orders_user (user_id),
+        INDEX fk_orders_cart (cart_id),
+        INDEX fk_orders_business (business_id),
+        INDEX fk_orders_address (address_id),
+        INDEX fk_orders_payment_method (payment_method_id),
+        INDEX fk_orders_order_status (order_status_id)
+      )
+    `,
+  );
+
   const [columns] = await conn.query<ColumnRow[]>("SHOW COLUMNS FROM orders");
   const columnNames = new Set(columns.map((column) => String(column.Field)));
 
@@ -116,6 +162,47 @@ async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
       `,
     );
   }
+
+  if (!columnNames.has("payment_receipt_url")) {
+    await conn.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN payment_receipt_url MEDIUMTEXT NULL
+        AFTER payment_method
+      `,
+    );
+  }
+
+  if (!columnNames.has("driver_id")) {
+    await conn.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN driver_id INT NULL
+        AFTER business_id
+      `,
+    );
+  }
+}
+
+async function ensureOrderItemsTable(conn: PoolConnection | typeof pool) {
+  await conn.query(
+    `
+      CREATE TABLE IF NOT EXISTS order_items (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        order_id INT NOT NULL,
+        product_id INT NOT NULL,
+        product_name_snapshot VARCHAR(120) NOT NULL,
+        unit_price DECIMAL(10,2) NOT NULL,
+        quantity INT NOT NULL DEFAULT 1,
+        subtotal DECIMAL(10,2) NOT NULL,
+        notes VARCHAR(255) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX fk_order_items_order (order_id),
+        INDEX fk_order_items_product (product_id)
+      )
+    `,
+  );
 }
 
 async function ensureAdminMessagesTable(conn: PoolConnection | typeof pool) {
@@ -276,7 +363,7 @@ async function getOrderById(
         a.city AS delivery_city,
         o.payment_method_id,
         COALESCE(o.payment_method, pm.name) AS payment_method,
-        o.comprobante_pago_url,
+        COALESCE(o.payment_receipt_url, o.comprobante_pago_url) AS payment_receipt_url,
         o.order_status_id,
         osc.name AS status_name,
         o.subtotal,
@@ -294,7 +381,7 @@ async function getOrderById(
         o.created_at,
         o.updated_at,
         d.id AS delivery_id,
-        d.driver_user_id
+        COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id
       FROM orders o
       LEFT JOIN users u ON u.id = o.user_id
       LEFT JOIN business b ON b.id = o.business_id
@@ -363,6 +450,8 @@ export async function GET(req: NextRequest) {
       role: authUser.roles ?? [],
     });
     await ensureOrdersColumns(pool);
+    await ensureOrderItemsTable(pool);
+    await ensureCoreOrderStatuses(pool);
     await ensureAdminMessagesTable(pool);
 
     const { searchParams } = new URL(req.url);
@@ -395,7 +484,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (deliveryId) {
-      filters.push("d.driver_user_id = ?");
+      filters.push("COALESCE(o.driver_id, d.driver_user_id) = ?");
       values.push(deliveryId);
     }
 
@@ -418,7 +507,7 @@ export async function GET(req: NextRequest) {
           b.address AS pickup_address,
           b.district AS pickup_district,
           d.id AS delivery_id,
-          d.driver_user_id,
+          COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id,
           o.order_status_id AS status_id,
           osc.name AS status_name,
           o.address_id,
@@ -498,7 +587,8 @@ export async function GET(req: NextRequest) {
 
         return {
           id: Number(order.id),
-          status: String(order.status_name ?? ""),
+          status: resolveCanonicalOrderStatus(order.status_name),
+          statusLabel: getOrderStatusLabel(order.status_name),
           customerName: String(order.customer_name ?? ""),
           customerPhone: String(order.customer_phone ?? ""),
           businessName: String(order.business_name ?? ""),
@@ -508,8 +598,11 @@ export async function GET(req: NextRequest) {
           shippingCost: Number(order.delivery_fee ?? 0),
           serviceFee: Number(order.service_fee ?? 0),
           paymentMethod: String(order.payment_method ?? ""),
-          transferProofUrl: order.comprobante_pago_url
-            ? String(order.comprobante_pago_url)
+          paymentReceiptUrl: order.payment_receipt_url
+            ? String(order.payment_receipt_url)
+            : "",
+          transferProofUrl: order.payment_receipt_url
+            ? String(order.payment_receipt_url)
             : "",
           createdAt: order.created_at,
           address: {
@@ -602,10 +695,12 @@ export async function POST(req: NextRequest) {
 
     await conn.beginTransaction();
     await ensureOrdersColumns(conn);
+    await ensureOrderItemsTable(conn);
+    await ensureCoreOrderStatuses(conn);
     await ensureAdminMessagesTable(conn);
 
     const addressId =
-      toPositiveNumber(body.address_id) ??
+      toPositiveNumber(body.delivery_address_id ?? body.address_id) ??
       (await getDefaultAddressId(conn, userId));
     const addressIsValid = addressId
       ? await addressBelongsToUser(conn, addressId, userId)
@@ -614,20 +709,26 @@ export async function POST(req: NextRequest) {
       body.payment_method,
       "efectivo",
     );
-    const orderStatusName = normalizeCatalogName(body.status, "pendiente");
+    const requestedStatus = resolveCanonicalOrderStatus(body.status);
     const paymentMethodId =
       toPositiveNumber(body.payment_method_id) ??
       (await getOrCreateCatalogId(conn, "payment_methods", paymentMethodName));
-    const orderStatusId =
-      toPositiveNumber(body.order_status_id ?? body.status_id) ??
-      (await getOrCreateCatalogId(
-        conn,
-        "order_status_catalog",
-        orderStatusName,
-      ));
+    const orderStatusId = toPositiveNumber(
+      body.order_status_id ?? body.status_id,
+    );
+    const resolvedStatus =
+      orderStatusId != null
+        ? { statusId: orderStatusId, canonical: requestedStatus }
+        : await ensureCanonicalOrderStatus(
+            paymentMethodName === "transferencia"
+              ? "payment_review"
+              : requestedStatus,
+            conn,
+          );
     const transferProofUrl =
-      typeof body.comprobante_pago_url === "string"
-        ? body.comprobante_pago_url.trim()
+      typeof (body.payment_receipt_url ?? body.comprobante_pago_url) ===
+      "string"
+        ? String(body.payment_receipt_url ?? body.comprobante_pago_url).trim()
         : "";
     const transferReceiptNote =
       typeof body.transfer_receipt_note === "string"
@@ -795,6 +896,7 @@ export async function POST(req: NextRequest) {
           address_id,
           payment_method_id,
           payment_method,
+          payment_receipt_url,
           comprobante_pago_url,
           order_status_id,
           subtotal,
@@ -809,7 +911,7 @@ export async function POST(req: NextRequest) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
       `,
       [
         userId,
@@ -819,7 +921,8 @@ export async function POST(req: NextRequest) {
         paymentMethodId,
         paymentMethodName,
         transferProofUrl || null,
-        orderStatusId,
+        transferProofUrl || null,
+        resolvedStatus.statusId,
         subtotal,
         terminalFee,
         deliveryFee,
@@ -922,7 +1025,9 @@ export async function POST(req: NextRequest) {
         type: "pedido",
         title: `Pedido nuevo #${orderId}`,
         message:
-          "Tienes un pedido nuevo pendiente de preparación en tu negocio.",
+          paymentMethodName === "transferencia"
+            ? "Se recibió un pedido con transferencia. Espera la validación del pago antes de prepararlo."
+            : "Tienes un pedido nuevo pendiente de preparación en tu negocio.",
         relatedId: orderId,
         dataJson: {
           order_id: orderId,

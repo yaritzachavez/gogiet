@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getOrderStatusLabel } from "@/lib/order-status";
 
 type OrderProduct = {
   id: number;
@@ -130,7 +131,7 @@ export default function PedidosPage() {
                 </p>
               </div>
               <span className="inline-flex w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
-                {order.status}
+                {getOrderStatusLabel(order.status)}
               </span>
             </div>
 

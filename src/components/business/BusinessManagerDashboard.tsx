@@ -74,6 +74,7 @@ type OrderTicket = {
   negocio: string;
   total: string;
   estado: string;
+  statusCode?: string;
   hora: string;
   cliente: string;
   metodoPago: string;
@@ -485,6 +486,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
               metodoPago: String(order.paymentMethod ?? "Sin metodo"),
               direccion: String(order.address ?? "Sin direccion"),
               notas: String(order.notes ?? ""),
+              statusCode: String(order.statusCode ?? ""),
               deliveryRequested: Boolean(order.deliveryRequested),
               items: Array.isArray(order.items)
                 ? order.items.map((item) => ({
@@ -798,7 +800,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
         type: "success",
         message:
           (typeof data.message === "string" && data.message) ||
-          "Pedido listo y repartidor solicitado correctamente.",
+          "Pedido listo. Ahora puedes solicitar repartidor.",
       });
       await loadOrders();
     } catch (error) {
@@ -808,6 +810,66 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       setActionFeedback({
         type: "error",
         message: message || "No se pudo marcar el pedido como listo.",
+      });
+    } finally {
+      setActionLoading({ orderId: null, type: null });
+    }
+  };
+
+  const handleRequestDriver = async (orderId: number) => {
+    const token = getStoredToken();
+
+    if (!token) {
+      setActionFeedback({
+        type: "error",
+        message: "Debes iniciar sesion nuevamente.",
+      });
+      return;
+    }
+
+    try {
+      setActionLoading({ orderId, type: "delivery" });
+      setActionFeedback(null);
+
+      const response = await fetch("/api/business/orders/request-delivery", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ order_id: orderId }),
+      });
+      const responseText = await response.text();
+      let data: Record<string, unknown> = {};
+
+      try {
+        data = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        data = { raw: responseText };
+      }
+
+      if (!response.ok || data.success === false) {
+        throw new Error(
+          (typeof data.error === "string" && data.error) ||
+            (typeof data.message === "string" && data.message) ||
+            `Error HTTP ${response.status}`,
+        );
+      }
+
+      setActionFeedback({
+        type: "success",
+        message:
+          (typeof data.message === "string" && data.message) ||
+          "Repartidor solicitado correctamente.",
+      });
+      await loadOrders();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      console.error("Error solicitando repartidor:", message, error);
+      setActionFeedback({
+        type: "error",
+        message: message || "No se pudo solicitar repartidor.",
       });
     } finally {
       setActionLoading({ orderId: null, type: null });
@@ -1211,6 +1273,29 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                                         ? "Procesando..."
                                         : "Pedido listo"}
                                     </button>
+                                    {normalizeBusinessStatus(
+                                      order.statusCode || order.estado,
+                                    ) === "ready_for_pickup" &&
+                                    !order.deliveryRequested ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                        onClick={() =>
+                                          handleRequestDriver(order.orderId)
+                                        }
+                                        disabled={
+                                          actionLoading.orderId ===
+                                            order.orderId &&
+                                          actionLoading.type === "delivery"
+                                        }
+                                      >
+                                        {actionLoading.orderId ===
+                                          order.orderId &&
+                                        actionLoading.type === "delivery"
+                                          ? "Procesando..."
+                                          : "Solicitar repartidor"}
+                                      </button>
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>

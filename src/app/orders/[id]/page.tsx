@@ -1,10 +1,5 @@
-import { redirect } from "next/navigation";
+import OrderTrackingPage from "@/components/orders/OrderTrackingPage";
 
-export default async function OrderRedirectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  redirect(`/pedidos/${id}`);
+export default function OrdersTrackingPage() {
+  return <OrderTrackingPage />;
 }

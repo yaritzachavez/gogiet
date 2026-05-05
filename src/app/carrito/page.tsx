@@ -28,6 +28,7 @@ import type { ShippingByAddressResult } from "@/lib/shipping";
 type StoredCartItem = {
   id: string;
   productId?: number;
+  businessId?: number | null;
   nombre: string;
   negocio: string;
   image: string;
@@ -47,7 +48,6 @@ type StoredCartItem = {
 };
 
 const SERVICE_FEE = 12;
-const TERMINAL_FEE_RATE = 0.035;
 const DEFAULT_SHIPPING_STATE: ShippingByAddressResult = {
   zoneName: null,
   shippingCost: null,
@@ -66,11 +66,6 @@ const PAYMENT_METHOD_OPTIONS = [
     id: "transferencia",
     label: "Transferencia",
     description: "Envía tu comprobante antes de la entrega.",
-  },
-  {
-    id: "terminal",
-    label: "Terminal al recibir",
-    description: "Pago con tarjeta (aplica comisión).",
   },
 ] as const;
 
@@ -124,10 +119,31 @@ export default function CarritoPage() {
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethodOption>("efectivo");
-  const [_transferReceiptName, setTransferReceiptName] = useState("");
-  const [_transferReceiptUrl, _setTransferReceiptUrl] = useState("");
+  const [transferReceiptName, setTransferReceiptName] = useState("");
+  const [transferReceiptFile, setTransferReceiptFile] = useState<File | null>(
+    null,
+  );
+  const [transferError, setTransferError] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
+
+  const mapStoredSnapshotToCartItems = useCallback(
+    (items: ReturnType<typeof readStoredCartSnapshot>): StoredCartItem[] => {
+      return items.map((item) => ({
+        id: String(item.product_id),
+        productId: item.product_id,
+        businessId: item.business_id ?? null,
+        nombre: item.name,
+        negocio: "Tienda Local",
+        image: item.image_url || "/placeholder-product.png",
+        extras: [],
+        quantity: item.quantity,
+        unitPrice: item.price,
+        price: item.price * item.quantity,
+      }));
+    },
+    [],
+  );
 
   // --- Efectos: Carga de Carrito y Dirección ---
   const syncCartStorage = useCallback((items: StoredCartItem[]) => {
@@ -135,7 +151,7 @@ export default function CarritoPage() {
       items.map((item) => ({
         id: item.id,
         product_id: Number(item.productId ?? item.id),
-        business_id: null,
+        business_id: Number(item.businessId ?? 0) || null,
         name: item.nombre,
         price: Number(item.unitPrice ?? item.price ?? 0),
         image_url: item.image,
@@ -148,18 +164,7 @@ export default function CarritoPage() {
     const localSnapshot = readStoredCartSnapshot();
 
     if (!user) {
-      const localItems = localSnapshot.map((item) => ({
-        id: String(item.product_id),
-        productId: item.product_id,
-        nombre: item.name,
-        negocio: "Tienda Local",
-        image: item.image_url || "/placeholder-product.png",
-        extras: [],
-        quantity: item.quantity,
-        unitPrice: item.price,
-        price: item.price * item.quantity,
-      }));
-
+      const localItems = mapStoredSnapshotToCartItems(localSnapshot);
       setCartId(null);
       setCartItems(localItems);
       return;
@@ -180,6 +185,7 @@ export default function CarritoPage() {
         const nextItems = data.products.map((p: any) => ({
           id: p.product_id.toString(),
           productId: p.product_id,
+          businessId: Number(p.business_id ?? 0) || null,
           nombre: p.name,
           image: p.thumbnail_url || p.image_url || "/placeholder-product.png",
           negocio: "Tienda Local",
@@ -193,33 +199,11 @@ export default function CarritoPage() {
         setCartItems(nextItems);
         syncCartStorage(nextItems);
       } else if (data.cart && localSnapshot.length > 0) {
-        const localItems = localSnapshot.map((item) => ({
-          id: String(item.product_id),
-          productId: item.product_id,
-          nombre: item.name,
-          negocio: "Tienda Local",
-          image: item.image_url || "/placeholder-product.png",
-          extras: [],
-          quantity: item.quantity,
-          unitPrice: item.price,
-          price: item.price * item.quantity,
-        }));
-
+        const localItems = mapStoredSnapshotToCartItems(localSnapshot);
         setCartId(Number(data.cart.id) || null);
         setCartItems(localItems);
       } else if (localSnapshot.length > 0) {
-        const localItems = localSnapshot.map((item) => ({
-          id: String(item.product_id),
-          productId: item.product_id,
-          nombre: item.name,
-          negocio: "Tienda Local",
-          image: item.image_url || "/placeholder-product.png",
-          extras: [],
-          quantity: item.quantity,
-          unitPrice: item.price,
-          price: item.price * item.quantity,
-        }));
-
+        const localItems = mapStoredSnapshotToCartItems(localSnapshot);
         setCartId(null);
         setCartItems(localItems);
       } else {
@@ -229,21 +213,11 @@ export default function CarritoPage() {
       }
     } catch (err) {
       console.error("Error cargando carrito:", err);
-      const localItems = localSnapshot.map((item) => ({
-        id: String(item.product_id),
-        productId: item.product_id,
-        nombre: item.name,
-        negocio: "Tienda Local",
-        image: item.image_url || "/placeholder-product.png",
-        extras: [],
-        quantity: item.quantity,
-        unitPrice: item.price,
-        price: item.price * item.quantity,
-      }));
+      const localItems = mapStoredSnapshotToCartItems(localSnapshot);
       setCartId(null);
       setCartItems(localItems);
     }
-  }, [syncCartStorage, user]);
+  }, [mapStoredSnapshotToCartItems, syncCartStorage, user]);
 
   useEffect(() => {
     void loadCart();
@@ -303,10 +277,7 @@ export default function CarritoPage() {
   );
 
   const deliveryFee = shipping.shippingCost ?? 0;
-  const terminalFee =
-    selectedPaymentMethod === "terminal"
-      ? Number((subtotal * TERMINAL_FEE_RATE).toFixed(2))
-      : 0;
+  const terminalFee = 0;
   const total = subtotal + terminalFee + SERVICE_FEE + deliveryFee;
 
   // --- Handlers ---
@@ -388,7 +359,7 @@ export default function CarritoPage() {
       setTransferDialogOpen(true);
       return;
     }
-    await processOrder("pendiente");
+    await processOrder("pending");
   };
 
   const processOrder = async (
@@ -408,6 +379,10 @@ export default function CarritoPage() {
         body: JSON.stringify({
           user_id: user?.id,
           address_id: savedAddress?.id,
+          delivery_address_id: savedAddress?.id,
+          business_id:
+            cartItems.find((item) => Number(item.businessId ?? 0) > 0)
+              ?.businessId ?? null,
           subtotal,
           terminal_fee: terminalFee,
           shipping_cost: deliveryFee,
@@ -415,6 +390,7 @@ export default function CarritoPage() {
           total,
           payment_method: selectedPaymentMethod,
           status,
+          payment_receipt_url: proofUrl || null,
           comprobante_pago_url: proofUrl || null,
           items: cartItems.map((i) => ({
             product_id: i.productId,
@@ -427,10 +403,66 @@ export default function CarritoPage() {
       const data = await res.json();
       if (res.ok) {
         setCartItems([]);
-        router.push(`/pedidos/${data.order.id}`);
+        setCartId(null);
+        syncCartStorage([]);
+        window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+        setTransferDialogOpen(false);
+        setPaymentDialogOpen(false);
+        setTransferReceiptFile(null);
+        setTransferReceiptName("");
+        setTransferError("");
+        router.push(`/orders/${data.order.id}`);
+        return;
       }
+
+      throw new Error(data?.error || "No se pudo crear el pedido");
     } catch (_error) {
-      alert("Error al crear el pedido");
+      const message =
+        _error instanceof Error ? _error.message : "Error al crear el pedido";
+      setTransferError(message);
+      alert(message);
+    } finally {
+      setSubmittingOrder(false);
+    }
+  };
+
+  const handleTransferOrder = async () => {
+    if (!transferReceiptFile) {
+      setTransferError("Sube tu comprobante antes de continuar.");
+      return;
+    }
+
+    setSubmittingOrder(true);
+    setTransferError("");
+
+    try {
+      const token = window.localStorage.getItem("token");
+      const formData = new FormData();
+      formData.append("file", transferReceiptFile);
+
+      const uploadRes = await fetch("/api/upload/payment-proof", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+
+      if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
+        throw new Error(uploadData?.error || "No se pudo subir el comprobante");
+      }
+
+      await processOrder(
+        "payment_review",
+        String(uploadData.url),
+        transferReceiptFile.name,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "No se pudo registrar la transferencia";
+      setTransferError(message);
     } finally {
       setSubmittingOrder(false);
     }
@@ -612,19 +644,30 @@ export default function CarritoPage() {
             <input
               id="transfer-proof"
               type="file"
-              accept="image/*"
+              accept="image/*,application/pdf"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) setTransferReceiptName(file.name);
+                setTransferError("");
+                setTransferReceiptFile(file ?? null);
+                setTransferReceiptName(file?.name ?? "");
               }}
             />
+            {transferReceiptName ? (
+              <p className="mt-2 text-xs text-orange-800">
+                Archivo seleccionado: {transferReceiptName}
+              </p>
+            ) : null}
+            {transferError ? (
+              <p className="mt-2 text-xs text-red-600">{transferError}</p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button
-              onClick={() => processOrder("por_validar_pago")}
+              onClick={handleTransferOrder}
+              disabled={submittingOrder}
               className="w-full bg-orange-600"
             >
-              Ya transferí
+              {submittingOrder ? "Subiendo comprobante..." : "Ya transferí"}
             </Button>
           </DialogFooter>
         </DialogContent>

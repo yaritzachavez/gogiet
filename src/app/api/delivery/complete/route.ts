@@ -6,7 +6,7 @@ import type {
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { ensureDeliveryStatus, ensureOrderStatus } from "@/lib/business-panel";
+import { ensureDeliveryStatus } from "@/lib/business-panel";
 import pool from "@/lib/db";
 import {
   COURIER_EARNING_RATE,
@@ -18,6 +18,7 @@ import {
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
 import { createNotificationsForUsers } from "@/lib/notifications";
+import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
 
 type AssignedOrderRow = RowDataPacket & {
   order_id: number;
@@ -172,11 +173,8 @@ export async function POST(req: NextRequest) {
       fallbackRate: DEFAULT_DELIVERY_FEE_RATE,
     });
 
-    const orderStatusId = await ensureOrderStatus(
-      "pedido_entregado",
-      "Pedido entregado al cliente",
-      99,
-      true,
+    const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
+      "delivered",
       connection,
     );
     const deliveryStatusId = await ensureDeliveryStatus(

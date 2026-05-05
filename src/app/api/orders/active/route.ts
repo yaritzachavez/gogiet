@@ -1,27 +1,21 @@
-import { type NextRequest, NextResponse } from "next/server";
 import type { RowDataPacket } from "mysql2/promise";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { GET as getOrders } from "@/app/api/orders/route";
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import { resolveCanonicalOrderStatus } from "@/lib/order-status";
 
 const ACTIVE_STATUS_NAMES = [
-  "pendiente",
-  "por_validar_pago",
-  "preparando",
-  "listo_para_recoger",
-  "recogido",
-  "en_camino",
+  "pending",
+  "payment_review",
+  "accepted",
+  "preparing",
+  "ready_for_pickup",
+  "delivery_requested",
+  "driver_assigned",
+  "on_the_way",
 ];
-
-function normalizeStatus(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "_");
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,7 +35,9 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const [userRows] = await pool.query<Array<RowDataPacket & { email: string }>>(
+    const [userRows] = await pool.query<
+      Array<RowDataPacket & { email: string }>
+    >(
       `
         SELECT email
         FROM users
@@ -51,7 +47,9 @@ export async function GET(req: NextRequest) {
       [authUser.user.id],
     );
 
-    const [roleRows] = await pool.query<Array<RowDataPacket & { role_name: string }>>(
+    const [roleRows] = await pool.query<
+      Array<RowDataPacket & { role_name: string }>
+    >(
       `
         SELECT r.name AS role_name
         FROM user_roles ur
@@ -99,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     const orders = Array.isArray(payload.orders) ? payload.orders : [];
     const activeOrders = orders.filter((order) =>
-      ACTIVE_STATUS_NAMES.includes(normalizeStatus(order?.status)),
+      ACTIVE_STATUS_NAMES.includes(resolveCanonicalOrderStatus(order?.status)),
     );
 
     return NextResponse.json({

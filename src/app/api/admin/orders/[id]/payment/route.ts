@@ -1,8 +1,11 @@
 import jwt from "jsonwebtoken";
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import { createNotificationForBusiness } from "@/lib/notifications";
+import { resolveCanonicalOrderStatus } from "@/lib/order-status";
+import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 
 type JwtPayload = {
@@ -48,50 +51,6 @@ function normalizeCatalogName(value: unknown, fallback: string) {
   return normalized || fallback;
 }
 
-async function getOrCreateStatusId(name: string) {
-  const normalizedName = normalizeCatalogName(name, "pendiente");
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `
-      SELECT id
-      FROM order_status_catalog
-      WHERE name = ?
-      LIMIT 1
-    `,
-    [normalizedName],
-  );
-
-  if (rows[0]?.id) {
-    return Number(rows[0].id);
-  }
-
-  const descriptions: Record<string, string> = {
-    por_validar_pago: "Transferencia recibida pendiente de validacion",
-    pago_validado: "Pago validado por administracion",
-    pago_rechazado: "Pago rechazado por administracion",
-  };
-
-  const [result] = await pool.query<ResultSetHeader>(
-    `
-      INSERT INTO order_status_catalog (
-        name,
-        description,
-        sort_order,
-        is_final,
-        created_at,
-        updated_at
-      )
-      VALUES (?, ?, ?, 0, NOW(), NOW())
-    `,
-    [
-      normalizedName,
-      descriptions[normalizedName] ?? `Estado ${normalizedName}`,
-      normalizedName === "pago_validado" ? 3 : 2,
-    ],
-  );
-
-  return result.insertId;
-}
-
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
@@ -122,6 +81,9 @@ export async function PATCH(
       .trim()
       .toLowerCase();
     const reason = String(body?.reason ?? "").trim();
+    const nextApprovedStatus = String(body?.next_status ?? "accepted")
+      .trim()
+      .toLowerCase();
 
     if (action !== "approve" && action !== "reject") {
       return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
@@ -139,6 +101,7 @@ export async function PATCH(
         SELECT
           o.id,
           o.user_id,
+          o.business_id,
           COALESCE(o.payment_method, pm.name) AS payment_method,
           osc.name AS status_name
         FROM orders o
@@ -166,16 +129,18 @@ export async function PATCH(
       );
     }
 
-    if (normalizeCatalogName(order.status_name, "") !== "por_validar_pago") {
+    if (resolveCanonicalOrderStatus(order.status_name) !== "payment_review") {
       return NextResponse.json(
         { error: "Este pedido ya no está pendiente de validación" },
         { status: 400 },
       );
     }
 
-    const nextStatus =
-      action === "approve" ? "pago_validado" : "pago_rechazado";
-    const nextStatusId = await getOrCreateStatusId(nextStatus);
+    const approvedStatus =
+      nextApprovedStatus === "preparing" ? "preparing" : "accepted";
+    const nextStatus = action === "approve" ? approvedStatus : "cancelled";
+    const { statusId: nextStatusId } =
+      await ensureCanonicalOrderStatus(nextStatus);
 
     await pool.query(
       `
@@ -226,6 +191,21 @@ export async function PATCH(
           : `Pago por transferencia rechazado por ADMIN_GENERAL. Motivo: ${reason}`,
       messageType: "text",
     });
+
+    if (action === "approve") {
+      await createNotificationForBusiness(Number(order.business_id), {
+        type: "pago",
+        title: `Pago validado #${orderId}`,
+        message:
+          "El pago por transferencia fue validado. Ya puedes preparar este pedido.",
+        relatedId: orderId,
+        dataJson: {
+          order_id: orderId,
+          status: nextStatus,
+          payment_method: "transferencia",
+        },
+      });
+    }
 
     return NextResponse.json({
       success: true,

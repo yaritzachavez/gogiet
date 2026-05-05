@@ -2,8 +2,19 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { ensureOrderStatus, resolveBusinessAccess } from "@/lib/business-panel";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import { createNotification } from "@/lib/notifications";
+import {
+  ensureCanonicalOrderStatus,
+  ensureCoreOrderStatuses,
+} from "@/lib/order-status-server";
+
+type OrderRow = RowDataPacket & {
+  business_id: number;
+  business_name: string;
+  customer_user_id: number;
+};
 
 export async function PATCH(
   req: NextRequest,
@@ -42,18 +53,22 @@ export async function PATCH(
       );
     }
 
-    if (!["en_preparacion", "preparando"].includes(status)) {
+    if (!["preparing", "en_preparacion", "preparando"].includes(status)) {
       return NextResponse.json(
         { success: false, error: "Estado inválido" },
         { status: 400 },
       );
     }
 
-    const [orderRows] = await connection.query<RowDataPacket[]>(
+    const [orderRows] = await connection.query<OrderRow[]>(
       `
-        SELECT business_id
-        FROM orders
-        WHERE id = ?
+        SELECT
+          o.business_id,
+          o.user_id AS customer_user_id,
+          b.name AS business_name
+        FROM orders o
+        INNER JOIN business b ON b.id = o.business_id
+        WHERE o.id = ?
         LIMIT 1
       `,
       [orderId],
@@ -81,11 +96,9 @@ export async function PATCH(
       );
     }
 
-    const statusId = await ensureOrderStatus(
-      "en_preparacion",
-      "Pedido en preparación",
-      2,
-      false,
+    await ensureCoreOrderStatuses(connection);
+    const { statusId } = await ensureCanonicalOrderStatus(
+      "preparing",
       connection,
     );
 
@@ -96,6 +109,22 @@ export async function PATCH(
         WHERE id = ? AND business_id = ?
       `,
       [statusId, orderId, businessId],
+    );
+
+    await createNotification(
+      {
+        userId: Number(orderRows[0].customer_user_id),
+        type: "pedido",
+        title: `Pedido en preparación #FG-${String(orderId).padStart(4, "0")}`,
+        message: `${orderRows[0].business_name} ya está preparando tu pedido.`,
+        relatedId: orderId,
+        dataJson: {
+          order_id: orderId,
+          business_id: businessId,
+          status: "preparing",
+        },
+      },
+      connection,
     );
 
     return NextResponse.json({

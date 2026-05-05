@@ -6,7 +6,6 @@ import type {
 
 import {
   ensureDeliveryStatus,
-  ensureOrderStatus,
   findAvailableCourier,
   resolveBusinessAccess,
 } from "@/lib/business-panel";
@@ -16,6 +15,7 @@ import {
   createNotificationForBusiness,
   createNotificationsForUsers,
 } from "@/lib/notifications";
+import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
 
 type OrderRow = RowDataPacket & {
   id: number;
@@ -42,6 +42,10 @@ type CourierCapacityRow = RowDataPacket & {
 
 type DeliveryDriverColumnRow = RowDataPacket & {
   is_nullable: string;
+};
+
+type OrdersColumnRow = RowDataPacket & {
+  Field: string;
 };
 
 export class DeliveryAssignmentError extends Error {
@@ -116,6 +120,25 @@ async function deliverySupportsUnassignedDriver(connection: PoolConnection) {
   );
 
   return rows[0]?.is_nullable === "YES";
+}
+
+async function ensureOrdersDriverColumn(connection: PoolConnection) {
+  const [rows] = await connection.query<OrdersColumnRow[]>(
+    "SHOW COLUMNS FROM orders",
+  );
+  const hasDriverId = rows.some((row) => row.Field === "driver_id");
+
+  if (hasDriverId) {
+    return;
+  }
+
+  await connection.query(
+    `
+      ALTER TABLE orders
+      ADD COLUMN driver_id INT NULL
+      AFTER business_id
+    `,
+  );
 }
 
 async function getOrderForAssignment(
@@ -201,6 +224,7 @@ export async function requestCourierAssignment(params: {
     console.log("[delivery-assignment] order_id recibido:", params.orderId);
 
     await connection.beginTransaction();
+    await ensureOrdersDriverColumn(connection);
 
     const order = await getOrderForAssignment(connection, params.orderId);
 
@@ -215,6 +239,20 @@ export async function requestCourierAssignment(params: {
         status: order.order_status_name ?? "sin_status",
       },
     ]);
+
+    const currentOrderStatus = normalizeStatus(order.order_status_name);
+
+    if (
+      currentOrderStatus !== "ready_for_pickup" &&
+      currentOrderStatus !== "listo_para_recoger" &&
+      currentOrderStatus !== "delivery_requested" &&
+      currentOrderStatus !== "repartidor_solicitado"
+    ) {
+      throw new DeliveryAssignmentError(
+        "El pedido debe estar listo antes de solicitar repartidor.",
+        409,
+      );
+    }
 
     const access = await resolveBusinessAccess(
       params.userId,
@@ -271,6 +309,10 @@ export async function requestCourierAssignment(params: {
         false,
         connection,
       );
+      const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
+        "delivery_requested",
+        connection,
+      );
 
       if (existingDelivery) {
         await connection.query<ResultSetHeader>(
@@ -303,6 +345,18 @@ export async function requestCourierAssignment(params: {
           [params.orderId, deliveryStatusId],
         );
       }
+
+      await connection.query<ResultSetHeader>(
+        `
+          UPDATE orders
+          SET
+            driver_id = NULL,
+            order_status_id = ?,
+            updated_at = NOW()
+          WHERE id = ?
+        `,
+        [orderStatusId, params.orderId],
+      );
 
       await createNotificationsForUsers(
         availableCouriers.map((courier) => courier.id),
@@ -353,6 +407,10 @@ export async function requestCourierAssignment(params: {
       false,
       connection,
     );
+    const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
+      "delivery_requested",
+      connection,
+    );
 
     if (existingDelivery) {
       await connection.query<ResultSetHeader>(
@@ -387,6 +445,18 @@ export async function requestCourierAssignment(params: {
         [params.orderId, selectedCourier.id, deliveryStatusId],
       );
     }
+
+    await connection.query<ResultSetHeader>(
+      `
+        UPDATE orders
+        SET
+          driver_id = NULL,
+          order_status_id = ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [orderStatusId, params.orderId],
+    );
 
     await createNotificationsForUsers(
       [selectedCourier.id],
@@ -437,6 +507,7 @@ export async function respondToCourierAssignment(params: {
 
   try {
     await connection.beginTransaction();
+    await ensureOrdersDriverColumn(connection);
 
     const order = await getOrderForAssignment(connection, params.orderId);
 
@@ -511,11 +582,8 @@ export async function respondToCourierAssignment(params: {
         false,
         connection,
       );
-      const orderStatusId = await ensureOrderStatus(
-        "repartidor_asignado",
-        "Repartidor asignado y confirmado",
-        6,
-        false,
+      const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
+        "driver_assigned",
         connection,
       );
 
@@ -536,12 +604,13 @@ export async function respondToCourierAssignment(params: {
         `
           UPDATE orders
           SET
+            driver_id = ?,
             order_status_id = ?,
             confirmed_at = COALESCE(confirmed_at, NOW()),
             updated_at = NOW()
           WHERE id = ?
         `,
-        [orderStatusId, params.orderId],
+        [params.userId, orderStatusId, params.orderId],
       );
 
       await createNotificationForBusiness(
@@ -598,11 +667,8 @@ export async function respondToCourierAssignment(params: {
       true,
       connection,
     );
-    const orderStatusId = await ensureOrderStatus(
-      "repartidor_rechazado",
-      "La asignacion fue rechazada por el repartidor",
-      7,
-      false,
+    const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
+      "delivery_requested",
       connection,
     );
 
@@ -622,6 +688,7 @@ export async function respondToCourierAssignment(params: {
       `
         UPDATE orders
         SET
+          driver_id = NULL,
           order_status_id = ?,
           updated_at = NOW()
         WHERE id = ?

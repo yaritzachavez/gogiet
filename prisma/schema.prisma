@@ -383,9 +383,11 @@ model orders {
   user_id              Int
   cart_id              Int?
   business_id          Int
+  driver_id            Int?
   address_id           Int
   payment_method_id    Int
   payment_method_label String?              @map("payment_method") @db.VarChar(50)
+  payment_receipt_url  String?              @db.MediumText
   comprobante_pago_url String?              @db.MediumText
   order_status_id      Int
   subtotal             Decimal              @db.Decimal(10, 2)
