@@ -17,14 +17,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
+import {
+  readStoredCartSnapshot,
+  writeStoredCartSnapshot,
+} from "@/lib/cart-storage";
 
 // --- Constantes y Helpers ---
 const ITEMS_PER_PAGE = 12;
 const PRODUCT_PLACEHOLDER_IMAGE = "/placeholder-product.png";
 const BUSINESS_PLACEHOLDER_IMAGE = "/generic-shop.png";
-const CART_STORAGE_KEY = "gogi:cart";
-const CART_UPDATED_EVENT = "gogi-cart-updated";
-
 const getProductImage = (product: {
   image_url?: string | null;
   imageUrl?: string | null;
@@ -267,15 +268,13 @@ export default function BusinessDetailPage() {
         );
       }
 
-      const existingCart = JSON.parse(
-        window.localStorage.getItem(CART_STORAGE_KEY) ?? "[]",
-      ) as Array<{ id: string; quantity?: number }>;
+      const existingCart = readStoredCartSnapshot();
       const existingItem = existingCart.find(
-        (item) => String(item.id) === String(selectedProduct.id),
+        (item) => Number(item.product_id) === Number(selectedProduct.id),
       );
       const nextCart = existingItem
         ? existingCart.map((item) =>
-            String(item.id) === String(selectedProduct.id)
+            Number(item.product_id) === Number(selectedProduct.id)
               ? {
                   ...item,
                   quantity: Number(item.quantity ?? 0) + modalQuantity,
@@ -286,12 +285,16 @@ export default function BusinessDetailPage() {
             ...existingCart,
             {
               id: String(selectedProduct.id),
+              product_id: Number(selectedProduct.id),
+              business_id: Number(businessId) || null,
+              name: String(selectedProduct.name ?? ""),
+              price: Number(selectedProduct.price ?? 0) || 0,
+              image_url: getProductImage(selectedProduct),
               quantity: modalQuantity,
             },
           ];
 
-      window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(nextCart));
-      window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+      writeStoredCartSnapshot(nextCart);
 
       setCartMessage("Agregado con éxito");
       setTimeout(() => setCartMessage(null), 3000);

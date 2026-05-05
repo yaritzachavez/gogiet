@@ -17,6 +17,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/context/AuthContext";
+import {
+  CART_UPDATED_EVENT,
+  readStoredCartSnapshot,
+  writeStoredCartSnapshot,
+} from "@/lib/cart-storage";
 import type { ShippingByAddressResult } from "@/lib/shipping";
 
 // --- Tipos y Constantes ---
@@ -43,9 +48,6 @@ type StoredCartItem = {
 
 const SERVICE_FEE = 12;
 const TERMINAL_FEE_RATE = 0.035;
-const CART_STORAGE_KEY = "gogi:cart";
-const CART_UPDATED_EVENT = "gogi-cart-updated";
-
 const DEFAULT_SHIPPING_STATE: ShippingByAddressResult = {
   zoneName: null,
   shippingCost: null,
@@ -129,19 +131,39 @@ export default function CarritoPage() {
 
   // --- Efectos: Carga de Carrito y Dirección ---
   const syncCartStorage = useCallback((items: StoredCartItem[]) => {
-    if (typeof window === "undefined") return;
-
-    const storageItems = items.map((item) => ({
-      id: item.id,
-      quantity: item.quantity,
-    }));
-
-    window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(storageItems));
-    window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+    writeStoredCartSnapshot(
+      items.map((item) => ({
+        id: item.id,
+        product_id: Number(item.productId ?? item.id),
+        business_id: null,
+        name: item.nombre,
+        price: Number(item.unitPrice ?? item.price ?? 0),
+        image_url: item.image,
+        quantity: item.quantity,
+      })),
+    );
   }, []);
 
   const loadCart = useCallback(async () => {
-    if (!user) return;
+    const localSnapshot = readStoredCartSnapshot();
+
+    if (!user) {
+      const localItems = localSnapshot.map((item) => ({
+        id: String(item.product_id),
+        productId: item.product_id,
+        nombre: item.name,
+        negocio: "Tienda Local",
+        image: item.image_url || "/placeholder-product.png",
+        extras: [],
+        quantity: item.quantity,
+        unitPrice: item.price,
+        price: item.price * item.quantity,
+      }));
+
+      setCartId(null);
+      setCartItems(localItems);
+      return;
+    }
 
     try {
       const token = window.localStorage.getItem("token");
@@ -150,7 +172,11 @@ export default function CarritoPage() {
       });
       const data = await res.json();
 
-      if (data.cart) {
+      if (
+        data.cart &&
+        Array.isArray(data.products) &&
+        data.products.length > 0
+      ) {
         const nextItems = data.products.map((p: any) => ({
           id: p.product_id.toString(),
           productId: p.product_id,
@@ -166,6 +192,36 @@ export default function CarritoPage() {
         setCartId(data.cart.id);
         setCartItems(nextItems);
         syncCartStorage(nextItems);
+      } else if (data.cart && localSnapshot.length > 0) {
+        const localItems = localSnapshot.map((item) => ({
+          id: String(item.product_id),
+          productId: item.product_id,
+          nombre: item.name,
+          negocio: "Tienda Local",
+          image: item.image_url || "/placeholder-product.png",
+          extras: [],
+          quantity: item.quantity,
+          unitPrice: item.price,
+          price: item.price * item.quantity,
+        }));
+
+        setCartId(Number(data.cart.id) || null);
+        setCartItems(localItems);
+      } else if (localSnapshot.length > 0) {
+        const localItems = localSnapshot.map((item) => ({
+          id: String(item.product_id),
+          productId: item.product_id,
+          nombre: item.name,
+          negocio: "Tienda Local",
+          image: item.image_url || "/placeholder-product.png",
+          extras: [],
+          quantity: item.quantity,
+          unitPrice: item.price,
+          price: item.price * item.quantity,
+        }));
+
+        setCartId(null);
+        setCartItems(localItems);
       } else {
         setCartId(null);
         setCartItems([]);
@@ -173,14 +229,25 @@ export default function CarritoPage() {
       }
     } catch (err) {
       console.error("Error cargando carrito:", err);
+      const localItems = localSnapshot.map((item) => ({
+        id: String(item.product_id),
+        productId: item.product_id,
+        nombre: item.name,
+        negocio: "Tienda Local",
+        image: item.image_url || "/placeholder-product.png",
+        extras: [],
+        quantity: item.quantity,
+        unitPrice: item.price,
+        price: item.price * item.quantity,
+      }));
+      setCartId(null);
+      setCartItems(localItems);
     }
   }, [syncCartStorage, user]);
 
   useEffect(() => {
-    if (!user) return;
-
     void loadCart();
-    setSavedAddress(user.address ? mapToSavedAddress(user.address) : null);
+    setSavedAddress(user?.address ? mapToSavedAddress(user.address) : null);
 
     const handleCartUpdated = () => {
       void loadCart();
@@ -245,13 +312,25 @@ export default function CarritoPage() {
   // --- Handlers ---
   const handleQuantityChange = async (id: string, delta: number) => {
     const item = cartItems.find((i) => i.id === id);
-    if (!item || !cartId) return;
+    if (!item) return;
     const newQty = Math.max(0, item.quantity + delta);
     if (newQty === 0) return handleRemove(id);
+
+    const nextItems = cartItems.map((i) =>
+      i.id === id ? { ...i, quantity: newQty } : i,
+    );
 
     setCartItems((prev) =>
       prev.map((i) => (i.id === id ? { ...i, quantity: newQty } : i)),
     );
+
+    syncCartStorage(nextItems);
+
+    if (!cartId) {
+      window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+      return;
+    }
+
     const token = window.localStorage.getItem("token");
     await fetch("/api/cart/add-product", {
       method: "POST",
@@ -282,10 +361,16 @@ export default function CarritoPage() {
         body: JSON.stringify({ cart_id: cartId, product_id: id }),
       });
     }
+    syncCartStorage(cartItems.filter((item) => item.id !== id));
     window.dispatchEvent(new Event(CART_UPDATED_EVENT));
   };
 
   const handleCheckout = () => {
+    if (!user) {
+      window.alert("Inicia sesión para continuar con tu pedido.");
+      return;
+    }
+
     if (!savedAddress) {
       setAddressDialogOpen(true);
       return;
@@ -352,10 +437,6 @@ export default function CarritoPage() {
   };
 
   // --- Render condicional para vacíos ---
-  if (!user)
-    return (
-      <div className="p-20 text-center">Inicia sesión para ver tu carrito.</div>
-    );
   if (cartItems.length === 0)
     return (
       <div className="p-20 text-center">

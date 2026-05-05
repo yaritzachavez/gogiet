@@ -7,9 +7,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { CART_UPDATED_EVENT, getStoredCartCount } from "@/lib/cart-storage";
 
-const CART_STORAGE_KEY = "gogi:cart";
-const CART_UPDATED_EVENT = "gogi-cart-updated";
 const NOTIFICATIONS_POLL_INTERVAL_MS = 15_000;
 
 type NotificationItem = {
@@ -42,25 +41,6 @@ function hasPanelAccess(roles: string[] | undefined) {
       "business_staff",
     ].includes(role),
   );
-}
-
-function getStoredCartCount() {
-  if (typeof window === "undefined") return 0;
-
-  try {
-    const rawCart = window.localStorage.getItem(CART_STORAGE_KEY);
-    if (!rawCart) return 0;
-
-    const parsedCart = JSON.parse(rawCart) as Array<{ quantity?: number }>;
-
-    return parsedCart.reduce(
-      (total, item) => total + Math.max(0, Number(item.quantity) || 0),
-      0,
-    );
-  } catch (error) {
-    console.error("No se pudo leer el contador del carrito", error);
-    return 0;
-  }
 }
 
 function formatNotificationTime(value: string) {
