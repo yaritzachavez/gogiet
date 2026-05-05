@@ -214,13 +214,26 @@ export async function GET(
     const products = productRows.map((row) => ({
       ...row,
       image: row.image_url ?? row.thumbnail_url ?? null,
+      imageUrl: row.image_url ?? row.thumbnail_url ?? null,
       photo_url: row.image_url ?? row.thumbnail_url ?? null,
+      photoUrl: row.image_url ?? row.thumbnail_url ?? null,
+      picture_url: row.image_url ?? row.thumbnail_url ?? null,
+      pictureUrl: row.image_url ?? row.thumbnail_url ?? null,
       logo_url: row.image_url ?? row.thumbnail_url ?? null,
       price: Number(row.price),
       discount_price: row.discount_price ? Number(row.discount_price) : null,
       price_per_unit: row.price_per_unit ? Number(row.price_per_unit) : null,
       is_stock_available: Boolean(row.is_stock_available),
     }));
+
+    products.forEach((product) => {
+      console.log(
+        "PRODUCT IMAGE:",
+        product.name,
+        product.image_url,
+        product.image,
+      );
+    });
 
     const categoriesMap = new Map();
     products.forEach((product) => {

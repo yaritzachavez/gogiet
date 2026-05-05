@@ -21,59 +21,67 @@ import {
 // --- Constantes y Helpers ---
 const ITEMS_PER_PAGE = 12;
 const PRODUCT_PLACEHOLDER_IMAGE = "/placeholder-product.png";
+const BUSINESS_PLACEHOLDER_IMAGE = "/generic-shop.png";
 
-function getSafeProductImage(product: {
+const getProductImage = (product: {
   image_url?: string | null;
+  imageUrl?: string | null;
   image?: string | null;
   photo_url?: string | null;
-  logo_url?: string | null;
+  photoUrl?: string | null;
+  picture_url?: string | null;
+  pictureUrl?: string | null;
 }) {
-  const img =
+  const image =
     product.image_url ||
+    product.imageUrl ||
     product.image ||
     product.photo_url ||
-    product.logo_url;
+    product.photoUrl ||
+    product.picture_url ||
+    product.pictureUrl ||
+    "";
 
-  if (!img) return PRODUCT_PLACEHOLDER_IMAGE;
+  if (!image) return PRODUCT_PLACEHOLDER_IMAGE;
 
-  const normalizedUrl = img.trim();
+  const normalizedUrl = image.trim();
 
   if (!normalizedUrl) return PRODUCT_PLACEHOLDER_IMAGE;
-  if (normalizedUrl.startsWith("/uploads/")) return PRODUCT_PLACEHOLDER_IMAGE;
-  if (normalizedUrl.includes("/var/task/")) return PRODUCT_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.startsWith("/uploads")) return PRODUCT_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.includes("public/uploads"))
+    return PRODUCT_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.includes("/var/task")) return PRODUCT_PLACEHOLDER_IMAGE;
   if (normalizedUrl.startsWith("/public/")) return PRODUCT_PLACEHOLDER_IMAGE;
 
   return normalizedUrl;
-}
+};
 
-function ProductMenuImage({
-  product,
-  alt,
-}: {
-  product: {
-    image_url?: string | null;
-    image?: string | null;
-    photo_url?: string | null;
-    logo_url?: string | null;
-  };
-  alt: string;
-}) {
-  const [src, setSrc] = useState(() => getSafeProductImage(product));
+const getBusinessImage = (business: {
+  logo_url?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
+  avatar_url?: string | null;
+}) => {
+  const image =
+    business.logo_url ||
+    business.image_url ||
+    business.imageUrl ||
+    business.avatar_url ||
+    "";
 
-  useEffect(() => {
-    setSrc(getSafeProductImage(product));
-  }, [product]);
+  if (!image) return BUSINESS_PLACEHOLDER_IMAGE;
 
-  return (
-    <Image
-      src={src}
-      fill
-      className="object-cover group-hover:scale-110 transition duration-500"
-      alt={alt}
-      onError={() => setSrc(PRODUCT_PLACEHOLDER_IMAGE)}
-    />
-  );
-}
+  const normalizedUrl = image.trim();
+
+  if (!normalizedUrl) return BUSINESS_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.startsWith("/uploads")) return BUSINESS_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.includes("public/uploads"))
+    return BUSINESS_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.includes("/var/task")) return BUSINESS_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.startsWith("/public/")) return BUSINESS_PLACEHOLDER_IMAGE;
+
+  return normalizedUrl;
+};
 
 export default function BusinessDetailPage() {
   const { user } = useAuth();
@@ -227,7 +235,15 @@ export default function BusinessDetailPage() {
         {/* Header del Negocio */}
         <section className="bg-white rounded-[30px] p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 mb-8">
           <div className="relative h-32 w-32 shrink-0 rounded-3xl overflow-hidden bg-slate-100 border">
-            <Image src={business?.avatar_url || "/generic-shop.png"} fill className="object-cover" alt="Logo" />
+            <img
+              src={getBusinessImage(business ?? {})}
+              alt="Logo"
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                e.currentTarget.onerror = null;
+                e.currentTarget.src = BUSINESS_PLACEHOLDER_IMAGE;
+              }}
+            />
           </div>
           <div className="flex flex-col justify-center">
             <h1 className="text-4xl font-extrabold text-slate-900">{business?.name}</h1>
@@ -275,7 +291,15 @@ export default function BusinessDetailPage() {
             {paginatedProducts.length > 0 ? paginatedProducts.map(product => (
               <div key={product.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:shadow-xl hover:shadow-orange-900/5 transition-all duration-300 group flex flex-col">
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-4 bg-slate-50">
-                  <ProductMenuImage product={product} alt={product.name} />
+                  <img
+                    src={getProductImage(product)}
+                    alt={product.name || "Producto"}
+                    className="h-full w-full object-cover group-hover:scale-110 transition duration-500"
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
+                    }}
+                  />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-lg text-slate-900">{product.name}</h3>
