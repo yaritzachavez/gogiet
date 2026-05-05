@@ -20,12 +20,30 @@ import {
 
 // --- Constantes y Helpers ---
 const ITEMS_PER_PAGE = 12;
+const PRODUCT_PLACEHOLDER_IMAGE = "/items/thumbnails/generic-item.png";
 
-function getProductImageSrc(imageUrl: string | null | undefined, thumbnailUrl?: string | null) {
-  const rawValue = imageUrl ?? thumbnailUrl ?? null;
-  if (!rawValue) return "/items/thumbnails/generic-item.png";
+function getProductImageSrc(
+  imageUrl: string | null | undefined,
+  image?: string | null,
+  thumbnailUrl?: string | null,
+) {
+  const rawValue = imageUrl ?? image ?? thumbnailUrl ?? null;
+
+  if (!rawValue) return PRODUCT_PLACEHOLDER_IMAGE;
+
   const normalizedUrl = rawValue.trim();
-  return normalizedUrl.startsWith("/public/") ? normalizedUrl.replace(/^\/public/, "") : normalizedUrl;
+
+  if (!normalizedUrl) return PRODUCT_PLACEHOLDER_IMAGE;
+
+  if (normalizedUrl.startsWith("/uploads/")) {
+    return PRODUCT_PLACEHOLDER_IMAGE;
+  }
+
+  if (normalizedUrl.startsWith("/public/")) {
+    return PRODUCT_PLACEHOLDER_IMAGE;
+  }
+
+  return normalizedUrl;
 }
 
 export default function BusinessDetailPage() {
@@ -228,7 +246,7 @@ export default function BusinessDetailPage() {
             {paginatedProducts.length > 0 ? paginatedProducts.map(product => (
               <div key={product.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:shadow-xl hover:shadow-orange-900/5 transition-all duration-300 group flex flex-col">
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-4 bg-slate-50">
-                  <Image src={getProductImageSrc(product.image_url)} fill className="object-cover group-hover:scale-110 transition duration-500" alt={product.name} />
+                  <Image src={getProductImageSrc(product.image_url, product.image, product.thumbnail_url)} fill className="object-cover group-hover:scale-110 transition duration-500" alt={product.name} />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-lg text-slate-900">{product.name}</h3>
