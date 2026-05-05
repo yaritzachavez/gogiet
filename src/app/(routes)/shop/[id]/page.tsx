@@ -31,7 +31,7 @@ const getProductImage = (product: {
   photoUrl?: string | null;
   picture_url?: string | null;
   pictureUrl?: string | null;
-}) {
+}) => {
   const image =
     product.image_url ||
     product.imageUrl ||
