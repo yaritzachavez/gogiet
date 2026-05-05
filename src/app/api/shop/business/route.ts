@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
 export async function GET() {
   try {
+    await ensureBusinessLogoColumn();
     const [rows] = await pool.query(`
       SELECT
         b.id,

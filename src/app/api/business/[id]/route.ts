@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { type NextRequest, NextResponse } from "next/server";
+import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
 function validateAuth(req: NextRequest): boolean {
@@ -19,6 +20,8 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await ensureBusinessLogoColumn();
+
     if (!validateAuth(req)) {
       return NextResponse.json(
         { error: "Token inválido o faltante" },
@@ -138,6 +141,8 @@ export async function PUT(
   const connection = await pool.getConnection();
 
   try {
+    await ensureBusinessLogoColumn();
+
     if (!validateAuth(req)) {
       return NextResponse.json(
         { error: "Token inválido o faltante" },
@@ -159,6 +164,7 @@ export async function PUT(
       address_notes,
       phone,
       email,
+      logo_url,
       status_id = 1,
     } = body;
 
@@ -186,6 +192,7 @@ export async function PUT(
           address_notes = ?,
           phone = ?,
           email = ?,
+          logo_url = ?,
           status_id = ?,
           updated_at = NOW()
         WHERE id = ?
@@ -200,6 +207,7 @@ export async function PUT(
         address_notes ?? null,
         phone ?? null,
         email ?? null,
+        logo_url ?? null,
         status_id,
         businessId,
       ],

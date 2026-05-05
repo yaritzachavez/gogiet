@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
+import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -64,6 +65,8 @@ export async function GET(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
+    await ensureBusinessLogoColumn();
+
     const { id } = await context.params;
 
     if (!id) {
@@ -78,7 +81,7 @@ export async function GET(
         SELECT
           b.id,
           b.name,
-          b.avatar_url,
+          b.logo_url AS avatar_url,
           bcm.category_id AS business_category_id,
           bc.name AS category_name,
           b.city,

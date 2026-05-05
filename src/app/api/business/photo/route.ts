@@ -2,15 +2,12 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import { cloudinary } from "@/lib/cloudinary";
 import pool from "@/lib/db";
 
 export const runtime = "nodejs";
-
-type BusinessImageColumnRow = RowDataPacket & {
-  column_name: string;
-};
 
 function uploadToCloudinary(buffer: Buffer, businessId: number) {
   return new Promise<{
@@ -39,26 +36,6 @@ function uploadToCloudinary(buffer: Buffer, businessId: number) {
   });
 }
 
-async function getBusinessImageColumn() {
-  const [rows] = await pool.query<BusinessImageColumnRow[]>(
-    `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = 'business'
-        AND column_name IN ('logo_url', 'image_url', 'photo_url', 'logo')
-    `,
-  );
-
-  const availableColumns = new Set(
-    rows.map((row) => String(row.column_name).toLowerCase()),
-  );
-
-  const priority = ["logo_url", "image_url", "photo_url", "logo"];
-
-  return priority.find((column) => availableColumns.has(column)) ?? null;
-}
-
 export async function POST(req: NextRequest) {
   try {
     const authUser = getAuthUser(req);
@@ -70,18 +47,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const targetColumn = await getBusinessImageColumn();
-
-    if (!targetColumn) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            "La tabla business no tiene una columna de imagen compatible.",
-        },
-        { status: 500 },
-      );
-    }
+    const targetColumn = await ensureBusinessLogoColumn();
 
     const formData = await req.formData();
     const requestedBusinessId = Number(formData.get("business_id"));
@@ -112,6 +78,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         imageUrl: null,
+        logo_url: null,
         avatar_url: null,
       });
     }
@@ -163,6 +130,7 @@ export async function POST(req: NextRequest) {
       success: true,
       imageUrl: result.secure_url,
       publicId: result.public_id,
+      logo_url: result.secure_url,
       avatar_url: result.secure_url,
     });
   } catch (error) {

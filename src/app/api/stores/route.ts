@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool, { logDbUsage } from "@/lib/db";
 
 type StoreRow = {
@@ -24,6 +25,7 @@ type StoreRow = {
 
 export async function GET() {
   try {
+    await ensureBusinessLogoColumn();
     logDbUsage("/api/stores");
     const [rows] = await pool.query(`
       SELECT
@@ -34,7 +36,7 @@ export async function GET() {
         b.address,
         b.phone,
         b.email,
-        b.avatar_url,
+        b.logo_url AS avatar_url,
         b.logo_url,
         b.cover_image_url,
         b.min_order_amount,
@@ -61,7 +63,7 @@ export async function GET() {
       address: store.address,
       phone: store.phone,
       email: store.email,
-      avatar_url: store.avatar_url,
+      avatar_url: store.logo_url,
       logo_url: store.logo_url,
       cover_image_url: store.cover_image_url,
       min_order_amount: store.min_order_amount,

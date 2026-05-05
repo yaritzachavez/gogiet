@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { ensureBusinessLogoColumn, getBusinessLogoSelect } from "@/lib/business-logo";
 import pool, { logDbUsage } from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -58,47 +59,15 @@ type UserInfoRow = RowDataPacket & {
   email: string;
 };
 
-type BusinessAvatarColumnRow = RowDataPacket & {
-  column_name: string;
-};
-
 function toPositiveNumber(value: string | null) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-async function getBusinessImageSelectExpression() {
-  const [rows] = await pool.query<BusinessAvatarColumnRow[]>(
-    `
-      SELECT column_name
-      FROM information_schema.columns
-      WHERE table_schema = DATABASE()
-        AND table_name = 'business'
-        AND column_name IN ('logo_url', 'image_url', 'photo_url', 'logo', 'avatar_url')
-    `,
-  );
-
-  const availableColumns = new Set(
-    rows.map((row) => String(row.column_name).toLowerCase()),
-  );
-
-  const candidates = [
-    "logo_url",
-    "image_url",
-    "photo_url",
-    "logo",
-    "avatar_url",
-  ].filter((column) => availableColumns.has(column));
-
-  if (!candidates.length) {
-    return "NULL AS logo_url";
-  }
-
-  return `COALESCE(${candidates.map((column) => `b.${column}`).join(", ")}) AS logo_url`;
-}
-
 export async function GET(req: NextRequest) {
   try {
+    await ensureBusinessLogoColumn();
+
     const authUser = getAuthUser(req);
 
     if (!authUser?.token) {
@@ -254,7 +223,7 @@ export async function GET(req: NextRequest) {
       rawBusinessRows,
     );
 
-    const avatarSelect = await getBusinessImageSelectExpression();
+    const avatarSelect = getBusinessLogoSelect("b");
 
     const [rows] = await pool.query<BusinessRow[]>(
       `

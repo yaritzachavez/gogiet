@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
+import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
 function validateBearer(req: Request) {
@@ -16,6 +17,8 @@ function validateBearer(req: Request) {
 
 export async function GET(req: Request) {
   try {
+    await ensureBusinessLogoColumn();
+
     if (!validateBearer(req)) {
       return NextResponse.json(
         { error: "Token no proporcionado o inválido" },
@@ -73,6 +76,8 @@ export async function POST(req: Request) {
   const connection = await pool.getConnection();
 
   try {
+    await ensureBusinessLogoColumn();
+
     if (!validateBearer(req)) {
       return NextResponse.json(
         { error: "Token no proporcionado o inválido" },
@@ -93,6 +98,7 @@ export async function POST(req: Request) {
       address_notes,
       phone,
       email,
+      logo_url,
       status_id = 1,
     } = body;
 
@@ -120,11 +126,12 @@ export async function POST(req: Request) {
           address_notes,
           phone,
           email,
+          logo_url,
           status_id,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
       `,
       [
         name,
@@ -136,6 +143,7 @@ export async function POST(req: Request) {
         address_notes ?? null,
         phone ?? null,
         email ?? null,
+        logo_url ?? null,
         status_id,
       ],
     );
