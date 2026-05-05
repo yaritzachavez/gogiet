@@ -2,6 +2,11 @@ import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import {
+  ensureProductCategoryCatalog,
+  getBusinessCategoryName,
+  getProductCategoriesForBusiness,
+} from "@/lib/product-categories";
 
 type CategoryRow = RowDataPacket & {
   id: number;
@@ -12,8 +17,10 @@ type ColumnRow = RowDataPacket & {
   COLUMN_NAME: string;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    await ensureProductCategoryCatalog();
+
     const [columnRows] = await pool.query<ColumnRow[]>(
       `
         SELECT COLUMN_NAME
@@ -42,12 +49,27 @@ export async function GET() {
       `,
     );
 
+    const businessId = Number(new URL(req.url).searchParams.get("business_id"));
+
+    const categories = rows.map((row) => ({
+      id: Number(row.id),
+      name: String(row.name ?? ""),
+    }));
+
+    const businessCategoryName =
+      Number.isFinite(businessId) && businessId > 0
+        ? await getBusinessCategoryName(businessId)
+        : null;
+
+    const filteredCategories = getProductCategoriesForBusiness(
+      businessCategoryName,
+      categories,
+    );
+
     return NextResponse.json(
       {
-        categories: rows.map((row) => ({
-          id: Number(row.id),
-          name: String(row.name ?? ""),
-        })),
+        business_category_name: businessCategoryName,
+        categories: filteredCategories,
       },
       { status: 200 },
     );

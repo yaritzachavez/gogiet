@@ -94,7 +94,10 @@ export default function NewProductClient({
       setCategoriesError("");
 
       try {
-        const res = await fetch("/api/product/categories", {
+        const query = businessIdNumber
+          ? `?business_id=${businessIdNumber}`
+          : "";
+        const res = await fetch(`/api/product/categories${query}`, {
           cache: "no-store",
         });
 
@@ -136,7 +139,7 @@ export default function NewProductClient({
     }
 
     loadCategories();
-  }, []);
+  }, [businessIdNumber]);
 
   // ============================
   // 📌 Manejo de imagen
