@@ -20,30 +20,59 @@ import {
 
 // --- Constantes y Helpers ---
 const ITEMS_PER_PAGE = 12;
-const PRODUCT_PLACEHOLDER_IMAGE = "/items/thumbnails/generic-item.png";
+const PRODUCT_PLACEHOLDER_IMAGE = "/placeholder-product.png";
 
-function getProductImageSrc(
-  imageUrl: string | null | undefined,
-  image?: string | null,
-  thumbnailUrl?: string | null,
-) {
-  const rawValue = imageUrl ?? image ?? thumbnailUrl ?? null;
+function getSafeProductImage(product: {
+  image_url?: string | null;
+  image?: string | null;
+  photo_url?: string | null;
+  logo_url?: string | null;
+}) {
+  const img =
+    product.image_url ||
+    product.image ||
+    product.photo_url ||
+    product.logo_url;
 
-  if (!rawValue) return PRODUCT_PLACEHOLDER_IMAGE;
+  if (!img) return PRODUCT_PLACEHOLDER_IMAGE;
 
-  const normalizedUrl = rawValue.trim();
+  const normalizedUrl = img.trim();
 
   if (!normalizedUrl) return PRODUCT_PLACEHOLDER_IMAGE;
-
-  if (normalizedUrl.startsWith("/uploads/")) {
-    return PRODUCT_PLACEHOLDER_IMAGE;
-  }
-
-  if (normalizedUrl.startsWith("/public/")) {
-    return PRODUCT_PLACEHOLDER_IMAGE;
-  }
+  if (normalizedUrl.startsWith("/uploads/")) return PRODUCT_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.includes("/var/task/")) return PRODUCT_PLACEHOLDER_IMAGE;
+  if (normalizedUrl.startsWith("/public/")) return PRODUCT_PLACEHOLDER_IMAGE;
 
   return normalizedUrl;
+}
+
+function ProductMenuImage({
+  product,
+  alt,
+}: {
+  product: {
+    image_url?: string | null;
+    image?: string | null;
+    photo_url?: string | null;
+    logo_url?: string | null;
+  };
+  alt: string;
+}) {
+  const [src, setSrc] = useState(() => getSafeProductImage(product));
+
+  useEffect(() => {
+    setSrc(getSafeProductImage(product));
+  }, [product]);
+
+  return (
+    <Image
+      src={src}
+      fill
+      className="object-cover group-hover:scale-110 transition duration-500"
+      alt={alt}
+      onError={() => setSrc(PRODUCT_PLACEHOLDER_IMAGE)}
+    />
+  );
 }
 
 export default function BusinessDetailPage() {
@@ -246,7 +275,7 @@ export default function BusinessDetailPage() {
             {paginatedProducts.length > 0 ? paginatedProducts.map(product => (
               <div key={product.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:shadow-xl hover:shadow-orange-900/5 transition-all duration-300 group flex flex-col">
                 <div className="relative aspect-square rounded-xl overflow-hidden mb-4 bg-slate-50">
-                  <Image src={getProductImageSrc(product.image_url, product.image, product.thumbnail_url)} fill className="object-cover group-hover:scale-110 transition duration-500" alt={product.name} />
+                  <ProductMenuImage product={product} alt={product.name} />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-bold text-lg text-slate-900">{product.name}</h3>

@@ -50,6 +50,8 @@ type ProductRow = RowDataPacket & {
   price_per_unit: number | string | null;
   image_url: string | null;
   image: string | null;
+  photo_url: string | null;
+  logo_url: string | null;
   thumbnail_url: string | null;
   stock_average: number | string | null;
   stock_danger: number | string | null;
@@ -212,6 +214,8 @@ export async function GET(
     const products = productRows.map((row) => ({
       ...row,
       image: row.image_url ?? row.thumbnail_url ?? null,
+      photo_url: row.image_url ?? row.thumbnail_url ?? null,
+      logo_url: row.image_url ?? row.thumbnail_url ?? null,
       price: Number(row.price),
       discount_price: row.discount_price ? Number(row.discount_price) : null,
       price_per_unit: row.price_per_unit ? Number(row.price_per_unit) : null,
