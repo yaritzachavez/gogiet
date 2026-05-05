@@ -37,14 +37,25 @@ export async function ensureBusinessLogoColumn() {
 
       availableColumns.add("logo_url");
     } catch (error) {
-      if (availableColumns.has("avatar_url")) {
-        console.error("[business-logo] No se pudo crear logo_url; usando avatar_url como respaldo", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return "avatar_url" as const;
-      }
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
 
-      throw error;
+      if (
+        errorMessage.toLowerCase().includes("duplicate column name") &&
+        errorMessage.toLowerCase().includes("logo_url")
+      ) {
+        availableColumns.add("logo_url");
+      } else if (availableColumns.has("avatar_url")) {
+        console.error(
+          "[business-logo] No se pudo crear logo_url; usando avatar_url como respaldo",
+          {
+            error: errorMessage,
+          },
+        );
+        return "avatar_url" as const;
+      } else {
+        throw error;
+      }
     }
   }
 
@@ -63,7 +74,9 @@ export async function ensureBusinessLogoColumn() {
     `);
   }
 
-  return availableColumns.has("logo_url") ? ("logo_url" as const) : ("avatar_url" as const);
+  return availableColumns.has("logo_url")
+    ? ("logo_url" as const)
+    : ("avatar_url" as const);
 }
 
 export function getBusinessLogoSelect(alias = "b") {
