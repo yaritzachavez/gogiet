@@ -332,7 +332,7 @@ export default function ShopPage() {
             >
               <p className="text-xs font-black text-slate-400">Entregar en</p>
               <span className="inline-flex items-center gap-1.5 text-lg font-black">
-                Ciudad Óptica
+                Mazamitla
                 <ChevronRight className="h-4 w-4 rotate-90" />
               </span>
             </button>
