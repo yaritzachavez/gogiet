@@ -287,10 +287,10 @@ export default function BusinessDetailPage() {
             </div>
           </aside>
 
-          <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+          <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {paginatedProducts.length > 0 ? paginatedProducts.map(product => (
-              <div key={product.id} className="bg-white p-5 rounded-2xl border border-slate-200 hover:shadow-xl hover:shadow-orange-900/5 transition-all duration-300 group flex flex-col">
-                <div className="relative aspect-square rounded-xl overflow-hidden mb-4 bg-slate-50">
+              <div key={product.id} className="bg-white p-3 rounded-xl border border-slate-200 hover:shadow-lg hover:shadow-orange-900/5 transition-all duration-300 group flex flex-col">
+                <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-slate-50">
                   <img
                     src={getProductImage(product)}
                     alt={product.name || "Producto"}
@@ -302,16 +302,16 @@ export default function BusinessDetailPage() {
                   />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-lg text-slate-900">{product.name}</h3>
-                  <p className="text-slate-500 text-sm line-clamp-2 mt-1">{product.description_short}</p>
+                  <h3 className="font-bold text-sm text-slate-900 line-clamp-2 sm:text-base">{product.name}</h3>
+                  <p className="text-slate-500 text-xs line-clamp-2 mt-1 sm:text-sm">{product.description_short}</p>
                 </div>
-                <div className="mt-5 flex items-center justify-between pt-2 border-t border-slate-50">
-                  <span className="font-bold text-xl text-orange-600">MX${product.price}</span>
+                <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-50">
+                  <span className="font-bold text-sm text-orange-600 sm:text-base">MX${product.price}</span>
                   <Button 
-                    className="bg-orange-600 hover:bg-orange-700 shadow-lg shadow-orange-600/20 rounded-xl"
+                    className="h-9 min-w-0 rounded-lg bg-orange-600 px-3 hover:bg-orange-700 shadow-lg shadow-orange-600/20"
                     onClick={() => openCustomizationModal(product)}
                   >
-                    <Plus className="h-5 w-5" />
+                    <Plus className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
