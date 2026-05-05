@@ -1,13 +1,8 @@
-import jwt from "jsonwebtoken";
-import type { RowDataPacket } from "mysql2";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getAuthUser } from "@/lib/admin-security";
 import { prisma } from "@/lib/prisma";
 import { getDefaultShippingZoneByName } from "@/lib/shipping-zones";
-
-type JwtPayload = {
-  id?: number;
-};
 
 type StoredAddressMeta = {
   references?: string;
@@ -24,35 +19,12 @@ type ShippingZoneRow = {
   distancia_km?: number | string | null;
 };
 
-type AddressStatusRow = RowDataPacket & {
-  id: number;
-};
-
 const DELIVERY_LOCATION_STORAGE_KEY = "gogi:selected-delivery-location";
 
-function getTokenFromRequest(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.split(" ")[1];
-  }
-
-  return req.cookies.get("authToken")?.value ?? null;
-}
-
 function getUserIdFromRequest(req: NextRequest) {
-  const token = getTokenFromRequest(req);
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
-
-  if (!token) return null;
-
-  try {
-    const decoded = jwt.verify(token, secret) as JwtPayload;
-    return typeof decoded.id === "number" ? decoded.id : null;
-  } catch (error) {
-    console.error("SAVE ADDRESS ERROR:", error);
-    return null;
-  }
+  const authUser = getAuthUser(req);
+  const userId = Number(authUser?.user?.id);
+  return Number.isInteger(userId) && userId > 0 ? userId : null;
 }
 
 function parseAddressMeta(referenceNotes?: string | null): StoredAddressMeta {
@@ -178,40 +150,13 @@ async function resolveShippingZone(zoneName: string) {
   };
 }
 
-async function resolveAddressStatusId() {
-  const rows = await prisma.$queryRaw<AddressStatusRow[]>`
-    SELECT id
-    FROM status_catalog
-    WHERE LOWER(name) IN ('activo', 'active')
-    ORDER BY id ASC
-    LIMIT 1
-  `;
-
-  if (rows[0]?.id) {
-    return Number(rows[0].id);
-  }
-
-  const firstRows = await prisma.$queryRaw<AddressStatusRow[]>`
-    SELECT id
-    FROM status_catalog
-    ORDER BY id ASC
-    LIMIT 1
-  `;
-
-  if (firstRows[0]?.id) {
-    return Number(firstRows[0].id);
-  }
-
-  throw new Error("No existe un status válido para guardar direcciones.");
-}
-
 export async function GET(req: NextRequest) {
   try {
     const userId = getUserIdFromRequest(req);
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: "No autorizado" },
+        { success: false, error: "Inicia sesión para guardar tu dirección" },
         { status: 401 },
       );
     }
@@ -261,7 +206,7 @@ export async function POST(req: NextRequest) {
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: "No autorizado" },
+        { success: false, error: "Inicia sesión para guardar tu dirección" },
         { status: 401 },
       );
     }
@@ -368,8 +313,6 @@ export async function POST(req: NextRequest) {
       zone: selectedZone.nombre,
     }).slice(0, 255);
 
-    const statusId = await resolveAddressStatusId();
-
     const existingDefaultAddress = await prisma.addresses.findFirst({
       where: {
         user_id: userId,
@@ -380,6 +323,7 @@ export async function POST(req: NextRequest) {
       },
       select: {
         id: true,
+        status_id: true,
       },
     });
 
@@ -415,7 +359,7 @@ export async function POST(req: NextRequest) {
           postal_code: "49500",
           reference_notes: serializedMeta || null,
           is_default: true,
-          status_id: statusId,
+          status_id: Number(existingDefaultAddress.status_id ?? 1) || 1,
           updated_at: new Date(),
         },
         select: {
@@ -458,7 +402,8 @@ export async function POST(req: NextRequest) {
           postal_code: "49500",
           reference_notes: serializedMeta || null,
           is_default: true,
-          status_id: statusId,
+          status_id:
+            Number(body?.status_id ?? body?.address_status_id ?? 1) || 1,
         },
         select: {
           id: true,

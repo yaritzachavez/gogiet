@@ -191,6 +191,11 @@ export default function AddressRequiredDialog({
       if (!response.ok || !data.success) {
         const apiError = String(data?.error ?? "");
 
+        if (response.status === 401) {
+          setErrorMessage("Inicia sesión para guardar tu dirección");
+          return;
+        }
+
         if (apiError.includes("Tipo de lugar")) {
           setFieldErrors((prev) => ({
             ...prev,
