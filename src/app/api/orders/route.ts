@@ -6,7 +6,10 @@ import type {
 } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 import pool, { logDbUsage } from "@/lib/db";
-import { createNotificationsForAdminGeneral } from "@/lib/notifications";
+import {
+  createNotificationForBusiness,
+  createNotificationsForAdminGeneral,
+} from "@/lib/notifications";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 
 type JwtPayload = {
@@ -909,6 +912,23 @@ export async function POST(req: NextRequest) {
         title: `Pedido nuevo #${orderId}`,
         message: `Se creó un pedido nuevo${paymentMethodName === "transferencia" ? " con transferencia por validar" : ""} y aún no tiene repartidor asignado.`,
         relatedId: orderId,
+      },
+      conn,
+    );
+
+    await createNotificationForBusiness(
+      businessId,
+      {
+        type: "pedido",
+        title: `Pedido nuevo #${orderId}`,
+        message:
+          "Tienes un pedido nuevo pendiente de preparación en tu negocio.",
+        relatedId: orderId,
+        dataJson: {
+          order_id: orderId,
+          business_id: businessId,
+          payment_method: paymentMethodName,
+        },
       },
       conn,
     );

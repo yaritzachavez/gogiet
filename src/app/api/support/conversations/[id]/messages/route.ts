@@ -1,6 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import {
+  createNotification,
+  createNotificationForRole,
+} from "@/lib/notifications";
+import {
   addSupportMessage,
   canAccessSupportConversation,
   getSupportAuthUser,
@@ -141,6 +145,32 @@ export async function POST(
           ? messageType
           : "text",
     });
+
+    if (authUser.isAdminGeneral) {
+      await createNotification({
+        userId: Number(conversation.requester_user_id),
+        type: "support",
+        title: "Soporte respondió tu conversación",
+        message: "Tienes una nueva respuesta de soporte en tu conversación.",
+        relatedId: conversationId,
+        dataJson: {
+          conversation_id: conversationId,
+          requester_user_id: Number(conversation.requester_user_id),
+        },
+      });
+    } else {
+      await createNotificationForRole("admin_general", {
+        type: "support",
+        title: "Nuevo mensaje de soporte",
+        message: "Un usuario envió un nuevo mensaje a soporte.",
+        relatedId: conversationId,
+        dataJson: {
+          conversation_id: conversationId,
+          requester_user_id: authUser.userId,
+          requester_role: conversation.requester_role,
+        },
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

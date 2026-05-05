@@ -44,6 +44,7 @@ const PLACE_TYPES = [
 ];
 
 const USER_UPDATED_EVENT = "gogi-user-updated";
+const DELIVERY_LOCATION_STORAGE_KEY = "gogi:selected-delivery-location";
 
 export default function AddressRequiredDialog({
   open,
@@ -169,12 +170,19 @@ export default function AddressRequiredDialog({
           placeName,
           street,
           externalNumber,
+          exterior_number: externalNumber,
           internalNumber,
+          interior_number: internalNumber,
           neighborhood,
+          zone: neighborhood,
           references,
           phone,
           deliveryInstructions,
+          delivery_notes: deliveryInstructions,
           withoutExternalNumber,
+          estimated_distance_km:
+            zones.find((zone) => zone.nombre === neighborhood)?.distanciaKm ??
+            null,
         }),
       });
 
@@ -218,6 +226,11 @@ export default function AddressRequiredDialog({
         return;
       }
 
+      window.localStorage.setItem(
+        DELIVERY_LOCATION_STORAGE_KEY,
+        data?.address?.zone ?? data?.address?.neighborhood ?? neighborhood,
+      );
+
       const storedUser = window.localStorage.getItem("user");
 
       if (storedUser) {
@@ -231,7 +244,11 @@ export default function AddressRequiredDialog({
       onOpenChange(false);
     } catch (error) {
       console.error(error);
-      setErrorMessage("No pudimos guardar tu dirección.");
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No pudimos guardar tu dirección.",
+      );
     } finally {
       setSaving(false);
     }

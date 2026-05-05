@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { createNotificationForRole } from "@/lib/notifications";
 import {
   addSupportMessage,
   getOrCreateSupportConversation,
@@ -52,6 +53,20 @@ export async function POST(req: NextRequest) {
         message,
         attachmentUrl: fileUrl,
         messageType: fileUrl ? "payment_proof" : "text",
+      });
+
+      await createNotificationForRole("admin_general", {
+        type: "support",
+        title: "Nuevo mensaje de soporte",
+        message: subject
+          ? `Hay un nuevo mensaje de soporte en ${subject}.`
+          : "Hay un nuevo mensaje de soporte pendiente de revisión.",
+        relatedId: conversationId,
+        dataJson: {
+          conversation_id: conversationId,
+          requester_user_id: authUser.userId,
+          requester_role: requesterRole,
+        },
       });
     }
 

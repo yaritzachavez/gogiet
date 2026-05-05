@@ -1,12 +1,13 @@
+import type { RowDataPacket } from "mysql2";
 import { type NextRequest, NextResponse } from "next/server";
-import { RowDataPacket } from "mysql2";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
 import {
   createNotification,
   ensureNotificationsTable,
-  getNotificationsForUser,
+  getNotificationsForActor,
 } from "@/lib/notifications";
 
 type UserInfoRow = {
@@ -64,7 +65,12 @@ export async function GET(req: NextRequest) {
     });
 
     await ensureNotificationsTable();
-    const notifications = await getNotificationsForUser(authUser.user.id);
+    const access = await resolveBusinessAccess(authUser.user.id);
+    const notifications = await getNotificationsForActor({
+      userId: authUser.user.id,
+      businessIds: access.businessIds,
+      roles: access.roles,
+    });
     const unread_count = notifications.filter(
       (notification) => !notification.is_read,
     ).length;
@@ -103,27 +109,34 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const userId = Number(body?.user_id);
+    const businessId = Number(body?.business_id);
+    const role = String(body?.role ?? "").trim() || null;
     const type = String(body?.type ?? "").trim();
     const title = String(body?.title ?? "").trim();
     const message = String(body?.message ?? "").trim();
     const relatedId = Number(body?.related_id);
+    const dataJson = body?.data_json ?? null;
 
-    if (!userId || !type || !title || !message) {
+    if ((!userId && !businessId && !role) || !type || !title || !message) {
       return NextResponse.json(
         {
           success: false,
-          error: "user_id, type, title y message son requeridos",
+          error:
+            "user_id o business_id o role, además de type, title y message, son requeridos",
         },
         { status: 400 },
       );
     }
 
     const notificationId = await createNotification({
-      userId,
+      userId: Number.isFinite(userId) ? userId : null,
+      businessId: Number.isFinite(businessId) ? businessId : null,
+      role,
       type,
       title,
       message,
       relatedId: Number.isFinite(relatedId) ? relatedId : null,
+      dataJson,
     });
 
     return NextResponse.json(

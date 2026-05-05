@@ -103,6 +103,23 @@ const STATIC_FILTERS = [
 ];
 
 const CARD_IMAGES = [5, 6, 7, 8, 9, 10];
+const DELIVERY_LOCATION_STORAGE_KEY = "gogi:selected-delivery-location";
+const DELIVERY_LOCATIONS = [
+  "Mazamitla",
+  "Epenche Chico",
+  "La Cofradía",
+  "El Chorro",
+  "La Estacada",
+  "Puerta del Zapatero",
+  "Llano de los Toros",
+  "Las Colonias",
+  "El Pandito",
+  "El Tigre",
+  "El Charco",
+  "El Orito",
+  "La Gloria",
+  "Barrio Alto",
+] as const;
 
 function stableNumber(value: string | number, offset = 0) {
   const source = String(value);
@@ -153,6 +170,20 @@ function matchesCategoryTerms(category: string | undefined, terms: string[]) {
   return terms.some((term) => normalizedCategory.includes(term));
 }
 
+function getSelectedDeliveryLocation() {
+  if (typeof window === "undefined") {
+    return "Mazamitla";
+  }
+
+  const storedLocation = window.localStorage.getItem(
+    DELIVERY_LOCATION_STORAGE_KEY,
+  );
+
+  return storedLocation && DELIVERY_LOCATIONS.includes(storedLocation as never)
+    ? storedLocation
+    : "Mazamitla";
+}
+
 export default function ShopPage() {
   const router = useRouter();
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -161,6 +192,8 @@ export default function ShopPage() {
   const [loading, setLoading] = useState(true);
   const [activeOrders, setActiveOrders] = useState<ActiveOrder[]>([]);
   const [activeOrdersLoading, setActiveOrdersLoading] = useState(true);
+  const [selectedLocation, setSelectedLocation] = useState("Mazamitla");
+  const [locationMenuOpen, setLocationMenuOpen] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -206,6 +239,10 @@ export default function ShopPage() {
     }
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    setSelectedLocation(getSelectedDeliveryLocation());
   }, []);
 
   useEffect(() => {
@@ -318,6 +355,15 @@ export default function ShopPage() {
     });
   }, [businesses, searchQuery, selectedFilter]);
 
+  const handleSelectLocation = (location: string) => {
+    setSelectedLocation(location);
+    setLocationMenuOpen(false);
+
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DELIVERY_LOCATION_STORAGE_KEY, location);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-[#f7f8fa] text-slate-950">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:px-6">
@@ -326,33 +372,47 @@ export default function ShopPage() {
             <span className="inline-flex size-11 items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg shadow-orange-600/20">
               <Store className="h-5 w-5" />
             </span>
-            <button
-              type="button"
-              className="rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white"
-            >
-              <p className="text-xs font-black text-slate-400">Entregar en</p>
-              <span className="inline-flex items-center gap-1.5 text-lg font-black">
-                Mazamitla
-                <ChevronRight className="h-4 w-4 rotate-90" />
-              </span>
-            </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="relative inline-flex size-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-950"
-              aria-label="Notificaciones"
-            >
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-red-500" />
-              <Sparkles className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              className="inline-flex size-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white hover:text-slate-950"
-              aria-label="Perfil"
-            >
-              <MapPin className="h-4 w-4" />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setLocationMenuOpen((current) => !current)}
+                className="rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white"
+              >
+                <p className="text-xs font-black text-slate-400">Entregar en</p>
+                <span className="inline-flex items-center gap-1.5 text-lg font-black">
+                  {selectedLocation}
+                  <ChevronRight
+                    className={`h-4 w-4 rotate-90 transition ${
+                      locationMenuOpen ? "rotate-[270deg]" : ""
+                    }`}
+                  />
+                </span>
+              </button>
+
+              {locationMenuOpen ? (
+                <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                  <div className="max-h-72 overflow-y-auto p-2">
+                    {DELIVERY_LOCATIONS.map((location) => (
+                      <button
+                        key={location}
+                        type="button"
+                        onClick={() => handleSelectLocation(location)}
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
+                          selectedLocation === location
+                            ? "bg-orange-50 text-orange-600"
+                            : "text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span>{location}</span>
+                        {selectedLocation === location ? (
+                          <MapPin className="h-4 w-4" />
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
           </div>
         </header>
 

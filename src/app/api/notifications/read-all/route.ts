@@ -4,13 +4,10 @@ import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import {
   ensureNotificationsTable,
-  markNotificationReadForActor,
+  markAllNotificationsReadForActor,
 } from "@/lib/notifications";
 
-export async function PATCH(
-  req: NextRequest,
-  context: { params: Promise<{ id: string }> },
-) {
+export async function PATCH(req: NextRequest) {
   try {
     const authUser = getAuthUser(req);
 
@@ -23,37 +20,23 @@ export async function PATCH(
 
     await ensureNotificationsTable();
 
-    const { id } = await context.params;
-    const notificationId = Number(id);
-
-    if (!Number.isFinite(notificationId) || notificationId <= 0) {
-      return NextResponse.json(
-        { success: false, error: "ID inválido" },
-        { status: 400 },
-      );
-    }
-
     const access = await resolveBusinessAccess(authUser.user.id);
-    const affectedRows = await markNotificationReadForActor(notificationId, {
+    const affectedRows = await markAllNotificationsReadForActor({
       userId: authUser.user.id,
       businessIds: access.businessIds,
       roles: access.roles,
     });
 
-    if (!affectedRows) {
-      return NextResponse.json(
-        { success: false, error: "Notificación no encontrada" },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      updated_count: affectedRows,
+    });
   } catch (error) {
-    console.error("Error PATCH /api/notifications/[id]/read:", error);
+    console.error("Error PATCH /api/notifications/read-all:", error);
     return NextResponse.json(
       {
         success: false,
-        error: "No se pudo actualizar la notificación.",
+        error: "No se pudieron marcar las notificaciones como leídas.",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },

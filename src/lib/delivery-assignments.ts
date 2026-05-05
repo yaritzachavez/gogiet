@@ -11,12 +11,17 @@ import {
   resolveBusinessAccess,
 } from "@/lib/business-panel";
 import pool from "@/lib/db";
-import { createNotificationsForUsers } from "@/lib/notifications";
+import {
+  createNotification,
+  createNotificationForBusiness,
+  createNotificationsForUsers,
+} from "@/lib/notifications";
 
 type OrderRow = RowDataPacket & {
   id: number;
   business_id: number;
   business_name: string;
+  customer_user_id: number;
   order_status_name: string | null;
 };
 
@@ -123,6 +128,7 @@ async function getOrderForAssignment(
         o.id,
         o.business_id,
         b.name AS business_name,
+        o.user_id AS customer_user_id,
         osc.name AS order_status_name
       FROM orders o
       INNER JOIN business b ON b.id = o.business_id
@@ -536,6 +542,39 @@ export async function respondToCourierAssignment(params: {
           WHERE id = ?
         `,
         [orderStatusId, params.orderId],
+      );
+
+      await createNotificationForBusiness(
+        Number(order.business_id),
+        {
+          type: "pedido",
+          title: `Repartidor asignado #FG-${String(params.orderId).padStart(4, "0")}`,
+          message:
+            "Un repartidor aceptó la entrega y ya quedó asignado al pedido.",
+          relatedId: params.orderId,
+          dataJson: {
+            order_id: params.orderId,
+            business_id: Number(order.business_id),
+            driver_user_id: params.userId,
+          },
+        },
+        connection,
+      );
+
+      await createNotification(
+        {
+          userId: Number(order.customer_user_id),
+          type: "pedido",
+          title: `Tu pedido ya tiene repartidor #FG-${String(params.orderId).padStart(4, "0")}`,
+          message: `Un repartidor aceptó la entrega de tu pedido de ${order.business_name}.`,
+          relatedId: params.orderId,
+          dataJson: {
+            order_id: params.orderId,
+            business_id: Number(order.business_id),
+            driver_user_id: params.userId,
+          },
+        },
+        connection,
       );
 
       await connection.commit();

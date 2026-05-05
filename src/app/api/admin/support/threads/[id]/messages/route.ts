@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { createNotification } from "@/lib/notifications";
 import {
   addSupportMessage,
   canAccessSupportConversation,
@@ -40,7 +41,12 @@ export async function POST(
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
-    if (!(await canAccessSupportConversation(authUser, conversationId))) {
+    const conversation = await canAccessSupportConversation(
+      authUser,
+      conversationId,
+    );
+
+    if (!conversation) {
       return NextResponse.json(
         { error: "Conversación no encontrada" },
         { status: 404 },
@@ -61,6 +67,18 @@ export async function POST(
         messageType === "image" || messageType === "payment_proof"
           ? messageType
           : "text",
+    });
+
+    await createNotification({
+      userId: Number(conversation.requester_user_id),
+      type: "support",
+      title: "Soporte respondió tu conversación",
+      message: "Tienes una nueva respuesta del equipo de soporte.",
+      relatedId: conversationId,
+      dataJson: {
+        conversation_id: conversationId,
+        requester_user_id: Number(conversation.requester_user_id),
+      },
     });
 
     return NextResponse.json({ success: true });
