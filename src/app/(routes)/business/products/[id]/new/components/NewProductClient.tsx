@@ -268,26 +268,55 @@ export default function NewProductClient({
         try {
           setUploadingImage(true);
           const formData = new FormData();
-          formData.append("product_id", String(productId));
-          formData.append("business_id", String(businessId));
-          formData.append("image", imageFile);
+          formData.append("file", imageFile);
 
-          const uploadResponse = await fetch(
-            "/api/business/products/upload-image",
-            {
-              method: "POST",
-              headers: {
-                Authorization: token ? `Bearer ${token}` : "",
-              },
-              body: formData,
+          const uploadResponse = await fetch("/api/upload/product-image", {
+            method: "POST",
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
             },
-          );
+            body: formData,
+          });
           const uploadData = await uploadResponse.json();
 
           if (!uploadResponse.ok || uploadData.success === false) {
             alert(
               `✅ Producto creado, pero la imagen no se pudo guardar: ${
                 uploadData.error || "Error desconocido"
+              }`,
+            );
+            return;
+          }
+
+          const imageUrl =
+            typeof uploadData.url === "string" ? uploadData.url : null;
+
+          if (!imageUrl) {
+            alert(
+              "✅ Producto creado, pero Cloudinary no devolvió una URL válida para la imagen.",
+            );
+            return;
+          }
+
+          const saveImageResponse = await fetch("/api/business/products", {
+            method: "PATCH",
+            headers: {
+              Authorization: token ? `Bearer ${token}` : "",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: productId,
+              business_id: businessId,
+              image_url: imageUrl,
+              thumbnail_url: imageUrl,
+            }),
+          });
+          const saveImageData = await saveImageResponse.json();
+
+          if (!saveImageResponse.ok) {
+            alert(
+              `✅ Producto creado y la imagen se subió, pero no se pudo guardar en la base: ${
+                saveImageData.error || "Error desconocido"
               }`,
             );
             return;

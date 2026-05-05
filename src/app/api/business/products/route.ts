@@ -587,6 +587,8 @@ export async function PATCH(req: Request) {
       is_stock_available,
       status_id,
       product_category_id,
+      thumbnail_url,
+      image_url,
     } = body;
 
     if (!id) {
@@ -624,6 +626,30 @@ export async function PATCH(req: Request) {
 
     const fields: string[] = [];
     const values: Array<string | number | null> = [];
+
+    const [tableRows] = await connection.query<RowDataPacket[]>(
+      `
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = 'product_images'
+      `,
+    );
+
+    const [productColumnRows] = await connection.query<RowDataPacket[]>(
+      `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'products'
+          AND column_name IN ('thumbnail_url', 'image_url')
+      `,
+    );
+
+    const hasProductImagesTable = tableRows.length > 0;
+    const productColumns = new Set(
+      productColumnRows.map((row) => String(row.column_name).toLowerCase()),
+    );
 
     if (name !== undefined) {
       const parsedName = String(name).trim();
@@ -704,8 +730,30 @@ export async function PATCH(req: Request) {
       values.push(parsedStatusId);
     }
 
+    const nextImageUrl =
+      image_url !== undefined
+        ? String(image_url ?? "").trim() || null
+        : thumbnail_url !== undefined
+          ? String(thumbnail_url ?? "").trim() || null
+          : undefined;
+
+    if (nextImageUrl !== undefined) {
+      if (productColumns.has("thumbnail_url")) {
+        fields.push("thumbnail_url = ?");
+        values.push(nextImageUrl);
+      }
+
+      if (productColumns.has("image_url")) {
+        fields.push("image_url = ?");
+        values.push(nextImageUrl);
+      }
+    }
+
     if (!fields.length) {
-      if (product_category_id === undefined) {
+      if (
+        product_category_id === undefined &&
+        nextImageUrl === undefined
+      ) {
         return NextResponse.json(
           { error: "Nada que actualizar" },
           { status: 400 },
@@ -745,6 +793,23 @@ export async function PATCH(req: Request) {
         `,
         [id, Number(product_category_id)],
       );
+    }
+
+    if (nextImageUrl !== undefined && hasProductImagesTable) {
+      await connection.query(
+        "DELETE FROM product_images WHERE product_id = ?",
+        [id],
+      );
+
+      if (nextImageUrl) {
+        await connection.query(
+          `
+            INSERT INTO product_images (product_id, image_url, is_primary, sort_order, created_at, updated_at)
+            VALUES (?, ?, 1, 1, NOW(), NOW())
+          `,
+          [id, nextImageUrl],
+        );
+      }
     }
 
     const [updatedProductRows] = await connection.query<ProductPromotionRow[]>(
