@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { ensureAddressesTable } from "@/lib/addresses-table";
 import { getAuthUser } from "@/lib/admin-security";
 import { prisma } from "@/lib/prisma";
 import { getDefaultShippingZoneByName } from "@/lib/shipping-zones";
@@ -152,6 +153,8 @@ async function resolveShippingZone(zoneName: string) {
 
 export async function GET(req: NextRequest) {
   try {
+    await ensureAddressesTable();
+
     const userId = getUserIdFromRequest(req);
 
     if (!userId) {
@@ -202,6 +205,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureAddressesTable();
+
     const userId = getUserIdFromRequest(req);
 
     if (!userId) {
