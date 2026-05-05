@@ -1,6 +1,8 @@
 import jwt from "jsonwebtoken";
 import { type NextRequest, NextResponse } from "next/server";
+import { getAuthUser } from "@/lib/admin-security";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
 
 function validateAuth(req: NextRequest): boolean {
@@ -269,6 +271,86 @@ export async function PUT(
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   } finally {
     connection.release();
+  }
+}
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    await ensureBusinessLogoColumn();
+
+    const authUser = getAuthUser(req);
+
+    if (!authUser?.user) {
+      return NextResponse.json(
+        { success: false, error: "Token inválido o faltante" },
+        { status: 401 },
+      );
+    }
+
+    const { id } = await context.params;
+    const businessId = Number(id);
+
+    if (!Number.isFinite(businessId) || businessId <= 0) {
+      return NextResponse.json(
+        { success: false, error: "ID de negocio inválido" },
+        { status: 400 },
+      );
+    }
+
+    const access = await resolveBusinessAccess(authUser.user.id, businessId);
+
+    if (access.businessId !== businessId) {
+      return NextResponse.json(
+        { success: false, error: "No tienes acceso a este negocio" },
+        { status: 403 },
+      );
+    }
+
+    const body = await req.json();
+    const rawLogoUrl = body.logo_url ?? body.image_url ?? null;
+    const logoUrl =
+      rawLogoUrl === null || rawLogoUrl === undefined
+        ? null
+        : String(rawLogoUrl).trim() || null;
+
+    await pool.query(
+      `
+        UPDATE business
+        SET logo_url = ?, updated_at = NOW()
+        WHERE id = ?
+      `,
+      [logoUrl, businessId],
+    );
+
+    const [rows]: any = await pool.query(
+      `
+        SELECT id, logo_url, updated_at
+        FROM business
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [businessId],
+    );
+
+    return NextResponse.json({
+      success: true,
+      business: rows[0] ?? {
+        id: businessId,
+        logo_url: logoUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Error PATCH /business/:id:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : "Error interno",
+      },
+      { status: 500 },
+    );
   }
 }
 

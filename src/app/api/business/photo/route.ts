@@ -1,10 +1,10 @@
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { ResultSetHeader } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { resolveBusinessAccess } from "@/lib/business-panel";
-import { cloudinary } from "@/lib/cloudinary";
+import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import pool from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -37,7 +37,10 @@ function uploadToCloudinary(buffer: Buffer, businessId: number) {
 }
 
 export async function POST(req: NextRequest) {
+  let step = "init";
+
   try {
+    step = "auth";
     const authUser = getAuthUser(req);
 
     if (!authUser?.user) {
@@ -47,12 +50,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    step = "cloudinary-config";
+    const cloudinaryConfig = getCloudinaryConfigStatus();
+
+    if (!cloudinaryConfig.isConfigured) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Falta configuración de Cloudinary: ${cloudinaryConfig.missing.join(", ")}`,
+        },
+        { status: 500 },
+      );
+    }
+
+    step = "ensure-business-image-column";
     const targetColumn = await ensureBusinessLogoColumn();
 
+    step = "read-form-data";
     const formData = await req.formData();
     const requestedBusinessId = Number(formData.get("business_id"));
     const remove = String(formData.get("remove") ?? "0") === "1";
 
+    step = "resolve-business-access";
     const access = await resolveBusinessAccess(
       authUser.user.id,
       Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
@@ -66,6 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (remove) {
+      step = "remove-photo-db-update";
       await pool.query<ResultSetHeader>(
         `
           UPDATE business
@@ -77,17 +97,19 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         success: true,
+        url: null,
         imageUrl: null,
         logo_url: null,
         avatar_url: null,
       });
     }
 
+    step = "extract-file";
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
       return NextResponse.json(
-        { success: false, error: "No se recibió imagen" },
+        { success: false, error: "No se recibió imagen en el campo 'file'" },
         { status: 400 },
       );
     }
@@ -113,10 +135,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    step = "read-file-buffer";
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+
+    step = "cloudinary-upload";
     const result = await uploadToCloudinary(buffer, access.businessId);
 
+    step = "save-db-url";
     await pool.query<ResultSetHeader>(
       `
         UPDATE business
@@ -128,15 +154,28 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      url: result.secure_url,
       imageUrl: result.secure_url,
       publicId: result.public_id,
       logo_url: result.secure_url,
       avatar_url: result.secure_url,
     });
   } catch (error) {
-    console.error("Error subiendo foto del negocio:", error);
+    console.error("[business-photo] Error subiendo foto del negocio", {
+      step,
+      error,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+
+    const detailedMessage =
+      error instanceof Error ? error.message : "Error subiendo foto del negocio";
+
     return NextResponse.json(
-      { success: false, error: "Error subiendo foto del negocio" },
+      {
+        success: false,
+        error: `Error en ${step}: ${detailedMessage}`,
+      },
       { status: 500 },
     );
   }

@@ -29,12 +29,23 @@ export async function ensureBusinessLogoColumn() {
   );
 
   if (!availableColumns.has("logo_url")) {
-    await pool.query(`
-      ALTER TABLE business
-      ADD COLUMN logo_url VARCHAR(255) NULL
-    `);
+    try {
+      await pool.query(`
+        ALTER TABLE business
+        ADD COLUMN logo_url VARCHAR(255) NULL
+      `);
 
-    availableColumns.add("logo_url");
+      availableColumns.add("logo_url");
+    } catch (error) {
+      if (availableColumns.has("avatar_url")) {
+        console.error("[business-logo] No se pudo crear logo_url; usando avatar_url como respaldo", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return "avatar_url" as const;
+      }
+
+      throw error;
+    }
   }
 
   const sourceColumns = LEGACY_BUSINESS_IMAGE_COLUMNS.filter((column) =>
@@ -52,7 +63,7 @@ export async function ensureBusinessLogoColumn() {
     `);
   }
 
-  return "logo_url" as const;
+  return availableColumns.has("logo_url") ? ("logo_url" as const) : ("avatar_url" as const);
 }
 
 export function getBusinessLogoSelect(alias = "b") {

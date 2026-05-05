@@ -1637,40 +1637,61 @@ export function BusinessAdminDashboard() {
     try {
       setAvatarUploading(true);
       const formData = new FormData();
-      formData.append("business_id", String(business.id));
       formData.append("file", file);
 
-      const response = await fetch("/api/business/photo", {
+      const uploadResponse = await fetch("/api/upload/business-image", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
         },
         body: formData,
       });
-      const payload = (await response.json().catch(() => null)) as Record<
+      const uploadPayload = (await uploadResponse.json().catch(() => null)) as Record<
         string,
         unknown
       > | null;
 
-      if (!response.ok || payload?.success === false) {
+      if (!uploadResponse.ok || uploadPayload?.success === false) {
         throw new Error(
-          (typeof payload?.error === "string" && payload.error) ||
-            "No se pudo actualizar la imagen del negocio.",
+          (typeof uploadPayload?.error === "string" && uploadPayload.error) ||
+            "No se pudo subir la imagen a Cloudinary.",
         );
       }
 
-      const nextAvatarUrl =
-        typeof payload?.imageUrl === "string"
-          ? payload.imageUrl
-          : typeof payload?.avatar_url === "string"
-            ? payload.avatar_url
-            : null;
+      const uploadedUrl =
+        typeof uploadPayload?.url === "string" ? uploadPayload.url : null;
+
+      if (!uploadedUrl) {
+        throw new Error("Cloudinary no devolvió una URL válida.");
+      }
+
+      const saveResponse = await fetch(`/api/business/${business.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          logo_url: uploadedUrl,
+        }),
+      });
+      const savePayload = (await saveResponse.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+
+      if (!saveResponse.ok || savePayload?.success === false) {
+        throw new Error(
+          (typeof savePayload?.error === "string" && savePayload.error) ||
+            "La imagen se subió, pero no se pudo guardar en el negocio.",
+        );
+      }
 
       setBusiness((prev) =>
         prev
           ? {
               ...prev,
-              logo_url: nextAvatarUrl,
+              logo_url: uploadedUrl,
             }
           : prev,
       );
@@ -1680,6 +1701,7 @@ export function BusinessAdminDashboard() {
         message: "Imagen actualizada correctamente",
       });
     } catch (error) {
+      console.error("Error cambiando foto del negocio:", error);
       setFeedback({
         type: "error",
         message:
@@ -1711,16 +1733,15 @@ export function BusinessAdminDashboard() {
 
     try {
       setAvatarUploading(true);
-      const formData = new FormData();
-      formData.append("business_id", String(business.id));
-      formData.append("remove", "1");
-
-      const response = await fetch("/api/business/photo", {
-        method: "POST",
+      const response = await fetch(`/api/business/${business.id}`, {
+        method: "PATCH",
         headers: {
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: formData,
+        body: JSON.stringify({
+          logo_url: null,
+        }),
       });
       const payload = (await response.json().catch(() => null)) as Record<
         string,
@@ -1741,6 +1762,7 @@ export function BusinessAdminDashboard() {
         message: "Imagen eliminada correctamente",
       });
     } catch (error) {
+      console.error("Error eliminando foto del negocio:", error);
       setFeedback({
         type: "error",
         message:
