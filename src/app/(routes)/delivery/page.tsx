@@ -83,6 +83,10 @@ function getProfileImageUrl(profilePayload: Record<string, unknown> | null) {
   const candidates = [
     profilePayload?.profile_image_url,
     profilePayload?.profileImageUrl,
+    profilePayload?.profile_photo_url,
+    profilePayload?.profilePhotoUrl,
+    profilePayload?.photo_url,
+    profilePayload?.photoUrl,
     profilePayload?.avatar_url,
     profilePayload?.image_url,
   ];
@@ -867,6 +871,14 @@ export default function DeliveryDashboardPage() {
 
   useEffect(() => {
     fetchDeliveryData();
+
+    const intervalId = window.setInterval(() => {
+      fetchDeliveryData();
+    }, 10000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
   }, [fetchDeliveryData]);
 
   useEffect(() => {
@@ -1001,8 +1013,8 @@ export default function DeliveryDashboardPage() {
         console.log("[delivery-panel] pedido entregado, refrescando panel:", {
           orderId,
         });
-        alert(successMessage);
         await refreshDeliveryPanel();
+        setOrdersError(successMessage);
       } catch (error) {
         console.error("Error completando entrega:", error);
         setOrdersError("No se pudo marcar el pedido como entregado.");

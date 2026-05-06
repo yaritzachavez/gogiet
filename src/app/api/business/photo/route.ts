@@ -1,11 +1,9 @@
-import type { ResultSetHeader } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
-import pool from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
@@ -63,9 +61,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    step = "ensure-business-image-column";
-    const targetColumn = await ensureBusinessLogoColumn();
-
     step = "read-form-data";
     const formData = await req.formData();
     const requestedBusinessId = Number(formData.get("business_id"));
@@ -86,14 +81,10 @@ export async function POST(req: NextRequest) {
 
     if (remove) {
       step = "remove-photo-db-update";
-      await pool.query<ResultSetHeader>(
-        `
-          UPDATE business
-          SET ${targetColumn} = NULL, updated_at = NOW()
-          WHERE id = ?
-        `,
-        [access.businessId],
-      );
+      await prisma.business.update({
+        where: { id: access.businessId },
+        data: { logo_url: null },
+      });
 
       return NextResponse.json({
         success: true,
@@ -143,14 +134,10 @@ export async function POST(req: NextRequest) {
     const result = await uploadToCloudinary(buffer, access.businessId);
 
     step = "save-db-url";
-    await pool.query<ResultSetHeader>(
-      `
-        UPDATE business
-        SET ${targetColumn} = ?, updated_at = NOW()
-        WHERE id = ?
-      `,
-      [result.secure_url, access.businessId],
-    );
+    await prisma.business.update({
+      where: { id: access.businessId },
+      data: { logo_url: result.secure_url },
+    });
 
     return NextResponse.json({
       success: true,
@@ -169,7 +156,9 @@ export async function POST(req: NextRequest) {
     });
 
     const detailedMessage =
-      error instanceof Error ? error.message : "Error subiendo foto del negocio";
+      error instanceof Error
+        ? error.message
+        : "Error subiendo foto del negocio";
 
     return NextResponse.json(
       {

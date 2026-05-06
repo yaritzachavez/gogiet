@@ -143,6 +143,7 @@ export default function Navbar() {
   const [cartCount, setCartCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [notificationsError, setNotificationsError] = useState<string | null>(
     null,
@@ -174,6 +175,7 @@ export default function Navbar() {
     if (!mounted || !user || typeof window === "undefined") {
       if (!user) {
         setNotifications([]);
+        setUnreadCount(0);
         setNotificationsError(null);
         setNotificationsOpen(false);
       }
@@ -188,9 +190,8 @@ export default function Navbar() {
       if (!token) {
         if (isActive) {
           setNotifications([]);
-          setNotificationsError(
-            "No se encontró tu sesión para notificaciones.",
-          );
+          setUnreadCount(0);
+          setNotificationsError(null);
         }
         return;
       }
@@ -213,31 +214,48 @@ export default function Navbar() {
         } | null;
 
         if (!res.ok || !data?.success) {
-          throw new Error(
-            data?.error || "No se pudieron cargar las notificaciones.",
+          console.warn(
+            "No se pudieron cargar las notificaciones",
+            data?.error ?? {
+              status: res.status,
+              statusText: res.statusText,
+            },
           );
+
+          if (!isActive) {
+            return;
+          }
+
+          setNotifications([]);
+          setUnreadCount(0);
+          setNotificationsError(null);
+          return;
         }
 
         if (!isActive) {
           return;
         }
 
-        setNotifications(
-          Array.isArray(data.notifications) ? data.notifications : [],
+        const safeNotifications = Array.isArray(data.notifications)
+          ? data.notifications
+          : [];
+
+        setNotifications(safeNotifications);
+        setUnreadCount(
+          safeNotifications.filter((notification) => !notification.is_read)
+            .length,
         );
         setNotificationsError(null);
       } catch (error) {
-        console.error("Error cargando notificaciones:", error);
+        console.warn("No se pudieron cargar las notificaciones", error);
 
         if (!isActive) {
           return;
         }
 
-        setNotificationsError(
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar las notificaciones.",
-        );
+        setNotifications([]);
+        setUnreadCount(0);
+        setNotificationsError(null);
       } finally {
         if (showLoading && isActive) {
           setNotificationsLoading(false);
@@ -256,10 +274,7 @@ export default function Navbar() {
     };
   }, [mounted, user]);
 
-  const unreadNotificationsCount = useMemo(
-    () => notifications.filter((notification) => !notification.is_read).length,
-    [notifications],
-  );
+  const unreadNotificationsCount = useMemo(() => unreadCount, [unreadCount]);
 
   const toggleMobileMenu = () => {
     setMobileMenuOpen(!mobileMenuOpen);
@@ -304,6 +319,7 @@ export default function Navbar() {
             : notification,
         ),
       );
+      setUnreadCount((current) => Math.max(0, current - 1));
       setNotificationsError(null);
     } catch (error) {
       console.error("Error marcando notificación como leída:", error);
@@ -350,6 +366,7 @@ export default function Navbar() {
       setNotifications((current) =>
         current.map((notification) => ({ ...notification, is_read: true })),
       );
+      setUnreadCount(0);
       setNotificationsError(null);
     } catch (error) {
       console.error("Error marcando todas las notificaciones:", error);

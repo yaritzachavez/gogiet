@@ -1763,8 +1763,9 @@ export function BusinessAdminDashboard() {
       setAvatarUploading(true);
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("business_id", String(business.id));
 
-      const uploadResponse = await fetch("/api/upload/business-image", {
+      const uploadResponse = await fetch("/api/business/photo", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -1787,27 +1788,6 @@ export function BusinessAdminDashboard() {
 
       if (!uploadedUrl) {
         throw new Error("Cloudinary no devolvió una URL válida.");
-      }
-
-      const saveResponse = await fetch(`/api/business/${business.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          logo_url: uploadedUrl,
-        }),
-      });
-      const savePayload = (await saveResponse
-        .json()
-        .catch(() => null)) as Record<string, unknown> | null;
-
-      if (!saveResponse.ok || savePayload?.success === false) {
-        throw new Error(
-          (typeof savePayload?.error === "string" && savePayload.error) ||
-            "La imagen se subió, pero no se pudo guardar en el negocio.",
-        );
       }
 
       setBusiness((prev) =>
@@ -1856,15 +1836,16 @@ export function BusinessAdminDashboard() {
 
     try {
       setAvatarUploading(true);
-      const response = await fetch(`/api/business/${business.id}`, {
-        method: "PATCH",
+      const formData = new FormData();
+      formData.append("business_id", String(business.id));
+      formData.append("remove", "1");
+
+      const response = await fetch("/api/business/photo", {
+        method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          logo_url: null,
-        }),
+        body: formData,
       });
       const payload = (await response.json().catch(() => null)) as Record<
         string,
