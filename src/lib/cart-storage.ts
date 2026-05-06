@@ -6,7 +6,9 @@ export type StoredCartSnapshotItem = {
   id: string;
   product_id: number;
   business_id?: number | null;
+  business_name?: string;
   name: string;
+  description?: string;
   price: number;
   image_url: string;
   quantity: number;
@@ -19,8 +21,13 @@ function normalizeStoredItem(
     product_id?: number;
     businessId?: number;
     business_id?: number;
+    business_name?: string;
+    businessName?: string;
     nombre?: string;
     name?: string;
+    description?: string;
+    description_short?: string;
+    descriptionShort?: string;
     unitPrice?: number;
     price?: number;
     sale_price?: number;
@@ -50,7 +57,11 @@ function normalizeStoredItem(
     id: String(item.id ?? productId),
     product_id: productId,
     business_id: Number(item.business_id ?? item.businessId ?? 0) || null,
+    business_name: String(item.business_name ?? item.businessName ?? "").trim(),
     name: String(item.name ?? item.nombre ?? "").trim(),
+    description: String(
+      item.description ?? item.description_short ?? item.descriptionShort ?? "",
+    ).trim(),
     price: Number.isFinite(normalizedPrice) ? normalizedPrice : 0,
     image_url: String(item.image_url ?? item.image ?? "").trim(),
     quantity,
@@ -77,8 +88,13 @@ export function readStoredCartSnapshot() {
             product_id?: number;
             businessId?: number;
             business_id?: number;
+            business_name?: string;
+            businessName?: string;
             nombre?: string;
             name?: string;
+            description?: string;
+            description_short?: string;
+            descriptionShort?: string;
             unitPrice?: number;
             price?: number;
             sale_price?: number;

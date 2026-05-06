@@ -292,6 +292,20 @@ export default function BusinessDetailPage() {
               ? {
                   ...item,
                   quantity: Number(item.quantity ?? 0) + modalQuantity,
+                  price:
+                    Number(item.price ?? 0) > 0
+                      ? Number(item.price ?? 0)
+                      : getProductUnitPrice(selectedProduct),
+                  image_url: item.image_url || getProductImage(selectedProduct),
+                  business_name:
+                    item.business_name || String(business?.name ?? ""),
+                  description:
+                    item.description ||
+                    String(
+                      selectedProduct.description_short ??
+                        selectedProduct.description_long ??
+                        "",
+                    ),
                 }
               : item,
           )
@@ -301,7 +315,13 @@ export default function BusinessDetailPage() {
               id: String(selectedProduct.id),
               product_id: Number(selectedProduct.id),
               business_id: Number(businessId) || null,
+              business_name: String(business?.name ?? ""),
               name: String(selectedProduct.name ?? ""),
+              description: String(
+                selectedProduct.description_short ??
+                  selectedProduct.description_long ??
+                  "",
+              ),
               price: getProductUnitPrice(selectedProduct),
               image_url: getProductImage(selectedProduct),
               quantity: modalQuantity,

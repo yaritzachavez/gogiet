@@ -30,7 +30,9 @@ type StoredCartItem = {
   id: string;
   productId?: number;
   businessId?: number | null;
+  businessName?: string;
   nombre: string;
+  description?: string;
   negocio: string;
   image: string;
   extras: string[];
@@ -164,8 +166,10 @@ export default function CarritoPage() {
         id: String(item.product_id),
         productId: item.product_id,
         businessId: item.business_id ?? null,
+        businessName: item.business_name || "",
         nombre: item.name,
-        negocio: "Tienda Local",
+        description: item.description || "",
+        negocio: item.business_name || "Tienda Local",
         image: item.image_url || "/placeholder-product.png",
         extras: [],
         quantity: item.quantity,
@@ -185,7 +189,9 @@ export default function CarritoPage() {
         id: item.id,
         product_id: Number(item.productId ?? item.id),
         business_id: Number(item.businessId ?? 0) || null,
+        business_name: String(item.businessName ?? item.negocio ?? "").trim(),
         name: item.nombre,
+        description: String(item.description ?? "").trim(),
         price: getCartItemUnitPrice(item),
         image_url: item.image,
         quantity: item.quantity,
@@ -215,18 +221,38 @@ export default function CarritoPage() {
         Array.isArray(data.products) &&
         data.products.length > 0
       ) {
-        const nextItems = data.products.map((p: any) => ({
-          id: p.product_id.toString(),
-          productId: p.product_id,
-          businessId: Number(p.business_id ?? 0) || null,
-          nombre: p.name,
-          image: p.thumbnail_url || p.image_url || "/placeholder-product.png",
-          negocio: "Tienda Local",
-          quantity: p.quantity,
-          unitPrice: Number(p.unit_price ?? p.price ?? 0),
-          price: Number(p.total ?? 0),
-          extras: [],
-        }));
+        const snapshotByProductId = new Map(
+          localSnapshot.map((item) => [Number(item.product_id), item]),
+        );
+        const nextItems = data.products.map((p: any) => {
+          const snapshot = snapshotByProductId.get(Number(p.product_id));
+
+          return {
+            id: p.product_id.toString(),
+            productId: p.product_id,
+            businessId:
+              Number(p.business_id ?? snapshot?.business_id ?? 0) || null,
+            businessName: String(
+              p.business_name ?? snapshot?.business_name ?? "",
+            ),
+            nombre: p.name ?? snapshot?.name ?? "Producto",
+            description: String(
+              p.description_short ?? snapshot?.description ?? "",
+            ),
+            image:
+              snapshot?.image_url ||
+              p.thumbnail_url ||
+              p.image_url ||
+              "/placeholder-product.png",
+            negocio:
+              String(p.business_name ?? snapshot?.business_name ?? "").trim() ||
+              "Tienda Local",
+            quantity: p.quantity,
+            unitPrice: Number(p.unit_price ?? p.price ?? snapshot?.price ?? 0),
+            price: Number(p.total ?? 0),
+            extras: [],
+          };
+        });
 
         setCartId(data.cart.id);
         setCartItems(nextItems);
@@ -268,6 +294,109 @@ export default function CarritoPage() {
       window.removeEventListener("storage", handleCartUpdated);
     };
   }, [loadCart, mapToSavedAddress, user]);
+
+  useEffect(() => {
+    async function repairIncompleteCartItems() {
+      const itemsToRepair = cartItems.filter(
+        (item) =>
+          Number(item.productId ?? 0) > 0 &&
+          (getCartItemUnitPrice(item) <= 0 ||
+            !item.image ||
+            item.image === "/placeholder-product.png"),
+      );
+
+      if (itemsToRepair.length === 0) return;
+
+      try {
+        const repairedEntries = await Promise.all(
+          itemsToRepair.map(async (item) => {
+            const response = await fetch(`/api/products/${item.productId}`, {
+              cache: "no-store",
+            });
+
+            if (!response.ok) {
+              throw new Error(
+                `No se pudo recuperar el producto ${item.productId}`,
+              );
+            }
+
+            const data = await response.json();
+            const product = data.product ?? {};
+            const business = data.business ?? {};
+            const repairedPrice = Number(
+              product.price ||
+                product.sale_price ||
+                product.offer_price ||
+                product.discount_price ||
+                0,
+            );
+
+            return [
+              String(item.id),
+              {
+                ...item,
+                businessId: Number(item.businessId ?? business.id ?? 0) || null,
+                businessName:
+                  String(item.businessName ?? item.negocio ?? "").trim() ||
+                  String(business.name ?? "").trim(),
+                negocio:
+                  String(item.negocio ?? "").trim() ||
+                  String(business.name ?? "").trim() ||
+                  "Tienda Local",
+                nombre:
+                  String(item.nombre ?? "").trim() ||
+                  String(product.name ?? ""),
+                description:
+                  String(item.description ?? "").trim() ||
+                  String(
+                    product.description ??
+                      product.description_short ??
+                      product.description_long ??
+                      "",
+                  ).trim(),
+                image:
+                  String(item.image ?? "").trim() &&
+                  item.image !== "/placeholder-product.png"
+                    ? item.image
+                    : String(
+                        product.image_url ??
+                          product.imageUrl ??
+                          product.image ??
+                          product.photo_url ??
+                          "",
+                      ).trim() || "/placeholder-product.png",
+                unitPrice:
+                  getCartItemUnitPrice(item) > 0
+                    ? getCartItemUnitPrice(item)
+                    : repairedPrice,
+                price: Number(
+                  (
+                    (getCartItemUnitPrice(item) > 0
+                      ? getCartItemUnitPrice(item)
+                      : repairedPrice) * Number(item.quantity ?? 0)
+                  ).toFixed(2),
+                ),
+              },
+            ] as const;
+          }),
+        );
+
+        const repairedById = new Map(repairedEntries);
+
+        setCartItems((prev) => {
+          const nextItems = prev.map(
+            (item) => repairedById.get(String(item.id)) ?? item,
+          );
+          syncCartStorage(nextItems);
+          return nextItems;
+        });
+      } catch (error) {
+        console.error("No se pudo reparar el carrito:", error);
+      }
+    }
+
+    void repairIncompleteCartItems();
+  }, [cartItems, syncCartStorage]);
 
   // --- Efecto: Calcular Envío ---
   useEffect(() => {
