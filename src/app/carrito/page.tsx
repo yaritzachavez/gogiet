@@ -398,6 +398,14 @@ export default function CarritoPage() {
     void repairIncompleteCartItems();
   }, [cartItems, syncCartStorage]);
 
+  useEffect(() => {
+    cartItems.forEach((item) => {
+      if (Number(item.price ?? item.unitPrice ?? 0) <= 0) {
+        console.warn("Cart item without price:", item);
+      }
+    });
+  }, [cartItems]);
+
   // --- Efecto: Calcular Envío ---
   useEffect(() => {
     const loadShipping = async () => {
@@ -431,6 +439,13 @@ export default function CarritoPage() {
   // --- Cálculos ---
   const subtotal = useMemo(
     () => cartItems.reduce((acc, item) => acc + getCartItemSubtotal(item), 0),
+    [cartItems],
+  );
+
+  const hasOnlyZeroPriceItems = useMemo(
+    () =>
+      cartItems.length > 0 &&
+      cartItems.every((item) => Number(item.price ?? item.unitPrice ?? 0) <= 0),
     [cartItems],
   );
 
@@ -512,6 +527,38 @@ export default function CarritoPage() {
       });
     }
     syncCartStorage(cartItems.filter((item) => item.id !== id));
+    window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+  };
+
+  const handleClearCart = async () => {
+    const token =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("token")
+        : null;
+
+    if (cartId) {
+      await Promise.all(
+        cartItems.map((item) =>
+          fetch("/api/cart/remove-product", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              cart_id: cartId,
+              product_id: Number(item.productId ?? item.id),
+            }),
+          }).catch((error) => {
+            console.error("No se pudo limpiar item del carrito:", error);
+          }),
+        ),
+      );
+    }
+
+    setCartItems([]);
+    setCartId(null);
+    syncCartStorage([]);
     window.dispatchEvent(new Event(CART_UPDATED_EVENT));
   };
 
@@ -721,6 +768,21 @@ export default function CarritoPage() {
         <aside className="space-y-6">
           <div className="bg-white p-6 rounded-3xl border border-orange-100 shadow-sm">
             <h2 className="text-xl font-bold mb-4">Resumen</h2>
+            {hasOnlyZeroPriceItems ? (
+              <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
+                <p className="text-sm font-semibold text-orange-900">
+                  Detectamos productos viejos sin precio en tu carrito.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleClearCart}
+                  className="mt-3 border-orange-300 text-orange-700"
+                >
+                  Vaciar carrito
+                </Button>
+              </div>
+            ) : null}
             <div className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span>Subtotal</span>
@@ -737,14 +799,6 @@ export default function CarritoPage() {
                     ? `MX$${commissionBreakdown.deliveryFee.toFixed(2)}`
                     : "Gratis"}
                 </span>
-              </div>
-              <div className="flex justify-between text-xs text-orange-900/70">
-                <span>Plataforma del envío</span>
-                <span>MX${commissionBreakdown.platformFee.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-xs text-orange-900/70">
-                <span>Repartidor del envío</span>
-                <span>MX${commissionBreakdown.driverFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total</span>

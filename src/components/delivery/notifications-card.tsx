@@ -268,7 +268,7 @@ export function NotificationsCard({
           ) : notifications.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-orange-300/60 bg-orange-50/60 p-6 text-center text-sm text-orange-800/80 shadow-inner">
               <CheckCircle2 className="h-5 w-5" />
-              No tienes notificaciones por ahora.
+              Sin notificaciones.
             </div>
           ) : (
             <ul className="space-y-3">

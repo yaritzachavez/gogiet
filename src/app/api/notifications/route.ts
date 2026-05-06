@@ -15,6 +15,21 @@ type UserInfoRow = {
   role_name: string | null;
 };
 
+function expandNotificationRoles(roles: string[]) {
+  const normalizedRoles = new Set(
+    roles
+      .map((role) => String(role ?? "").trim())
+      .filter((role) => role.length > 0),
+  );
+
+  if (normalizedRoles.has("delivery") || normalizedRoles.has("repartidor")) {
+    normalizedRoles.add("delivery");
+    normalizedRoles.add("repartidor");
+  }
+
+  return Array.from(normalizedRoles);
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authUser = getAuthUser(req);
@@ -66,10 +81,11 @@ export async function GET(req: NextRequest) {
 
     await ensureNotificationsTable();
     const access = await resolveBusinessAccess(authUser.user.id);
+    const actorRoles = expandNotificationRoles(access.roles);
     const notifications = await getNotificationsForActor({
       userId: authUser.user.id,
       businessIds: access.businessIds,
-      roles: access.roles,
+      roles: actorRoles,
     });
     const unread_count = notifications.filter(
       (notification) => !notification.is_read,

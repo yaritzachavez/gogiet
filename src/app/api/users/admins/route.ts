@@ -1,60 +1,85 @@
-import jwt from "jsonwebtoken";
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
+
+import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
-import { RowDataPacket } from "mysql2"; // Importante para el tipado
 
-type JwtPayload = {
-  id: number;
-  roles?: string[];
-};
-
-// ✅ CORRECCIÓN: Cambiamos 'type' por 'interface' y extendemos 'RowDataPacket'
-// Esto satisface el constraint 'QueryResult' que pide TypeScript
-interface AdminUserRow extends RowDataPacket {
+type AdminUserRow = RowDataPacket & {
   id: number;
   first_name: string | null;
   last_name: string | null;
   email: string | null;
   phone: string | null;
   status_id: number | null;
-}
-
-function getAuthUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, secret) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
+  role_name: string | null;
+};
 
 export async function GET(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
+    const auth = getAuthUser(req);
+    const token = auth?.token ?? null;
+    const decodedUser = auth?.user ?? null;
 
-    if (!authUser) {
+    console.log("ADMIN API TOKEN:", token ? "EXISTE" : "NO EXISTE");
+    console.log("ADMIN API USER:", decodedUser);
+
+    if (!token || !decodedUser) {
       return NextResponse.json(
-        { success: false, error: "Token inválido o faltante", users: [] },
+        {
+          success: false,
+          error: "Token inválido o faltante",
+          admins: [],
+        },
         { status: 401 },
       );
     }
 
-    // ✅ Ahora este tipado <AdminUserRow[]> es 100% válido para mysql2
+    const canAccess = await isAdminGeneral(decodedUser.id);
+
+    if (!canAccess) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No autorizado para consultar administradores",
+          admins: [],
+        },
+        { status: 403 },
+      );
+    }
+
     const [rows] = await pool.query<AdminUserRow[]>(
-      "SELECT id, first_name, last_name, email, phone, status_id FROM users WHERE role = 'admin'"
+      `
+        SELECT DISTINCT
+          u.id,
+          u.first_name,
+          u.last_name,
+          u.email,
+          u.phone,
+          u.status_id,
+          r.name AS role_name
+        FROM users u
+        INNER JOIN user_roles ur ON ur.user_id = u.id
+        INNER JOIN roles r ON r.id = ur.role_id
+        WHERE LOWER(r.name) IN ('admin_general', 'admin', 'administrador', 'administrador_general')
+        ORDER BY u.id DESC
+      `,
     );
+
+    const admins = rows.map((row) => ({
+      id: Number(row.id),
+      first_name: row.first_name ?? null,
+      last_name: row.last_name ?? null,
+      email: row.email ?? null,
+      phone: row.phone ?? null,
+      status_id: row.status_id === null ? null : Number(row.status_id),
+      role_name: row.role_name ?? null,
+    }));
+
+    console.log("ADMIN API ADMINS COUNT:", admins.length);
 
     return NextResponse.json({
       success: true,
-      // rows ya viene tipado como AdminUserRow[] gracias al generic de arriba
-      users: rows, 
+      admins,
     });
   } catch (error) {
     console.error("Error GET /api/users/admins:", error);
@@ -63,7 +88,7 @@ export async function GET(req: NextRequest) {
         success: false,
         error: "No pudimos cargar los administradores en este momento.",
         details: error instanceof Error ? error.message : String(error),
-        users: [],
+        admins: [],
       },
       { status: 500 },
     );

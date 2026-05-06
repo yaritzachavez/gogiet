@@ -77,7 +77,9 @@ export default function AdminDashboardPage() {
 
       if (!adminsResponse.ok || !adminsData.success) {
         console.error("Error real al cargar administradores:", {
+          endpoint: "/api/users/admins",
           status: adminsResponse.status,
+          statusText: adminsResponse.statusText,
           body: adminsData,
         });
         setAdmins([]);
@@ -86,11 +88,17 @@ export default function AdminDashboardPage() {
         );
       } else {
         setAdmins(
-          Array.isArray(adminsData.users)
-            ? (adminsData.users as AdminUser[])
-            : [],
+          Array.isArray(adminsData.admins)
+            ? (adminsData.admins as AdminUser[])
+            : Array.isArray(adminsData.users)
+              ? (adminsData.users as AdminUser[])
+              : [],
         );
-        setAdminsError("");
+        setAdminsError(
+          Array.isArray(adminsData.admins) && adminsData.admins.length === 0
+            ? "No hay administradores para mostrar en este momento."
+            : "",
+        );
       }
 
       if (!ordersTodayResponse.ok || !ordersTodayData.success) {

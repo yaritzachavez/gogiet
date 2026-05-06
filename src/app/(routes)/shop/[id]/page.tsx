@@ -86,19 +86,24 @@ const getBusinessImage = (business: {
   return normalizedUrl;
 };
 
-const getProductUnitPrice = (product: {
+function getProductPrice(product: {
   price?: number | string | null;
+  base_price?: number | string | null;
+  unit_price?: number | string | null;
   sale_price?: number | string | null;
   offer_price?: number | string | null;
-  discount_price?: number | string | null;
-}) =>
-  Number(
-    product.price ||
-      product.sale_price ||
-      product.offer_price ||
-      product.discount_price ||
+  price_mxn?: number | string | null;
+}) {
+  return Number(
+    product.price ??
+      product.base_price ??
+      product.unit_price ??
+      product.sale_price ??
+      product.offer_price ??
+      product.price_mxn ??
       0,
-  ) || 0;
+  );
+}
 
 export default function BusinessDetailPage() {
   const { user } = useAuth();
@@ -254,12 +259,14 @@ export default function BusinessDetailPage() {
         throw new Error("No se pudo obtener el carrito activo");
       }
 
+      console.log("PRODUCT BEFORE CART:", selectedProduct);
+
       const payload = {
         cart_id: cartId,
         product_id: selectedProduct.id,
         quantity: modalQuantity,
         business_id: businessId,
-        price: getProductUnitPrice(selectedProduct),
+        price: getProductPrice(selectedProduct),
       };
 
       console.log("ADD TO CART payload:", payload);
@@ -295,7 +302,7 @@ export default function BusinessDetailPage() {
                   price:
                     Number(item.price ?? 0) > 0
                       ? Number(item.price ?? 0)
-                      : getProductUnitPrice(selectedProduct),
+                      : getProductPrice(selectedProduct),
                   image_url: item.image_url || getProductImage(selectedProduct),
                   business_name:
                     item.business_name || String(business?.name ?? ""),
@@ -322,7 +329,7 @@ export default function BusinessDetailPage() {
                   selectedProduct.description_long ??
                   "",
               ),
-              price: getProductUnitPrice(selectedProduct),
+              price: getProductPrice(selectedProduct),
               image_url: getProductImage(selectedProduct),
               quantity: modalQuantity,
             },

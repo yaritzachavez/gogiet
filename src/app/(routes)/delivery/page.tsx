@@ -79,6 +79,23 @@ const EMPTY_PROFILE: DeliveryProfile = {
   is_available: true,
 };
 
+function getProfileImageUrl(profilePayload: Record<string, unknown> | null) {
+  const candidates = [
+    profilePayload?.profile_image_url,
+    profilePayload?.profileImageUrl,
+    profilePayload?.avatar_url,
+    profilePayload?.image_url,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
 const currencyFormatterCache = new Map<string, Intl.NumberFormat>();
 
 function formatCurrency(amount: number, currency = "MXN") {
@@ -322,10 +339,7 @@ export default function DeliveryDashboardPage() {
       const nextProfile: DeliveryProfile = {
         name: String(profilePayload?.name ?? user?.name ?? ""),
         phone: String(profilePayload?.phone ?? ""),
-        profile_image_url:
-          typeof profilePayload?.profile_image_url === "string"
-            ? profilePayload.profile_image_url
-            : null,
+        profile_image_url: getProfileImageUrl(profilePayload),
         delivery_zone: String(profilePayload?.delivery_zone ?? ""),
         vehicle_type: String(profilePayload?.vehicle_type ?? ""),
         vehicle_plate: String(profilePayload?.vehicle_plate ?? ""),
@@ -689,18 +703,14 @@ export default function DeliveryDashboardPage() {
       }
 
       if (!notificationsResponse.ok || notificationsPayload.success === false) {
-        console.error("Error real cargando notificaciones del repartidor:", {
+        console.warn("Error real cargando notificaciones del repartidor:", {
           status: notificationsResponse.status,
           statusText: notificationsResponse.statusText,
           responseText: notificationsResponseText,
           payload: notificationsPayload,
         });
         setDeliveryNotifications([]);
-        setNotificationsError(
-          (typeof notificationsPayload.error === "string" &&
-            notificationsPayload.error) ||
-            "No se pudieron cargar las notificaciones.",
-        );
+        setNotificationsError("");
       } else {
         const parsedNotifications = Array.isArray(
           notificationsPayload.notifications,
@@ -756,7 +766,7 @@ export default function DeliveryDashboardPage() {
       setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
       setOrdersError("No se pudieron cargar tus entregas.");
       setActiveOrderError("No se pudo cargar tu entrega activa.");
-      setNotificationsError("No se pudieron cargar las notificaciones.");
+      setNotificationsError("");
     } finally {
       setOrdersLoading(false);
       setActiveOrderLoading(false);
@@ -1173,10 +1183,7 @@ export default function DeliveryDashboardPage() {
       const nextProfile: DeliveryProfile = {
         name: String(savedProfile?.name ?? profileForm.name ?? driverName),
         phone: String(savedProfile?.phone ?? profileForm.phone),
-        profile_image_url:
-          typeof savedProfile?.profile_image_url === "string"
-            ? savedProfile.profile_image_url
-            : null,
+        profile_image_url: getProfileImageUrl(savedProfile),
         delivery_zone: String(
           savedProfile?.delivery_zone ?? profileForm.delivery_zone,
         ),

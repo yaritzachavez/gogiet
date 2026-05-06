@@ -1,11 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import path from "node:path";
-
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import pool, { getDbRuntimeConfig } from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
@@ -13,6 +10,8 @@ import {
   ensureUserAvatarColumn,
   getPreferredUserAvatarColumn,
 } from "@/lib/user-avatar";
+
+export const runtime = "nodejs";
 
 type DeliveryProfileRow = RowDataPacket & {
   id: number;
@@ -50,21 +49,21 @@ type DeliveryProfileColumns = {
 
 const ALLOWED_VEHICLES = new Set(["moto", "bicicleta", "auto", "a_pie"]);
 
-function getFileExtension(file: File) {
-  const originalExtension = path.extname(file.name || "").toLowerCase();
+function fileToDataUri(file: File, buffer: Buffer) {
+  const mimeType = file.type || "application/octet-stream";
+  return `data:${mimeType};base64,${buffer.toString("base64")}`;
+}
 
-  if (originalExtension) {
-    return originalExtension;
-  }
+async function uploadDeliveryProfileImage(file: File, userId: number) {
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  const dataUri = fileToDataUri(file, buffer);
 
-  switch (file.type) {
-    case "image/png":
-      return ".png";
-    case "image/webp":
-      return ".webp";
-    default:
-      return ".jpg";
-  }
+  return cloudinary.uploader.upload(dataUri, {
+    folder: "gogi-eats/delivery-profiles",
+    public_id: `delivery-profile-${userId}-${Date.now()}`,
+    resource_type: "image",
+  });
 }
 
 async function ensureDeliveryProfileColumns() {
@@ -122,6 +121,9 @@ function normalizeProfilePayload(row: DeliveryProfileRow | undefined) {
     name: row.name ?? "Repartidor",
     phone: row.phone ?? "",
     profile_image_url: row.profile_image_url ?? null,
+    profileImageUrl: row.profile_image_url ?? null,
+    avatar_url: row.profile_image_url ?? null,
+    image_url: row.profile_image_url ?? null,
     delivery_zone: row.delivery_zone ?? "",
     vehicle_type: row.vehicle_type ?? "",
     vehicle_plate: row.vehicle_plate ?? "",
@@ -282,6 +284,18 @@ export async function PATCH(req: NextRequest) {
       const avatar = formData.get("avatar");
 
       if (avatar instanceof File && avatar.size > 0) {
+        const cloudinaryStatus = getCloudinaryConfigStatus();
+
+        if (!cloudinaryStatus.isConfigured) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Falta configuración de Cloudinary: ${cloudinaryStatus.missing.join(", ")}`,
+            },
+            { status: 500 },
+          );
+        }
+
         const allowedTypes = new Set([
           "image/jpeg",
           "image/jpg",
@@ -303,20 +317,11 @@ export async function PATCH(req: NextRequest) {
           );
         }
 
-        const buffer = Buffer.from(await avatar.arrayBuffer());
-        const extension = getFileExtension(avatar);
-        const fileName = `avatar-${authUser.user.id}-${randomUUID()}${extension}`;
-        const uploadDir = path.join(
-          process.cwd(),
-          "public",
-          "uploads",
-          "avatars",
+        const uploadResult = await uploadDeliveryProfileImage(
+          avatar,
+          authUser.user.id,
         );
-        const filePath = path.join(uploadDir, fileName);
-        avatarUrlToSave = `/uploads/avatars/${fileName}`;
-
-        await mkdir(uploadDir, { recursive: true });
-        await writeFile(filePath, buffer);
+        avatarUrlToSave = uploadResult.secure_url;
       }
     } else {
       const body = (await req.json().catch(() => null)) as Record<

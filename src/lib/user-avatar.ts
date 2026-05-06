@@ -15,6 +15,12 @@ export type UserAvatarColumns = {
   hasAvatarUrl: boolean;
 };
 
+function isDuplicateColumnError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+
+  return message.toLowerCase().includes("duplicate column name");
+}
+
 export async function getUserAvatarColumns(
   executor: Queryable | PoolConnection | Pool = pool,
 ): Promise<UserAvatarColumns> {
@@ -41,13 +47,21 @@ export async function getUserAvatarColumns(
 export async function ensureUserAvatarColumn(
   executor: Queryable | PoolConnection | Pool = pool,
 ) {
-  const currentColumns = await getUserAvatarColumns(executor);
+  let currentColumns = await getUserAvatarColumns(executor);
 
   if (!currentColumns.hasProfileImageUrl) {
-    await executor.query(`
-      ALTER TABLE users
-      ADD COLUMN profile_image_url TEXT NULL
-    `);
+    try {
+      await executor.query(`
+        ALTER TABLE users
+        ADD COLUMN profile_image_url TEXT NULL
+      `);
+    } catch (error) {
+      if (!isDuplicateColumnError(error)) {
+        throw error;
+      }
+    }
+
+    currentColumns = await getUserAvatarColumns(executor);
 
     if (currentColumns.hasAvatarUrl) {
       await executor.query(`

@@ -15,7 +15,13 @@ model User {
   phone                String?                @unique(map: "uk_users_phone") @db.VarChar(20)
   passwordHash         String                 @map("password_hash") @db.VarChar(255)
   birthDate            DateTime?              @map("birth_date") @db.Date
-  profileImageUrl      String?                @map("profile_image_url") @db.Text
+  profile_image_url    String?                @db.Text
+  zone                 String?                @map("delivery_zone") @db.VarChar(120)
+  vehicle              String?                @map("vehicle_type") @db.VarChar(50)
+  plates               String?                @map("vehicle_plate") @db.VarChar(30)
+  status               String?                @db.VarChar(30)
+  notes                String?                @map("delivery_notes") @db.VarChar(255)
+  is_available         Boolean?
   statusId             Int                    @map("status_id")
   lastLogin            DateTime?              @map("last_login") @db.DateTime(0)
   createdAt            DateTime               @default(now()) @map("created_at") @db.DateTime(0)
