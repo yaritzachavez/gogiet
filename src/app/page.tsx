@@ -1,17 +1,15 @@
+import Image from "next/image";
+import Link from "next/link";
+import { HeroActions } from "@/components/home/HeroActions";
+import { ReviewRotator } from "@/components/home/ReviewRotator";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ReviewRotator } from "@/components/home/ReviewRotator";
-import { HeroActions } from "@/components/home/HeroActions";
-import Link from "next/link";
-import Image from "next/image";
 
 export default function Home() {
   return (
     <div className="relative min-h-screen bg-white">
-
       <main className="relative z-10 pb-16">
-
         {/* HERO SECTION */}
         <section className="relative min-h-[calc(100vh-5rem)] overflow-hidden">
           <Image
@@ -32,7 +30,7 @@ export default function Home() {
 
               <h1 className="max-w-3xl text-5xl font-black leading-[1.05] tracking-normal text-slate-950 sm:text-6xl lg:text-7xl">
                 Tu comida favorita,{" "}
-                <span className="text-orange-600">al instantes</span>
+                <span className="text-orange-600">al instante</span>
               </h1>
 
               <p className="mt-7 max-w-2xl text-xl leading-9 text-slate-600 md:text-2xl">
@@ -42,7 +40,6 @@ export default function Home() {
               </p>
 
               <HeroActions />
-
             </div>
 
             <div className="relative">
@@ -67,18 +64,17 @@ export default function Home() {
         {/* WHY CHOOSE US */}
         <section className="px-4 py-16">
           <div className="mx-auto max-w-6xl rounded-[36px] border border-white/15 bg-white/90 px-6 py-12 shadow-[0_25px_60px_rgba(0,0,0,0.25)] backdrop-blur">
-
             <div className="mb-12 text-center">
               <h2 className="font-serif text-4xl text-[#3E2F28]">
                 ¿Por qué elegir Gogi Eats?
               </h2>
               <p className="mt-3 text-lg text-[#5F5148]">
-                La experiencia gourmet-local que conecta cocinas rurales con quienes las disfrutan
+                La experiencia gourmet-local que conecta cocinas rurales con
+                quienes las disfrutan
               </p>
             </div>
 
             <div className="grid gap-5 md:grid-cols-3 md:gap-8">
-
               {/* Card 1 */}
               <Card className="rounded-[28px] border-[#E2D9D0] bg-white/90 shadow-[0_20px_45px_rgba(0,0,0,0.08)]">
                 <CardContent className="p-5 text-center sm:p-8">
@@ -89,7 +85,8 @@ export default function Home() {
                     Súper rápido
                   </h3>
                   <p className="mt-2 text-sm text-[#5F5148] sm:mt-3 sm:text-base">
-                    Aliados confirmando pedidos en minutos y rutas optimizadas para tu zona.
+                    Aliados confirmando pedidos en minutos y rutas optimizadas
+                    para tu zona.
                   </p>
                 </CardContent>
               </Card>
@@ -104,7 +101,8 @@ export default function Home() {
                     Variedad local
                   </h3>
                   <p className="mt-2 text-sm text-[#5F5148] sm:mt-3 sm:text-base">
-                    Cafeterías, panaderías y taquerías familiares reunidas en un mismo lugar.
+                    Cafeterías, panaderías y taquerías familiares reunidas en un
+                    mismo lugar.
                   </p>
                 </CardContent>
               </Card>
@@ -119,26 +117,25 @@ export default function Home() {
                     Pago seguro
                   </h3>
                   <p className="mt-2 text-sm text-[#5F5148] sm:mt-3 sm:text-base">
-                    Métodos de pago confiables y soporte cercano para aliados y comensales.
+                    Métodos de pago confiables y soporte cercano para aliados y
+                    comensales.
                   </p>
                 </CardContent>
               </Card>
-
             </div>
-
           </div>
         </section>
 
         {/* CALL TO ACTION */}
         <section className="container mx-auto px-4 py-20 text-center">
           <div className="mx-auto max-w-3xl rounded-[36px] border border-[#E2D9D0] bg-[#F8F5F0] px-6 py-12 shadow-[0_25px_55px_rgba(0,0,0,0.1)]">
-
             <h2 className="font-serif text-4xl text-[#3E2F28]">
               ¿Listo para apoyar a los aliados locales?
             </h2>
 
             <p className="mt-3 text-lg text-[#5F5148]">
-              Únete a la comunidad Gogi Eats y descubre el sabor artesanal que tenemos cerca de casa.
+              Únete a la comunidad Gogi Eats y descubre el sabor artesanal que
+              tenemos cerca de casa.
             </p>
 
             <Link href="/auth?mode=register">
@@ -146,12 +143,9 @@ export default function Home() {
                 Comenzar ahora
               </Button>
             </Link>
-
           </div>
         </section>
-
       </main>
-
     </div>
   );
 }

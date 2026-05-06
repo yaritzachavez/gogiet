@@ -25,6 +25,7 @@ type BusinessRow = RowDataPacket & {
   rating_average: number | string | null;
   is_open_now: number | boolean | null;
   status_id: number;
+  status_name: string | null;
   created_at: string;
   updated_at: string;
   description_long: string | null;
@@ -59,6 +60,7 @@ type ProductRow = RowDataPacket & {
   max_per_order: number | null;
   min_per_order: number | null;
   status_id: number;
+  status_name: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -100,6 +102,7 @@ export async function GET(
           b.rating_average,
           b.is_open AS is_open_now,
           b.status_id,
+          sc.name AS status_name,
           b.created_at,
           b.updated_at,
           bd.description_long,
@@ -109,10 +112,15 @@ export async function GET(
           bd.accepts_delivery,
           bd.whatsapp_phone
         FROM business b
+        LEFT JOIN status_catalog sc ON sc.id = b.status_id
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         LEFT JOIN business_details bd ON bd.business_id = b.id
-        WHERE b.id = ? AND b.status_id = 1
+        WHERE b.id = ?
+          AND (
+            b.status_id = 1
+            OR LOWER(COALESCE(sc.name, '')) IN ('activo', 'active')
+          )
         LIMIT 1
       `,
       [id],
@@ -199,13 +207,19 @@ export async function GET(
           p.max_per_order,
           p.min_per_order,
           p.status_id,
+          psc.name AS status_name,
           p.created_at,
           p.updated_at
         FROM products p
+        LEFT JOIN status_catalog psc ON psc.id = p.status_id
         LEFT JOIN product_category_map pcm ON pcm.product_id = p.id
         LEFT JOIN product_categories pc ON pc.id = pcm.category_id
         ${productImageJoin}
-        WHERE p.business_id = ? AND p.status_id = 1
+        WHERE p.business_id = ?
+          AND (
+            p.status_id = 1
+            OR LOWER(COALESCE(psc.name, '')) IN ('activo', 'active')
+          )
         ORDER BY pc.name, p.name
       `,
       [id],

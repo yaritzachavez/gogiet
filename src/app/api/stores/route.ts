@@ -18,6 +18,7 @@ type StoreRow = {
   rating_average: number | string | null;
   is_open_now: number | boolean;
   status_id: number;
+  status_name: string | null;
   created_at: string;
   updated_at: string;
   categories: string | null;
@@ -50,18 +51,29 @@ export async function GET(req: Request) {
         b.rating_average,
         b.is_open AS is_open_now,
         b.status_id,
+        sc.name AS status_name,
         b.created_at,
         b.updated_at,
         GROUP_CONCAT(DISTINCT bc.name ORDER BY bc.name SEPARATOR ', ') AS categories,
         GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ', ') AS product_names,
         GROUP_CONCAT(DISTINCT pc.name ORDER BY pc.name SEPARATOR ', ') AS product_categories
       FROM business b
+      LEFT JOIN status_catalog sc ON sc.id = b.status_id
       LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
       LEFT JOIN business_categories bc ON bc.id = bcm.category_id
-      LEFT JOIN products p ON p.business_id = b.id AND p.status_id = 1
+      LEFT JOIN products p ON p.business_id = b.id
+      LEFT JOIN status_catalog psc ON psc.id = p.status_id
       LEFT JOIN product_category_map pcm ON pcm.product_id = p.id
       LEFT JOIN product_categories pc ON pc.id = pcm.category_id
-      WHERE b.status_id = 1
+      WHERE (
+        b.status_id = 1
+        OR LOWER(COALESCE(sc.name, '')) IN ('activo', 'active')
+      )
+        AND (
+          p.id IS NULL
+          OR p.status_id = 1
+          OR LOWER(COALESCE(psc.name, '')) IN ('activo', 'active')
+        )
         ${
           searchLike
             ? `
