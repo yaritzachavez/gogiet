@@ -14,6 +14,9 @@ type OrderRow = RowDataPacket & {
   id: number;
   business_id: number;
   business_name: string;
+  subtotal: string | number | null;
+  service_fee: string | number | null;
+  delivery_fee: string | number | null;
   total_amount: string | number;
   status_name: string | null;
   placed_at: string | null;
@@ -117,6 +120,9 @@ export async function GET(req: NextRequest) {
           o.id,
           o.business_id,
           b.name AS business_name,
+          o.subtotal,
+          o.service_fee,
+          o.delivery_fee,
           o.total_amount,
           osc.name AS status_name,
           o.placed_at,
@@ -192,6 +198,9 @@ export async function GET(req: NextRequest) {
         id: Number(row.id),
         businessId: Number(row.business_id),
         businessName: row.business_name,
+        subtotal: Number(row.subtotal ?? 0),
+        serviceFee: Number(row.service_fee ?? 0),
+        deliveryFee: Number(row.delivery_fee ?? 0),
         total: Number(row.total_amount ?? 0),
         status: getOrderStatusLabel(row.status_name),
         statusCode: resolveCanonicalOrderStatus(row.status_name),

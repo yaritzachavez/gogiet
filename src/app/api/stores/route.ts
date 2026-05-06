@@ -21,13 +21,19 @@ type StoreRow = {
   created_at: string;
   updated_at: string;
   categories: string | null;
+  product_names: string | null;
+  product_categories: string | null;
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await ensureBusinessLogoColumn();
     logDbUsage("/api/stores");
-    const [rows] = await pool.query(`
+    const url = new URL(req.url);
+    const search = String(url.searchParams.get("q") ?? "").trim();
+    const searchLike = search ? `%${search}%` : null;
+    const [rows] = await pool.query(
+      `
       SELECT
         b.id,
         b.name,
@@ -46,14 +52,35 @@ export async function GET() {
         b.status_id,
         b.created_at,
         b.updated_at,
-        GROUP_CONCAT(DISTINCT bc.name ORDER BY bc.name SEPARATOR ', ') AS categories
+        GROUP_CONCAT(DISTINCT bc.name ORDER BY bc.name SEPARATOR ', ') AS categories,
+        GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ', ') AS product_names,
+        GROUP_CONCAT(DISTINCT pc.name ORDER BY pc.name SEPARATOR ', ') AS product_categories
       FROM business b
       LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
       LEFT JOIN business_categories bc ON bc.id = bcm.category_id
+      LEFT JOIN products p ON p.business_id = b.id AND p.status_id = 1
+      LEFT JOIN product_category_map pcm ON pcm.product_id = p.id
+      LEFT JOIN product_categories pc ON pc.id = pcm.category_id
       WHERE b.status_id = 1
+        ${
+          searchLike
+            ? `
+        AND (
+          b.name LIKE ?
+          OR b.city LIKE ?
+          OR bc.name LIKE ?
+          OR p.name LIKE ?
+          OR pc.name LIKE ?
+        )`
+            : ""
+        }
       GROUP BY b.id
       ORDER BY b.is_open DESC, b.id DESC
-    `);
+    `,
+      searchLike
+        ? [searchLike, searchLike, searchLike, searchLike, searchLike]
+        : [],
+    );
 
     const stores = (rows as StoreRow[]).map((store) => ({
       id: store.id,
@@ -76,6 +103,12 @@ export async function GET() {
       category_name: store.categories?.split(", ")[0] ?? "General",
       categories: store.categories
         ? String(store.categories).split(", ").filter(Boolean)
+        : [],
+      product_names: store.product_names
+        ? String(store.product_names).split(", ").filter(Boolean)
+        : [],
+      product_categories: store.product_categories
+        ? String(store.product_categories).split(", ").filter(Boolean)
         : [],
     }));
 

@@ -10,6 +10,7 @@ import {
   createNotificationForBusiness,
   createNotificationsForAdminGeneral,
 } from "@/lib/notifications";
+import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
@@ -45,6 +46,8 @@ type ProductRow = RowDataPacket & {
 type AddressRow = RowDataPacket & {
   id: number;
   user_id: number;
+  reference_notes: string | null;
+  neighborhood: string | null;
 };
 
 type BusinessRow = RowDataPacket & {
@@ -110,6 +113,8 @@ async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
         terminal_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         service_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        driver_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         tip_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         total_amount DECIMAL(10,2) NOT NULL,
@@ -181,6 +186,39 @@ async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
         AFTER business_id
       `,
     );
+  }
+
+  if (!columnNames.has("platform_fee")) {
+    await conn.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
+        AFTER service_fee
+      `,
+    );
+  }
+
+  if (!columnNames.has("driver_fee")) {
+    await conn.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN driver_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
+        AFTER platform_fee
+      `,
+    );
+  }
+}
+
+function parseAddressMeta(referenceNotes?: string | null) {
+  if (!referenceNotes) return {};
+
+  try {
+    return JSON.parse(referenceNotes) as {
+      estimatedDistanceKm?: number | null;
+      zone?: string;
+    };
+  } catch {
+    return {};
   }
 }
 
@@ -320,24 +358,6 @@ async function getDefaultAddressId(conn: PoolConnection, userId: number) {
   return rows[0]?.id as number | undefined;
 }
 
-async function addressBelongsToUser(
-  conn: PoolConnection,
-  addressId: number,
-  userId: number,
-) {
-  const [rows] = await conn.query<AddressRow[]>(
-    `
-      SELECT id, user_id
-      FROM addresses
-      WHERE id = ? AND user_id = ?
-      LIMIT 1
-    `,
-    [addressId, userId],
-  );
-
-  return rows.length > 0;
-}
-
 async function getOrderById(
   orderId: number,
   conn: PoolConnection | typeof pool = pool,
@@ -370,6 +390,8 @@ async function getOrderById(
         o.terminal_fee,
         o.delivery_fee,
         o.service_fee,
+        o.platform_fee,
+        o.driver_fee,
         o.tip_amount,
         o.discount_amount,
         o.total_amount,
@@ -522,6 +544,8 @@ export async function GET(req: NextRequest) {
           o.terminal_fee,
           o.delivery_fee,
           o.service_fee,
+          o.platform_fee,
+          o.driver_fee,
           COALESCE(o.payment_method, pm.name) AS payment_method,
           o.comprobante_pago_url,
           o.created_at,
@@ -597,6 +621,8 @@ export async function GET(req: NextRequest) {
           terminalFee: Number(order.terminal_fee ?? 0),
           shippingCost: Number(order.delivery_fee ?? 0),
           serviceFee: Number(order.service_fee ?? 0),
+          platformFee: Number(order.platform_fee ?? 0),
+          driverFee: Number(order.driver_fee ?? 0),
           paymentMethod: String(order.payment_method ?? ""),
           paymentReceiptUrl: order.payment_receipt_url
             ? String(order.payment_receipt_url)
@@ -702,9 +728,22 @@ export async function POST(req: NextRequest) {
     const addressId =
       toPositiveNumber(body.delivery_address_id ?? body.address_id) ??
       (await getDefaultAddressId(conn, userId));
-    const addressIsValid = addressId
-      ? await addressBelongsToUser(conn, addressId, userId)
-      : false;
+    const addressRow = addressId
+      ? await (async () => {
+          const [rows] = await conn.query<AddressRow[]>(
+            `
+              SELECT id, user_id, reference_notes, neighborhood
+              FROM addresses
+              WHERE id = ? AND user_id = ?
+              LIMIT 1
+            `,
+            [addressId, userId],
+          );
+
+          return rows[0] ?? null;
+        })()
+      : null;
+    const addressIsValid = Boolean(addressRow);
     const paymentMethodName = normalizeCatalogName(
       body.payment_method,
       "efectivo",
@@ -847,38 +886,36 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const subtotal =
-      Number.isFinite(Number(body.subtotal)) && Number(body.subtotal) > 0
-        ? Number(Number(body.subtotal).toFixed(2))
-        : Number(
-            orderItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2),
-          );
+    const subtotal = Number(
+      orderItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2),
+    );
     const terminalFee =
       paymentMethodName === "terminal" ? Number(body.terminal_fee ?? 0) : 0;
-    const deliveryFee = Number(body.shipping_cost ?? body.delivery_fee ?? 0);
-    const serviceFee = Number(body.service_fee ?? 0);
     const tipAmount = Number(body.tip_amount ?? 0);
     const discountAmount = Number(body.discount_amount ?? 0);
-    const totalAmount =
-      Number.isFinite(Number(body.total)) && Number(body.total) > 0
-        ? Number(Number(body.total).toFixed(2))
-        : Number(
-            (
-              subtotal +
-              terminalFee +
-              deliveryFee +
-              serviceFee +
-              tipAmount -
-              discountAmount
-            ).toFixed(2),
-          );
+    const addressMeta = parseAddressMeta(addressRow?.reference_notes);
+    const estimatedDistanceKm =
+      typeof addressMeta.estimatedDistanceKm === "number"
+        ? Number(addressMeta.estimatedDistanceKm)
+        : null;
+    const commissionBreakdown = calculateOrderCommissionBreakdown({
+      subtotal,
+      distanceKm: estimatedDistanceKm,
+      deliveryFeeOverride:
+        addressMeta.estimatedDistanceKm == null
+          ? Number(body.shipping_cost ?? body.delivery_fee ?? 0)
+          : null,
+      terminalFee,
+      tipAmount,
+      discountAmount,
+    });
 
     if (
-      subtotal <= 0 ||
-      terminalFee < 0 ||
-      serviceFee < 0 ||
-      totalAmount <= 0 ||
-      deliveryFee < 0
+      commissionBreakdown.subtotal <= 0 ||
+      commissionBreakdown.terminalFee < 0 ||
+      commissionBreakdown.serviceFee < 0 ||
+      commissionBreakdown.total <= 0 ||
+      commissionBreakdown.deliveryFee < 0
     ) {
       await conn.rollback();
       return NextResponse.json(
@@ -903,6 +940,8 @@ export async function POST(req: NextRequest) {
           terminal_fee,
           delivery_fee,
           service_fee,
+          platform_fee,
+          driver_fee,
           tip_amount,
           discount_amount,
           total_amount,
@@ -923,13 +962,15 @@ export async function POST(req: NextRequest) {
         transferProofUrl || null,
         transferProofUrl || null,
         resolvedStatus.statusId,
-        subtotal,
-        terminalFee,
-        deliveryFee,
-        serviceFee,
-        tipAmount,
-        discountAmount,
-        totalAmount,
+        commissionBreakdown.subtotal,
+        commissionBreakdown.terminalFee,
+        commissionBreakdown.deliveryFee,
+        commissionBreakdown.serviceFee,
+        commissionBreakdown.platformFee,
+        commissionBreakdown.driverFee,
+        commissionBreakdown.tipAmount,
+        commissionBreakdown.discountAmount,
+        commissionBreakdown.total,
         body.delivery_instructions ??
           body.customer_notes ??
           body.client_note ??

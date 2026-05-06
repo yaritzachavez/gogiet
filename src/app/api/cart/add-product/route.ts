@@ -51,7 +51,12 @@ export async function POST(req: NextRequest) {
     }
 
     const [productRow]: any = await pool.query(
-      `SELECT id, price, business_id FROM products WHERE id = ? LIMIT 1`,
+      `
+        SELECT id, price, discount_price, business_id
+        FROM products
+        WHERE id = ?
+        LIMIT 1
+      `,
       [productId],
     );
 
@@ -62,7 +67,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const basePrice = Number(productRow[0].price ?? 0);
+    const basePrice = Number(
+      productRow[0].discount_price ??
+        productRow[0].price ??
+        payload?.price ??
+        0,
+    );
     const finalPrice = Math.max(basePrice - discountValue, 0);
     const subtotal = finalPrice * quantity;
 

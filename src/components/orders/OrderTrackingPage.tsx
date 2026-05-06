@@ -34,6 +34,8 @@ type OrderDetail = {
   terminal_fee: number;
   delivery_fee: number;
   service_fee: number;
+  platform_fee?: number;
+  driver_fee?: number;
   customer_notes?: string | null;
   delivery_user_id?: number | null;
   delivery_name?: string | null;
@@ -582,6 +584,14 @@ export default function OrderTrackingPage() {
               <p>
                 <span className="font-semibold">Servicio:</span> MX$
                 {Number(order.service_fee ?? 0).toFixed(2)}
+              </p>
+              <p>
+                <span className="font-semibold">Plataforma por envío:</span> MX$
+                {Number(order.platform_fee ?? 0).toFixed(2)}
+              </p>
+              <p>
+                <span className="font-semibold">Repartidor por envío:</span> MX$
+                {Number(order.driver_fee ?? 0).toFixed(2)}
               </p>
               <p className="pt-2 text-base font-semibold text-orange-950">
                 Total: MX${Number(order.total_amount ?? 0).toFixed(2)}

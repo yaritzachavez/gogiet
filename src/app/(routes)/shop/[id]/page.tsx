@@ -86,6 +86,20 @@ const getBusinessImage = (business: {
   return normalizedUrl;
 };
 
+const getProductUnitPrice = (product: {
+  price?: number | string | null;
+  sale_price?: number | string | null;
+  offer_price?: number | string | null;
+  discount_price?: number | string | null;
+}) =>
+  Number(
+    product.price ||
+      product.sale_price ||
+      product.offer_price ||
+      product.discount_price ||
+      0,
+  ) || 0;
+
 export default function BusinessDetailPage() {
   const { user } = useAuth();
   const params = useParams<{ id: string }>();
@@ -245,7 +259,7 @@ export default function BusinessDetailPage() {
         product_id: selectedProduct.id,
         quantity: modalQuantity,
         business_id: businessId,
-        price: Number(selectedProduct.price ?? 0),
+        price: getProductUnitPrice(selectedProduct),
       };
 
       console.log("ADD TO CART payload:", payload);
@@ -288,7 +302,7 @@ export default function BusinessDetailPage() {
               product_id: Number(selectedProduct.id),
               business_id: Number(businessId) || null,
               name: String(selectedProduct.name ?? ""),
-              price: Number(selectedProduct.price ?? 0) || 0,
+              price: getProductUnitPrice(selectedProduct),
               image_url: getProductImage(selectedProduct),
               quantity: modalQuantity,
             },

@@ -22,6 +22,7 @@ import {
   readStoredCartSnapshot,
   writeStoredCartSnapshot,
 } from "@/lib/cart-storage";
+import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import type { ShippingByAddressResult } from "@/lib/shipping";
 
 // --- Tipos y Constantes ---
@@ -47,7 +48,37 @@ type StoredCartItem = {
   };
 };
 
-const SERVICE_FEE = 12;
+function getCartItemUnitPrice(item: {
+  unitPrice?: number;
+  price?: number;
+  quantity?: number;
+}) {
+  const unitPrice = Number(item.unitPrice ?? item.price ?? 0);
+
+  if (Number.isFinite(unitPrice) && unitPrice > 0) {
+    return unitPrice;
+  }
+
+  const quantity = Number(item.quantity ?? 0);
+  const subtotal = Number(item.price ?? 0);
+
+  if (quantity > 0 && Number.isFinite(subtotal) && subtotal > 0) {
+    return Number((subtotal / quantity).toFixed(2));
+  }
+
+  return 0;
+}
+
+function getCartItemSubtotal(item: {
+  unitPrice?: number;
+  price?: number;
+  quantity?: number;
+}) {
+  return Number(
+    (getCartItemUnitPrice(item) * Number(item.quantity ?? 0)).toFixed(2),
+  );
+}
+
 const DEFAULT_SHIPPING_STATE: ShippingByAddressResult = {
   zoneName: null,
   shippingCost: null,
@@ -138,8 +169,10 @@ export default function CarritoPage() {
         image: item.image_url || "/placeholder-product.png",
         extras: [],
         quantity: item.quantity,
-        unitPrice: item.price,
-        price: item.price * item.quantity,
+        unitPrice: Number(item.price ?? 0),
+        price: Number(
+          (Number(item.price ?? 0) * Number(item.quantity ?? 0)).toFixed(2),
+        ),
       }));
     },
     [],
@@ -153,7 +186,7 @@ export default function CarritoPage() {
         product_id: Number(item.productId ?? item.id),
         business_id: Number(item.businessId ?? 0) || null,
         name: item.nombre,
-        price: Number(item.unitPrice ?? item.price ?? 0),
+        price: getCartItemUnitPrice(item),
         image_url: item.image,
         quantity: item.quantity,
       })),
@@ -190,8 +223,8 @@ export default function CarritoPage() {
           image: p.thumbnail_url || p.image_url || "/placeholder-product.png",
           negocio: "Tienda Local",
           quantity: p.quantity,
-          unitPrice: p.price,
-          price: p.total,
+          unitPrice: Number(p.unit_price ?? p.price ?? 0),
+          price: Number(p.total ?? 0),
           extras: [],
         }));
 
@@ -268,17 +301,20 @@ export default function CarritoPage() {
 
   // --- Cálculos ---
   const subtotal = useMemo(
-    () =>
-      cartItems.reduce(
-        (acc, item) => acc + (item.unitPrice || 0) * item.quantity,
-        0,
-      ),
+    () => cartItems.reduce((acc, item) => acc + getCartItemSubtotal(item), 0),
     [cartItems],
   );
 
-  const deliveryFee = shipping.shippingCost ?? 0;
-  const terminalFee = 0;
-  const total = subtotal + terminalFee + SERVICE_FEE + deliveryFee;
+  const commissionBreakdown = useMemo(
+    () =>
+      calculateOrderCommissionBreakdown({
+        subtotal,
+        distanceKm: shipping.distanceKm,
+        deliveryFeeOverride: shipping.shippingCost,
+        terminalFee: 0,
+      }),
+    [shipping.distanceKm, shipping.shippingCost, subtotal],
+  );
 
   // --- Handlers ---
   const handleQuantityChange = async (id: string, delta: number) => {
@@ -288,11 +324,25 @@ export default function CarritoPage() {
     if (newQty === 0) return handleRemove(id);
 
     const nextItems = cartItems.map((i) =>
-      i.id === id ? { ...i, quantity: newQty } : i,
+      i.id === id
+        ? {
+            ...i,
+            quantity: newQty,
+            price: Number((getCartItemUnitPrice(i) * newQty).toFixed(2)),
+          }
+        : i,
     );
 
     setCartItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, quantity: newQty } : i)),
+      prev.map((i) =>
+        i.id === id
+          ? {
+              ...i,
+              quantity: newQty,
+              price: Number((getCartItemUnitPrice(i) * newQty).toFixed(2)),
+            }
+          : i,
+      ),
     );
 
     syncCartStorage(nextItems);
@@ -383,11 +433,14 @@ export default function CarritoPage() {
           business_id:
             cartItems.find((item) => Number(item.businessId ?? 0) > 0)
               ?.businessId ?? null,
-          subtotal,
-          terminal_fee: terminalFee,
-          shipping_cost: deliveryFee,
-          service_fee: SERVICE_FEE,
-          total,
+          subtotal: commissionBreakdown.subtotal,
+          terminal_fee: commissionBreakdown.terminalFee,
+          shipping_cost: commissionBreakdown.deliveryFee,
+          delivery_fee: commissionBreakdown.deliveryFee,
+          service_fee: commissionBreakdown.serviceFee,
+          platform_fee: commissionBreakdown.platformFee,
+          driver_fee: commissionBreakdown.driverFee,
+          total: commissionBreakdown.total,
           payment_method: selectedPaymentMethod,
           status,
           payment_receipt_url: proofUrl || null,
@@ -396,7 +449,7 @@ export default function CarritoPage() {
             product_id: i.productId,
             quantity: i.quantity,
             unit_price: i.unitPrice,
-            total_price: (i.unitPrice || 0) * i.quantity,
+            total_price: getCartItemSubtotal(i),
           })),
         }),
       });
@@ -516,8 +569,11 @@ export default function CarritoPage() {
                       +
                     </button>
                   </div>
+                  <span className="text-sm font-semibold text-orange-900/70">
+                    MX${getCartItemUnitPrice(item).toFixed(2)} c/u
+                  </span>
                   <span className="font-bold">
-                    MX${((item.unitPrice || 0) * item.quantity).toFixed(2)}
+                    MX${getCartItemSubtotal(item).toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -542,12 +598,28 @@ export default function CarritoPage() {
                 <span>MX${subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
+                <span>Servicio</span>
+                <span>MX${commissionBreakdown.serviceFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
                 <span>Envío</span>
-                <span>{deliveryFee > 0 ? `MX$${deliveryFee}` : "Gratis"}</span>
+                <span>
+                  {commissionBreakdown.deliveryFee > 0
+                    ? `MX$${commissionBreakdown.deliveryFee.toFixed(2)}`
+                    : "Gratis"}
+                </span>
+              </div>
+              <div className="flex justify-between text-xs text-orange-900/70">
+                <span>Plataforma del envío</span>
+                <span>MX${commissionBreakdown.platformFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-xs text-orange-900/70">
+                <span>Repartidor del envío</span>
+                <span>MX${commissionBreakdown.driverFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-lg border-t pt-2">
                 <span>Total</span>
-                <span>MX${total.toFixed(2)}</span>
+                <span>MX${commissionBreakdown.total.toFixed(2)}</span>
               </div>
             </div>
 
@@ -631,7 +703,7 @@ export default function CarritoPage() {
               <strong>Titular:</strong> {TRANSFER_ACCOUNT.holder}
             </p>
             <p className="pt-2 text-orange-700 font-bold text-center">
-              Total a pagar: MX${total.toFixed(2)}
+              Total a pagar: MX${commissionBreakdown.total.toFixed(2)}
             </p>
           </div>
           <div className="py-4">

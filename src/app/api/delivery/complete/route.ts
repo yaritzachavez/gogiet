@@ -17,10 +17,12 @@ import {
   pickFirstExistingColumn,
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
+import { saveDriverEarning } from "@/lib/driver-earnings";
 import { createNotificationsForUsers } from "@/lib/notifications";
 import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
 
 type AssignedOrderRow = RowDataPacket & {
+  delivery_id: number;
   order_id: number;
   business_id: number;
   customer_user_id: number;
@@ -117,6 +119,7 @@ export async function POST(req: NextRequest) {
     const [rows] = await connection.query<AssignedOrderRow[]>(
       `
         SELECT
+          d.id AS delivery_id,
           o.id AS order_id,
           o.business_id,
           o.user_id AS customer_user_id,
@@ -162,6 +165,7 @@ export async function POST(req: NextRequest) {
 
     const shippingFeeAmount = Number(order.shipping_fee_amount ?? 0);
     const driverEarning = shippingFeeAmount * COURIER_EARNING_RATE;
+    const platformFee = shippingFeeAmount - driverEarning;
 
     console.log("[delivery-complete] pedido entregado:", {
       orderId,
@@ -170,6 +174,7 @@ export async function POST(req: NextRequest) {
       fuenteEnvio: shippingFeeSource,
       shippingFeeAmount,
       driverEarning: Number(driverEarning.toFixed(2)),
+      platformFee: Number(platformFee.toFixed(2)),
       fallbackRate: DEFAULT_DELIVERY_FEE_RATE,
     });
 
@@ -211,6 +216,19 @@ export async function POST(req: NextRequest) {
       hasDriverEarning
         ? [deliveryStatusId, Number(driverEarning.toFixed(2)), orderId]
         : [deliveryStatusId, orderId],
+    );
+
+    await saveDriverEarning(
+      {
+        deliveryId: Number(order.delivery_id),
+        orderId,
+        driverUserId: authUser.user.id,
+        deliveryFee: shippingFeeAmount,
+        driverFee: driverEarning,
+        platformFee,
+        earningStatus: "pending",
+      },
+      connection,
     );
 
     const businessUserIds = await getBusinessUserIds(

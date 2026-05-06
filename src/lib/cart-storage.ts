@@ -23,6 +23,9 @@ function normalizeStoredItem(
     name?: string;
     unitPrice?: number;
     price?: number;
+    sale_price?: number;
+    offer_price?: number;
+    discount_price?: number;
     image?: string;
     image_url?: string;
     quantity?: number;
@@ -30,6 +33,14 @@ function normalizeStoredItem(
 ): StoredCartSnapshotItem | null {
   const productId = Number(item.product_id ?? item.productId ?? item.id);
   const quantity = Math.max(0, Number(item.quantity ?? 0));
+  const normalizedPrice = Number(
+    item.price ??
+      item.unitPrice ??
+      item.sale_price ??
+      item.offer_price ??
+      item.discount_price ??
+      0,
+  );
 
   if (!Number.isInteger(productId) || productId <= 0 || quantity <= 0) {
     return null;
@@ -40,7 +51,7 @@ function normalizeStoredItem(
     product_id: productId,
     business_id: Number(item.business_id ?? item.businessId ?? 0) || null,
     name: String(item.name ?? item.nombre ?? "").trim(),
-    price: Number(item.price ?? item.unitPrice ?? 0) || 0,
+    price: Number.isFinite(normalizedPrice) ? normalizedPrice : 0,
     image_url: String(item.image_url ?? item.image ?? "").trim(),
     quantity,
   };
@@ -70,6 +81,9 @@ export function readStoredCartSnapshot() {
             name?: string;
             unitPrice?: number;
             price?: number;
+            sale_price?: number;
+            offer_price?: number;
+            discount_price?: number;
             image?: string;
             image_url?: string;
             quantity?: number;

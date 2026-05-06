@@ -273,6 +273,23 @@ model delivery_payments {
   @@index([driver_user_id], map: "fk_delivery_payments_driver")
 }
 
+model driver_earnings {
+  id             Int      @id @default(autoincrement())
+  delivery_id    Int      @unique(map: "uk_driver_earnings_delivery_id")
+  order_id       Int
+  driver_user_id Int
+  delivery_fee   Decimal  @default(0.00) @db.Decimal(10, 2)
+  driver_fee     Decimal  @default(0.00) @db.Decimal(10, 2)
+  platform_fee   Decimal  @default(0.00) @db.Decimal(10, 2)
+  currency       String   @default("MXN") @db.VarChar(10)
+  earning_status String   @default("pending") @db.VarChar(30)
+  created_at     DateTime @default(now()) @db.DateTime(0)
+  updated_at     DateTime @default(now()) @db.DateTime(0)
+
+  @@index([order_id], map: "idx_driver_earnings_order_id")
+  @@index([driver_user_id], map: "idx_driver_earnings_driver_user_id")
+}
+
 model delivery_settlements {
   id                 Int       @id @default(autoincrement())
   driver_user_id     Int
@@ -394,6 +411,8 @@ model orders {
   terminal_fee         Decimal              @default(0.00) @db.Decimal(10, 2)
   delivery_fee         Decimal              @default(0.00) @db.Decimal(10, 2)
   service_fee          Decimal              @default(0.00) @db.Decimal(10, 2)
+  platform_fee         Decimal              @default(0.00) @db.Decimal(10, 2)
+  driver_fee           Decimal              @default(0.00) @db.Decimal(10, 2)
   tip_amount           Decimal              @default(0.00) @db.Decimal(10, 2)
   discount_amount      Decimal              @default(0.00) @db.Decimal(10, 2)
   total_amount         Decimal              @db.Decimal(10, 2)

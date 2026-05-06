@@ -132,11 +132,17 @@ export async function GET(req: NextRequest) {
           p.id AS product_id_ref,
           p.business_id,
           p.name,
-          p.price,
+          COALESCE(pc.unit_price, p.discount_price, p.price, 0) AS price,
+          pc.unit_price,
+          p.discount_price,
           p.thumbnail_url,
           p.image_url,
           pc.quantity,
-          COALESCE(pc.subtotal, pc.total, p.price * pc.quantity) AS total
+          COALESCE(
+            pc.subtotal,
+            pc.total,
+            COALESCE(pc.unit_price, p.discount_price, p.price, 0) * pc.quantity
+          ) AS total
         FROM products_cart pc
         INNER JOIN products p ON p.id = pc.product_id
         WHERE pc.cart_id = ?

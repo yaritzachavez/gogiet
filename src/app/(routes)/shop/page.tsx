@@ -25,6 +25,9 @@ type Business = {
   name: string;
   city?: string;
   category?: string;
+  categories?: string[];
+  productNames?: string[];
+  productCategories?: string[];
   rating: number;
   etaMinutes: number;
   deliveryFee: number;
@@ -46,6 +49,8 @@ type ApiBusiness = {
   giro?: string;
   business_category_name?: string;
   categories?: string[];
+  product_names?: string[];
+  product_categories?: string[];
   avatar_url?: string | null;
 };
 
@@ -170,6 +175,21 @@ function matchesCategoryTerms(category: string | undefined, terms: string[]) {
   return terms.some((term) => normalizedCategory.includes(term));
 }
 
+function matchesSearchTerm(
+  search: string,
+  ...values: Array<string | string[] | null | undefined>
+) {
+  if (!search) return true;
+
+  return values.some((value) => {
+    if (Array.isArray(value)) {
+      return value.some((entry) => normalizeText(entry).includes(search));
+    }
+
+    return normalizeText(value ?? "").includes(search);
+  });
+}
+
 function getSelectedDeliveryLocation() {
   if (typeof window === "undefined") {
     return "Mazamitla";
@@ -194,13 +214,19 @@ export default function ShopPage() {
   const [activeOrdersLoading, setActiveOrdersLoading] = useState(true);
   const [selectedLocation, setSelectedLocation] = useState("Mazamitla");
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
+  const [favoriteBusinessIds, setFavoriteBusinessIds] = useState<number[]>([]);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("/api/stores", {
-          cache: "no-store",
-        });
+        setLoading(true);
+        const query = searchQuery.trim();
+        const res = await fetch(
+          `/api/stores${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+          {
+            cache: "no-store",
+          },
+        );
         const data = await res.json();
 
         const parsedBusinesses: Business[] = (data.stores ?? []).map(
@@ -217,6 +243,15 @@ export default function ShopPage() {
               business.giro ??
               business.business_category_name ??
               "Restaurante",
+            categories: Array.isArray(business.categories)
+              ? business.categories
+              : [],
+            productNames: Array.isArray(business.product_names)
+              ? business.product_names
+              : [],
+            productCategories: Array.isArray(business.product_categories)
+              ? business.product_categories
+              : [],
             rating: getRating(business.id, index),
             etaMinutes: getEta(index),
             deliveryFee: getDeliveryFee(index),
@@ -238,11 +273,48 @@ export default function ShopPage() {
       }
     }
 
-    fetchData();
-  }, []);
+    void fetchData();
+  }, [searchQuery]);
 
   useEffect(() => {
     setSelectedLocation(getSelectedDeliveryLocation());
+  }, []);
+
+  useEffect(() => {
+    async function fetchFavorites() {
+      if (typeof window === "undefined") return;
+
+      const token = window.localStorage.getItem("token");
+
+      if (!token) {
+        setFavoriteBusinessIds([]);
+        return;
+      }
+
+      try {
+        const response = await fetch("/api/favorites?type=business", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = (await response.json().catch(() => null)) as {
+          favorites?: Array<{ target_id?: number }>;
+        } | null;
+
+        setFavoriteBusinessIds(
+          Array.isArray(data?.favorites)
+            ? data.favorites
+                .map((favorite) => Number(favorite.target_id ?? 0))
+                .filter((id) => id > 0)
+            : [],
+        );
+      } catch (error) {
+        console.error("Error cargando favoritos:", error);
+        setFavoriteBusinessIds([]);
+      }
+    }
+
+    void fetchFavorites();
   }, []);
 
   useEffect(() => {
@@ -315,16 +387,25 @@ export default function ShopPage() {
     ];
   }, [businesses]);
 
+  const favoriteBusinessIdsSet = useMemo(
+    () => new Set(favoriteBusinessIds),
+    [favoriteBusinessIds],
+  );
+
   const filteredBusinesses = useMemo(() => {
-    const normalizedSearch = searchQuery.trim().toLowerCase();
+    const normalizedSearch = normalizeText(searchQuery.trim());
     const normalizedSelectedFilter = selectedFilter.trim();
 
     return businesses.filter((business) => {
-      const matchesSearch =
-        normalizedSearch.length === 0 ||
-        business.name.toLowerCase().includes(normalizedSearch) ||
-        business.city?.toLowerCase().includes(normalizedSearch) ||
-        business.category?.toLowerCase().includes(normalizedSearch);
+      const matchesSearch = matchesSearchTerm(
+        normalizedSearch,
+        business.name,
+        business.city,
+        business.category,
+        business.categories,
+        business.productNames,
+        business.productCategories,
+      );
 
       if (!normalizedSelectedFilter || normalizedSelectedFilter === "Todos") {
         return matchesSearch;
@@ -354,6 +435,63 @@ export default function ShopPage() {
       return matchesSearch && matchesFilter;
     });
   }, [businesses, searchQuery, selectedFilter]);
+
+  const favoriteBusinesses = useMemo(
+    () =>
+      businesses.filter((business) =>
+        favoriteBusinessIdsSet.has(Number(business.id)),
+      ),
+    [businesses, favoriteBusinessIdsSet],
+  );
+
+  const handleToggleFavorite = async (businessId: number | string) => {
+    if (typeof window === "undefined") return;
+
+    const token = window.localStorage.getItem("token");
+
+    if (!token) {
+      window.alert("Inicia sesión para guardar favoritos.");
+      return;
+    }
+
+    const numericBusinessId = Number(businessId);
+    const isFavorite = favoriteBusinessIds.includes(numericBusinessId);
+
+    try {
+      const response = await fetch("/api/favorites", {
+        method: isFavorite ? "DELETE" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          favorite_type: "business",
+          target_id: numericBusinessId,
+        }),
+      });
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+
+      if (!response.ok || data?.success === false) {
+        throw new Error(data?.error || "No se pudo actualizar el favorito.");
+      }
+
+      setFavoriteBusinessIds((prev) =>
+        isFavorite
+          ? prev.filter((id) => id !== numericBusinessId)
+          : [...prev, numericBusinessId],
+      );
+    } catch (error) {
+      console.error("Error actualizando favorito:", error);
+      window.alert(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el favorito.",
+      );
+    }
+  };
 
   const handleSelectLocation = (location: string) => {
     setSelectedLocation(location);
@@ -532,6 +670,48 @@ export default function ShopPage() {
           </button>
         </section>
 
+        {favoriteBusinesses.length > 0 ? (
+          <section className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+                  Tus favoritos
+                </h1>
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 text-sm font-black text-orange-600 transition hover:text-orange-700"
+              >
+                {favoriteBusinesses.length} guardados
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {favoriteBusinesses.map((business, index) => (
+                <BusinessCard
+                  key={`favorite-${business.id}-${index}`}
+                  businessId={business.id}
+                  id={CARD_IMAGES[index % CARD_IMAGES.length]}
+                  name={business.name}
+                  city={business.city}
+                  category={business.category}
+                  rating={business.rating}
+                  etaMinutes={business.etaMinutes}
+                  deliveryFee={business.deliveryFee}
+                  priceTier={business.priceTier}
+                  badge={business.badge}
+                  discount={business.discount}
+                  imagen={business.avatar_url ?? undefined}
+                  href={`/shop/${business.id ?? index}`}
+                  isFavorite={favoriteBusinessIdsSet.has(Number(business.id))}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -562,6 +742,7 @@ export default function ShopPage() {
               {filteredBusinesses.map((business, index) => (
                 <BusinessCard
                   key={`${business.id ?? "business"}-${index}`}
+                  businessId={business.id}
                   id={CARD_IMAGES[index % CARD_IMAGES.length]}
                   name={business.name}
                   city={business.city}
@@ -574,6 +755,8 @@ export default function ShopPage() {
                   discount={business.discount}
                   imagen={business.avatar_url ?? undefined}
                   href={`/shop/${business.id ?? index}`}
+                  isFavorite={favoriteBusinessIdsSet.has(Number(business.id))}
+                  onToggleFavorite={handleToggleFavorite}
                 />
               ))}
             </div>

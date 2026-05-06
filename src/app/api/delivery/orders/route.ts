@@ -56,6 +56,7 @@ function formatDeliveryStatus(value: unknown) {
 
   if (normalized === "en_camino") return "En camino";
   if (normalized === "listo_para_recoger") return "Listo para recoger";
+  if (normalized === "recogido") return "Recogido";
   if (normalized === "aceptado") return "Pendiente";
   if (normalized === "pendiente_aceptacion") return "Pendiente";
   if (

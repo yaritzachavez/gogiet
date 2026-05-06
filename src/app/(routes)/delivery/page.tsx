@@ -1003,6 +1003,64 @@ export default function DeliveryDashboardPage() {
     [refreshDeliveryPanel],
   );
 
+  const handleDeliveryStatusUpdate = useCallback(
+    async (orderId: string, status: "recogido" | "on_the_way") => {
+      if (typeof window === "undefined") return;
+
+      const token = getStoredToken();
+
+      if (!token) {
+        setOrdersError("Debes iniciar sesión para actualizar la entrega.");
+        return;
+      }
+
+      try {
+        setAssignmentActionOrderId(orderId);
+
+        const response = await fetch(`/api/delivery/orders/${orderId}/status`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ status }),
+        });
+        const responseText = await response.text();
+        let payload: Record<string, unknown> = {};
+
+        try {
+          payload = responseText ? JSON.parse(responseText) : {};
+        } catch {
+          payload = { raw: responseText };
+        }
+
+        if (isAuthErrorStatus(response.status)) {
+          setOrdersError(
+            "Tu sesión expiró o no tienes permisos de repartidor.",
+          );
+          return;
+        }
+
+        if (!response.ok || payload.success === false) {
+          setOrdersError(
+            (typeof payload.error === "string" && payload.error) ||
+              "No se pudo actualizar la entrega.",
+          );
+          return;
+        }
+
+        setOrdersError("");
+        await refreshDeliveryPanel();
+      } catch (error) {
+        console.error("Error actualizando estado de entrega:", error);
+        setOrdersError("No se pudo actualizar la entrega.");
+      } finally {
+        setAssignmentActionOrderId(null);
+      }
+    },
+    [refreshDeliveryPanel],
+  );
+
   const handleAvatarChange = useCallback(
     async (event: ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0] ?? null;
@@ -1184,6 +1242,12 @@ export default function DeliveryDashboardPage() {
               }
               onRejectOrder={(orderId) =>
                 handleAssignmentResponse(orderId, "reject")
+              }
+              onMarkPickedUp={(orderId) =>
+                handleDeliveryStatusUpdate(orderId, "recogido")
+              }
+              onMarkOnTheWay={(orderId) =>
+                handleDeliveryStatusUpdate(orderId, "on_the_way")
               }
               onMarkDelivered={handleMarkDelivered}
             />

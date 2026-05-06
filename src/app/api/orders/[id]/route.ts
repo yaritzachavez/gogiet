@@ -87,6 +87,8 @@ async function ensureOrdersColumns() {
         terminal_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         service_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        driver_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         tip_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
         total_amount DECIMAL(10,2) NOT NULL,
@@ -156,6 +158,26 @@ async function ensureOrdersColumns() {
         ALTER TABLE orders
         ADD COLUMN driver_id INT NULL
         AFTER business_id
+      `,
+    );
+  }
+
+  if (!columnNames.has("platform_fee")) {
+    await pool.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
+        AFTER service_fee
+      `,
+    );
+  }
+
+  if (!columnNames.has("driver_fee")) {
+    await pool.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN driver_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
+        AFTER platform_fee
       `,
     );
   }
@@ -318,6 +340,8 @@ async function getOrderById(orderId: number): Promise<any | null> {
         o.terminal_fee,
         o.delivery_fee,
         o.service_fee,
+        o.platform_fee,
+        o.driver_fee,
         o.tip_amount,
         o.discount_amount,
         o.total_amount,

@@ -84,6 +84,9 @@ type OrderItem = {
 type BusinessOrder = {
   id: number;
   businessName: string;
+  subtotal?: number;
+  serviceFee?: number;
+  deliveryFee?: number;
   total: number;
   status: string;
   statusCode?: string;
@@ -99,6 +102,14 @@ type BusinessOrder = {
   deliveryStatus?: string | null;
   deliveryRequested: boolean;
   items: OrderItem[];
+};
+
+type SalesRange = "day" | "week" | "month";
+
+type TopProductMetric = {
+  name: string;
+  quantity: number;
+  total: number;
 };
 
 type ProductItem = {
@@ -472,6 +483,7 @@ export function BusinessAdminDashboard() {
   const [assignInitialTraining, setAssignInitialTraining] = useState(false);
   const [initialTrainingId, setInitialTrainingId] = useState("");
   const [busyKey, setBusyKey] = useState("");
+  const [salesRange, setSalesRange] = useState<SalesRange>("month");
 
   const loadDashboard = useCallback(async () => {
     const token = getStoredToken();
@@ -861,11 +873,43 @@ export function BusinessAdminDashboard() {
     const now = new Date();
     const todayKey = now.toISOString().slice(0, 10);
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(startOfToday);
+    const weekDay = startOfWeek.getDay();
+    const mondayOffset = weekDay === 0 ? -6 : 1 - weekDay;
+    startOfWeek.setDate(startOfWeek.getDate() + mondayOffset);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     let salesToday = 0;
     let monthlySales = 0;
     let deliveredOrders = 0;
+    let filteredSales = 0;
+    let estimatedProfit = 0;
+    let filteredActiveOrders = 0;
     const paymentMethods = new Map<string, number>();
+    const topProducts = new Map<string, TopProductMetric>();
+    const periodDays = new Map<
+      string,
+      {
+        day: string;
+        sales_total: number;
+        orders_count: number;
+        sortKey: string;
+      }
+    >();
+
+    const isWithinSelectedRange = (date: Date) => {
+      if (salesRange === "day") {
+        return date >= startOfToday;
+      }
+
+      if (salesRange === "week") {
+        return date >= startOfWeek;
+      }
+
+      return date >= startOfMonth;
+    };
 
     for (const order of orders) {
       const date = new Date(order.placedAt);
@@ -882,12 +926,59 @@ export function BusinessAdminDashboard() {
         monthlySales += Number(order.total ?? 0);
       }
 
-      if (
+      const normalizedStatus = normalizeStatus(
+        order.statusCode || order.status,
+      );
+      const delivered =
+        normalizedStatus === "delivered" ||
         ["pedido_entregado", "entregado", "completado"].includes(
           normalizeStatus(order.status),
-        )
-      ) {
+        );
+      const active =
+        !delivered &&
+        normalizedStatus !== "cancelled" &&
+        normalizedStatus !== "cancelado";
+
+      if (delivered) {
         deliveredOrders += 1;
+      }
+
+      if (!Number.isNaN(date.getTime()) && isWithinSelectedRange(date)) {
+        filteredSales += Number(order.total ?? 0);
+        estimatedProfit +=
+          Number(order.subtotal ?? 0) + Number(order.serviceFee ?? 0);
+        const daySortKey = date.toISOString().slice(0, 10);
+        const dayLabel = new Intl.DateTimeFormat("es-MX", {
+          weekday: salesRange === "month" ? undefined : "short",
+          day: "2-digit",
+          month: "short",
+        }).format(date);
+        const dayBucket = periodDays.get(daySortKey) ?? {
+          day: dayLabel,
+          sales_total: 0,
+          orders_count: 0,
+          sortKey: daySortKey,
+        };
+        dayBucket.sales_total += Number(order.total ?? 0);
+        dayBucket.orders_count += 1;
+        periodDays.set(daySortKey, dayBucket);
+
+        if (active) {
+          filteredActiveOrders += 1;
+        }
+
+        for (const item of order.items) {
+          const key = item.name.trim().toLowerCase();
+          const current = topProducts.get(key) ?? {
+            name: item.name,
+            quantity: 0,
+            total: 0,
+          };
+
+          current.quantity += Number(item.quantity ?? 0);
+          current.total += Number(item.total ?? 0);
+          topProducts.set(key, current);
+        }
       }
 
       const paymentKey = order.paymentMethod || "Sin método";
@@ -901,15 +992,28 @@ export function BusinessAdminDashboard() {
       salesToday,
       monthlySales,
       deliveredOrders,
+      filteredSales,
+      estimatedProfit,
+      filteredActiveOrders,
+      rangeDays: Array.from(periodDays.values())
+        .sort((left, right) => right.sortKey.localeCompare(left.sortKey))
+        .slice(0, 7),
       averageTicket: orders.length
         ? orders.reduce((sum, order) => sum + Number(order.total ?? 0), 0) /
           orders.length
         : 0,
+      topProducts: Array.from(topProducts.values())
+        .sort((left, right) =>
+          right.quantity === left.quantity
+            ? right.total - left.total
+            : right.quantity - left.quantity,
+        )
+        .slice(0, 5),
       paymentMethods: Array.from(paymentMethods.entries()).sort(
         (left, right) => right[1] - left[1],
       ),
     };
-  }, [orders]);
+  }, [orders, salesRange]);
 
   const activeProductsCount = products.filter(
     (product) => Number(product.status_id ?? 0) === 1,
@@ -920,7 +1024,27 @@ export function BusinessAdminDashboard() {
   const activePromotionsCount = promotions.filter(
     (promotion) => promotion.active,
   ).length;
-  const recentOrders = orders.slice(0, 5);
+  const recentOrders = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now);
+    startOfToday.setHours(0, 0, 0, 0);
+    const startOfWeek = new Date(startOfToday);
+    const weekDay = startOfWeek.getDay();
+    const mondayOffset = weekDay === 0 ? -6 : 1 - weekDay;
+    startOfWeek.setDate(startOfWeek.getDate() + mondayOffset);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    return orders
+      .filter((order) => {
+        const placedAt = new Date(order.placedAt);
+        if (Number.isNaN(placedAt.getTime())) return false;
+
+        if (salesRange === "day") return placedAt >= startOfToday;
+        if (salesRange === "week") return placedAt >= startOfWeek;
+        return placedAt >= startOfMonth;
+      })
+      .slice(0, 5);
+  }, [orders, salesRange]);
 
   const runAction = useCallback(
     async (key: string, task: () => Promise<void>) => {
@@ -1920,7 +2044,7 @@ export function BusinessAdminDashboard() {
             />
             <StatCard
               label="Pedidos activos"
-              value={String(business?.activeOrdersCount ?? 0)}
+              value={String(salesMetrics.filteredActiveOrders)}
             />
             <StatCard
               label="Productos publicados"
@@ -1935,8 +2059,8 @@ export function BusinessAdminDashboard() {
               value={String(activePromotionsCount)}
             />
             <StatCard
-              label="Ganancias del mes"
-              value={formatCurrency(salesMetrics.monthlySales)}
+              label="Ganancia estimada"
+              value={formatCurrency(salesMetrics.estimatedProfit)}
             />
           </section>
 
@@ -1965,6 +2089,28 @@ export function BusinessAdminDashboard() {
             </div>
 
             <div className="flex flex-wrap gap-2.5 xl:justify-end">
+              <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+                {(
+                  [
+                    ["day", "Día"],
+                    ["week", "Semana"],
+                    ["month", "Mes"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setSalesRange(value)}
+                    className={`rounded-xl px-3 py-2 text-xs font-extrabold uppercase tracking-wide transition ${
+                      salesRange === value
+                        ? "bg-slate-950 text-white"
+                        : "text-slate-600 hover:bg-slate-100"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <Link
                 href={
                   business?.id
@@ -2009,7 +2155,10 @@ export function BusinessAdminDashboard() {
                 <div className="grid gap-6 xl:grid-cols-[1.4fr,0.8fr]">
                   <PanelCard title="Resumen de ventas">
                     <div className="grid gap-4 sm:grid-cols-3">
-                      {weeklySales.days.map((day) => (
+                      {(salesMetrics.rangeDays.length
+                        ? salesMetrics.rangeDays
+                        : weeklySales.days
+                      ).map((day) => (
                         <div
                           key={day.day}
                           className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
@@ -2028,32 +2177,26 @@ export function BusinessAdminDashboard() {
                     </div>
                   </PanelCard>
 
-                  <PanelCard title="Promociones activas">
+                  <PanelCard title="Productos más vendidos">
                     <div className="grid gap-3">
-                      {promotions
-                        .filter((item) => item.active)
-                        .slice(0, 4)
-                        .map((item) => (
-                          <div
-                            key={item.id}
-                            className="rounded-2xl border border-orange-200 bg-orange-50 p-4"
-                          >
-                            <p className="font-black text-slate-950">
-                              {item.product_name}
-                            </p>
-                            <p className="mt-1 text-sm font-semibold text-orange-700">
-                              {item.offer_price !== null &&
-                              item.offer_price !== undefined
-                                ? `${formatCurrency(item.regular_price ?? 0)} a ${formatCurrency(item.offer_price)}`
-                                : `${item.discount}% de descuento`}
-                            </p>
-                            <p className="mt-1 text-xs font-semibold text-slate-500">
-                              {item.start_date} - {item.end_date}
-                            </p>
-                          </div>
-                        ))}
-                      {!promotions.some((item) => item.active) ? (
-                        <EmptyState text="No hay promociones activas." />
+                      {salesMetrics.topProducts.map((item) => (
+                        <div
+                          key={item.name}
+                          className="rounded-2xl border border-orange-200 bg-orange-50 p-4"
+                        >
+                          <p className="font-black text-slate-950">
+                            {item.name}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-orange-700">
+                            {item.quantity} vendidos
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-slate-500">
+                            {formatCurrency(item.total)}
+                          </p>
+                        </div>
+                      ))}
+                      {salesMetrics.topProducts.length === 0 ? (
+                        <EmptyState text="Aún no hay ventas para calcular productos destacados." />
                       ) : null}
                     </div>
                   </PanelCard>
@@ -2083,6 +2226,9 @@ export function BusinessAdminDashboard() {
                           </div>
                         </div>
                       ))}
+                      {recentOrders.length === 0 ? (
+                        <EmptyState text="No hay pedidos en el periodo seleccionado." />
+                      ) : null}
                     </div>
                   </PanelCard>
 
@@ -2603,22 +2749,20 @@ export function BusinessAdminDashboard() {
               <PanelCard title="Ventas">
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <StatCard
-                    label="Ventas por semana"
-                    value={formatCurrency(
-                      weeklySales.current_period_sales_total,
-                    )}
+                    label="Ventas del periodo"
+                    value={formatCurrency(salesMetrics.filteredSales)}
                   />
                   <StatCard
-                    label="Ventas por mes"
+                    label="Ventas del mes"
                     value={formatCurrency(salesMetrics.monthlySales)}
                   />
                   <StatCard
-                    label="Pedidos entregados"
-                    value={String(salesMetrics.deliveredOrders)}
+                    label="Pedidos activos"
+                    value={String(salesMetrics.filteredActiveOrders)}
                   />
                   <StatCard
-                    label="Ticket promedio"
-                    value={formatCurrency(salesMetrics.averageTicket)}
+                    label="Ganancia estimada"
+                    value={formatCurrency(salesMetrics.estimatedProfit)}
                   />
                 </div>
                 <div className="mt-6 grid gap-6 xl:grid-cols-[1fr,0.9fr]">
@@ -2627,7 +2771,10 @@ export function BusinessAdminDashboard() {
                       Ventas por día
                     </p>
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {weeklySales.days.map((day) => (
+                      {(salesMetrics.rangeDays.length
+                        ? salesMetrics.rangeDays
+                        : weeklySales.days
+                      ).map((day) => (
                         <div key={day.day} className="rounded-xl bg-white p-4">
                           <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">
                             {day.day}

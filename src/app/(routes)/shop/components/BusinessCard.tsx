@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 interface BusinessCardProps {
+  businessId: number | string;
   id: number | string;
   name: string;
   city?: string;
@@ -19,6 +20,8 @@ interface BusinessCardProps {
   discount?: string;
   href?: string;
   onClick?: () => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (businessId: number | string) => void;
 }
 
 const CardShell = ({
@@ -48,6 +51,7 @@ const CardShell = ({
 };
 
 export default function BusinessCard({
+  businessId,
   name,
   city,
   category,
@@ -60,6 +64,8 @@ export default function BusinessCard({
   discount,
   href,
   onClick,
+  isFavorite = false,
+  onToggleFavorite,
 }: BusinessCardProps) {
   const thumbnailPath = imagen
     ? imagen.startsWith("/public/")
@@ -106,13 +112,17 @@ export default function BusinessCard({
         ) : null}
         <button
           type="button"
-          className="absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-white/90 text-slate-500 shadow-sm transition hover:text-orange-600"
-          aria-label="Guardar favorito"
+          className={`absolute right-2 top-2 inline-flex size-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:text-orange-600 ${
+            isFavorite ? "text-orange-600" : "text-slate-500"
+          }`}
+          aria-label={isFavorite ? "Quitar favorito" : "Guardar favorito"}
           onClick={(event) => {
             event.preventDefault();
+            event.stopPropagation();
+            onToggleFavorite?.(businessId);
           }}
         >
-          <Heart className="h-4 w-4" />
+          <Heart className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`} />
         </button>
       </div>
 

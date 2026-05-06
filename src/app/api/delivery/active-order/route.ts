@@ -91,10 +91,10 @@ function formatDeliveryStatus(value: unknown) {
 
 function sortByActivePriority(a: ActiveOrderRow, b: ActiveOrderRow) {
   const aIndex = ACTIVE_STATUS_PRIORITY.indexOf(
-    normalizeStatus(a.order_status),
+    normalizeStatus(a.delivery_status || a.order_status),
   );
   const bIndex = ACTIVE_STATUS_PRIORITY.indexOf(
-    normalizeStatus(b.order_status),
+    normalizeStatus(b.delivery_status || b.order_status),
   );
   const safeA = aIndex === -1 ? ACTIVE_STATUS_PRIORITY.length : aIndex;
   const safeB = bIndex === -1 ? ACTIVE_STATUS_PRIORITY.length : bIndex;
@@ -208,7 +208,9 @@ export async function GET(req: NextRequest) {
         activeOrder.delivery_notes ||
         activeOrder.order_delivery_notes ||
         "",
-      status: formatDeliveryStatus(activeOrder.order_status),
+      status: formatDeliveryStatus(
+        activeOrder.delivery_status || activeOrder.order_status,
+      ),
       latitude:
         activeOrder.latitude == null ? null : Number(activeOrder.latitude),
       longitude:

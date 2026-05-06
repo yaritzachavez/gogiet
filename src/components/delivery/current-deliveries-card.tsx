@@ -20,6 +20,8 @@ interface CurrentDeliveriesCardProps {
   actionLoadingOrderId?: string | null;
   onAcceptOrder?: (orderId: string) => void;
   onRejectOrder?: (orderId: string) => void;
+  onMarkPickedUp?: (orderId: string) => void;
+  onMarkOnTheWay?: (orderId: string) => void;
   onMarkDelivered?: (orderId: string) => void;
 }
 
@@ -84,6 +86,8 @@ export function CurrentDeliveriesCard({
   actionLoadingOrderId = null,
   onAcceptOrder,
   onRejectOrder,
+  onMarkPickedUp,
+  onMarkOnTheWay,
   onMarkDelivered,
 }: CurrentDeliveriesCardProps) {
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
@@ -156,6 +160,18 @@ export function CurrentDeliveriesCard({
                 );
                 const canRejectOrder =
                   order.canReject ?? !order.isAvailableDelivery;
+                const canMarkPickedUp =
+                  !order.canRespond &&
+                  (normalizedAssignmentStatus === "aceptado" ||
+                    normalizedAssignmentStatus === "driver_assigned" ||
+                    normalizedAssignmentStatus === "repartidor_asignado");
+                const canMarkOnTheWay =
+                  !order.canRespond &&
+                  normalizedAssignmentStatus === "recogido";
+                const canMarkDelivered =
+                  !order.canRespond &&
+                  (normalizedAssignmentStatus === "en_camino" ||
+                    normalizedAssignmentStatus === "on_the_way");
                 const googleMapsQuery =
                   order.address.latitude != null &&
                   order.address.longitude != null
@@ -308,10 +324,27 @@ export function CurrentDeliveriesCard({
                           Llamar
                         </a>
                       </Button>
-                      {!order.canRespond &&
-                      normalizedAssignmentStatus !== "pedido_entregado" &&
-                      normalizedAssignmentStatus !== "completado" &&
-                      normalizedAssignmentStatus !== "entregado" ? (
+                      {canMarkPickedUp ? (
+                        <Button
+                          type="button"
+                          className="h-10 rounded-lg bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600"
+                          onClick={() => onMarkPickedUp?.(order.id)}
+                          disabled={actionLoadingOrderId === order.id}
+                        >
+                          Pedido recogido
+                        </Button>
+                      ) : null}
+                      {canMarkOnTheWay ? (
+                        <Button
+                          type="button"
+                          className="h-10 rounded-lg bg-sky-600 px-4 text-xs font-bold text-white hover:bg-sky-700"
+                          onClick={() => onMarkOnTheWay?.(order.id)}
+                          disabled={actionLoadingOrderId === order.id}
+                        >
+                          En camino
+                        </Button>
+                      ) : null}
+                      {canMarkDelivered ? (
                         <Button
                           type="button"
                           className="h-10 rounded-lg bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600"
