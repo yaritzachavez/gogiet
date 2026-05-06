@@ -33,6 +33,7 @@ type StoredCartItem = {
   businessName?: string;
   nombre: string;
   description?: string;
+  categoryName?: string;
   negocio: string;
   image: string;
   extras: string[];
@@ -40,6 +41,7 @@ type StoredCartItem = {
   quantity: number;
   unitPrice?: number;
   price?: number;
+  subtotal?: number;
   notes?: string;
   customizations?: {
     selectedOptions?: Array<{
@@ -48,6 +50,37 @@ type StoredCartItem = {
       extraPrice?: number;
     }>;
   };
+};
+
+type RawAddressLike = Record<string, unknown> & {
+  id?: number;
+  placeType?: string;
+  placeName?: string;
+  street?: string;
+  externalNumber?: string;
+  internalNumber?: string;
+  fullAddress?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+  references?: string;
+  reference?: string;
+  deliveryInstructions?: string;
+  phone?: string;
+};
+
+type ApiCartProduct = {
+  product_id: number;
+  business_id?: number | null;
+  business_name?: string | null;
+  name?: string | null;
+  description_short?: string | null;
+  quantity: number;
+  unit_price?: number | string | null;
+  price?: number | string | null;
+  total?: number | string | null;
+  thumbnail_url?: string | null;
+  image_url?: string | null;
 };
 
 function getCartItemUnitPrice(item: {
@@ -115,25 +148,28 @@ export default function CarritoPage() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const mapToSavedAddress = useCallback((address: any): SavedAddress => {
-    const a = address ?? {};
-    return {
-      id: a.id,
-      placeType: a.placeType ?? "",
-      placeName: a.placeName ?? "",
-      street: a.street ?? "",
-      externalNumber: a.externalNumber ?? "",
-      internalNumber: a.internalNumber ?? "",
-      fullAddress:
-        a.fullAddress ?? `${a.street ?? ""} ${a.externalNumber ?? ""}`.trim(),
-      neighborhood: a.neighborhood ?? "",
-      city: a.city ?? "",
-      state: a.state ?? "",
-      references: a.references ?? a.reference ?? "",
-      deliveryInstructions: a.deliveryInstructions ?? "",
-      phone: a.phone ?? "",
-    };
-  }, []);
+  const mapToSavedAddress = useCallback(
+    (address: RawAddressLike): SavedAddress => {
+      const a = address ?? {};
+      return {
+        id: Number(a.id ?? 0),
+        placeType: a.placeType ?? "",
+        placeName: a.placeName ?? "",
+        street: a.street ?? "",
+        externalNumber: a.externalNumber ?? "",
+        internalNumber: a.internalNumber ?? "",
+        fullAddress:
+          a.fullAddress ?? `${a.street ?? ""} ${a.externalNumber ?? ""}`.trim(),
+        neighborhood: a.neighborhood ?? "",
+        city: a.city ?? "",
+        state: a.state ?? "",
+        references: a.references ?? a.reference ?? "",
+        deliveryInstructions: a.deliveryInstructions ?? "",
+        phone: a.phone ?? "",
+      };
+    },
+    [],
+  );
 
   // --- Estados ---
   const [cartItems, setCartItems] = useState<StoredCartItem[]>([]);
@@ -169,13 +205,17 @@ export default function CarritoPage() {
         businessName: item.business_name || "",
         nombre: item.name,
         description: item.description || "",
+        categoryName: item.category_name || "",
         negocio: item.business_name || "Tienda Local",
         image: item.image_url || "/placeholder-product.png",
         extras: [],
         quantity: item.quantity,
-        unitPrice: Number(item.price ?? 0),
-        price: Number(
-          (Number(item.price ?? 0) * Number(item.quantity ?? 0)).toFixed(2),
+        unitPrice: Number(item.unit_price ?? item.price ?? 0),
+        price: Number(item.unit_price ?? item.price ?? 0),
+        subtotal: Number(
+          item.subtotal ??
+            Number(item.unit_price ?? item.price ?? 0) *
+              Number(item.quantity ?? 0),
         ),
       }));
     },
@@ -192,9 +232,12 @@ export default function CarritoPage() {
         business_name: String(item.businessName ?? item.negocio ?? "").trim(),
         name: item.nombre,
         description: String(item.description ?? "").trim(),
+        category_name: String(item.categoryName ?? "").trim(),
         price: getCartItemUnitPrice(item),
+        unit_price: getCartItemUnitPrice(item),
         image_url: item.image,
         quantity: item.quantity,
+        subtotal: getCartItemSubtotal(item),
       })),
     );
   }, []);
@@ -224,7 +267,7 @@ export default function CarritoPage() {
         const snapshotByProductId = new Map(
           localSnapshot.map((item) => [Number(item.product_id), item]),
         );
-        const nextItems = data.products.map((p: any) => {
+        const nextItems = data.products.map((p: ApiCartProduct) => {
           const snapshot = snapshotByProductId.get(Number(p.product_id));
 
           return {
@@ -239,6 +282,7 @@ export default function CarritoPage() {
             description: String(
               p.description_short ?? snapshot?.description ?? "",
             ),
+            categoryName: String(snapshot?.category_name ?? ""),
             image:
               snapshot?.image_url ||
               p.thumbnail_url ||
@@ -249,7 +293,14 @@ export default function CarritoPage() {
               "Tienda Local",
             quantity: p.quantity,
             unitPrice: Number(p.unit_price ?? p.price ?? snapshot?.price ?? 0),
-            price: Number(p.total ?? 0),
+            price: Number(
+              p.unit_price ??
+                p.price ??
+                snapshot?.unit_price ??
+                snapshot?.price ??
+                0,
+            ),
+            subtotal: Number(p.total ?? 0),
             extras: [],
           };
         });
@@ -354,6 +405,7 @@ export default function CarritoPage() {
                       product.description_long ??
                       "",
                   ).trim(),
+                categoryName: String(item.categoryName ?? "").trim(),
                 image:
                   String(item.image ?? "").trim() &&
                   item.image !== "/placeholder-product.png"
@@ -369,7 +421,11 @@ export default function CarritoPage() {
                   getCartItemUnitPrice(item) > 0
                     ? getCartItemUnitPrice(item)
                     : repairedPrice,
-                price: Number(
+                price:
+                  getCartItemUnitPrice(item) > 0
+                    ? getCartItemUnitPrice(item)
+                    : repairedPrice,
+                subtotal: Number(
                   (
                     (getCartItemUnitPrice(item) > 0
                       ? getCartItemUnitPrice(item)
@@ -472,7 +528,8 @@ export default function CarritoPage() {
         ? {
             ...i,
             quantity: newQty,
-            price: Number((getCartItemUnitPrice(i) * newQty).toFixed(2)),
+            price: getCartItemUnitPrice(i),
+            subtotal: Number((getCartItemUnitPrice(i) * newQty).toFixed(2)),
           }
         : i,
     );
@@ -483,7 +540,8 @@ export default function CarritoPage() {
           ? {
               ...i,
               quantity: newQty,
-              price: Number((getCartItemUnitPrice(i) * newQty).toFixed(2)),
+              price: getCartItemUnitPrice(i),
+              subtotal: Number((getCartItemUnitPrice(i) * newQty).toFixed(2)),
             }
           : i,
       ),
@@ -606,6 +664,7 @@ export default function CarritoPage() {
           user_id: user?.id,
           address_id: savedAddress?.id,
           delivery_address_id: savedAddress?.id,
+          cart_id: cartId,
           business_id:
             cartItems.find((item) => Number(item.businessId ?? 0) > 0)
               ?.businessId ?? null,
@@ -624,7 +683,7 @@ export default function CarritoPage() {
           items: cartItems.map((i) => ({
             product_id: i.productId,
             quantity: i.quantity,
-            unit_price: i.unitPrice,
+            unit_price: getCartItemUnitPrice(i),
             total_price: getCartItemSubtotal(i),
           })),
         }),
@@ -649,7 +708,6 @@ export default function CarritoPage() {
       const message =
         _error instanceof Error ? _error.message : "Error al crear el pedido";
       setTransferError(message);
-      alert(message);
     } finally {
       setSubmittingOrder(false);
     }
@@ -729,6 +787,11 @@ export default function CarritoPage() {
               <div className="flex-1">
                 <h3 className="font-bold">{item.nombre}</h3>
                 <p className="text-sm text-orange-800/60">{item.negocio}</p>
+                {item.description ? (
+                  <p className="mt-1 text-xs text-orange-900/55">
+                    {item.description}
+                  </p>
+                ) : null}
                 <div className="mt-2 flex items-center gap-4">
                   <div className="flex items-center gap-2 border rounded-full px-2">
                     <button

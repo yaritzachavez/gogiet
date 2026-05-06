@@ -9,9 +9,12 @@ export type StoredCartSnapshotItem = {
   business_name?: string;
   name: string;
   description?: string;
+  category_name?: string;
   price: number;
+  unit_price?: number;
   image_url: string;
   quantity: number;
+  subtotal?: number;
 };
 
 function normalizeStoredItem(
@@ -28,7 +31,10 @@ function normalizeStoredItem(
     description?: string;
     description_short?: string;
     descriptionShort?: string;
+    category_name?: string;
+    categoryName?: string;
     unitPrice?: number;
+    unit_price?: number;
     price?: number;
     sale_price?: number;
     offer_price?: number;
@@ -36,13 +42,15 @@ function normalizeStoredItem(
     image?: string;
     image_url?: string;
     quantity?: number;
+    subtotal?: number;
   },
 ): StoredCartSnapshotItem | null {
   const productId = Number(item.product_id ?? item.productId ?? item.id);
   const quantity = Math.max(0, Number(item.quantity ?? 0));
-  const normalizedPrice = Number(
-    item.price ??
+  const normalizedUnitPrice = Number(
+    item.unit_price ??
       item.unitPrice ??
+      item.price ??
       item.sale_price ??
       item.offer_price ??
       item.discount_price ??
@@ -62,9 +70,20 @@ function normalizeStoredItem(
     description: String(
       item.description ?? item.description_short ?? item.descriptionShort ?? "",
     ).trim(),
-    price: Number.isFinite(normalizedPrice) ? normalizedPrice : 0,
+    category_name: String(item.category_name ?? item.categoryName ?? "").trim(),
+    price: Number.isFinite(normalizedUnitPrice) ? normalizedUnitPrice : 0,
+    unit_price: Number.isFinite(normalizedUnitPrice) ? normalizedUnitPrice : 0,
     image_url: String(item.image_url ?? item.image ?? "").trim(),
     quantity,
+    subtotal: Number(
+      (
+        Number(
+          item.subtotal ??
+            (Number.isFinite(normalizedUnitPrice) ? normalizedUnitPrice : 0) *
+              quantity,
+        ) || 0
+      ).toFixed(2),
+    ),
   };
 }
 
@@ -95,7 +114,10 @@ export function readStoredCartSnapshot() {
             description?: string;
             description_short?: string;
             descriptionShort?: string;
+            category_name?: string;
+            categoryName?: string;
             unitPrice?: number;
+            unit_price?: number;
             price?: number;
             sale_price?: number;
             offer_price?: number;
@@ -103,6 +125,7 @@ export function readStoredCartSnapshot() {
             image?: string;
             image_url?: string;
             quantity?: number;
+            subtotal?: number;
           },
         ),
       )

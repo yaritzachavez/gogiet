@@ -65,18 +65,18 @@ type StepDefinition = {
 
 const BASE_STEPS: StepDefinition[] = [
   { key: "pedido_recibido", label: "Pedido recibido" },
-  { key: "preparando", label: "Preparando en tienda" },
-  { key: "recogido", label: "Recogido por repartidor" },
+  { key: "preparando", label: "Preparando por tienda" },
+  { key: "listo_para_recoger", label: "Listo para recoger" },
+  { key: "repartidor_asignado", label: "Repartidor asignado" },
   { key: "en_camino", label: "En camino" },
   { key: "entregado", label: "Entregado" },
 ];
 
 const TRANSFER_STEPS: StepDefinition[] = [
   { key: "pedido_recibido", label: "Pedido recibido" },
-  { key: "payment_review", label: "Validando pago" },
-  { key: "accepted", label: "Pago validado" },
-  { key: "preparando", label: "Preparando en tienda" },
-  { key: "recogido", label: "Recogido por repartidor" },
+  { key: "preparando", label: "Preparando por tienda" },
+  { key: "listo_para_recoger", label: "Listo para recoger" },
+  { key: "repartidor_asignado", label: "Repartidor asignado" },
   { key: "en_camino", label: "En camino" },
   { key: "entregado", label: "Entregado" },
 ];
@@ -90,24 +90,23 @@ function normalizeStatus(value: string) {
     .replace(/\s+/g, "_");
 }
 
-function getStepKey(statusName: string, paymentMethod: string) {
+function getStepKey(statusName: string) {
   const normalizedStatus = resolveCanonicalOrderStatus(statusName);
-  const normalizedPayment = normalizeStatus(paymentMethod);
 
-  if (normalizedPayment === "transferencia") {
-    if (normalizedStatus === "payment_review") return "payment_review";
-    if (normalizedStatus === "accepted") return "accepted";
-    if (normalizedStatus === "preparing") {
-      return "preparando";
-    }
+  if (normalizedStatus === "pending" || normalizedStatus === "payment_review") {
+    return "pedido_recibido";
   }
-
-  if (normalizedStatus === "pending") return "pedido_recibido";
   if (normalizedStatus === "accepted" || normalizedStatus === "preparing") {
     return "preparando";
   }
+  if (
+    normalizedStatus === "ready_for_pickup" ||
+    normalizedStatus === "delivery_requested"
+  ) {
+    return "listo_para_recoger";
+  }
   if (normalizedStatus === "driver_assigned") {
-    return "recogido";
+    return "repartidor_asignado";
   }
   if (normalizedStatus === "on_the_way") {
     return "en_camino";
@@ -279,7 +278,7 @@ export default function OrderTrackingPage() {
 
   const activeStepIndex = useMemo(() => {
     if (!order) return 0;
-    const currentStepKey = getStepKey(order.status_name, order.payment_method);
+    const currentStepKey = getStepKey(order.status_name);
     return Math.max(
       steps.findIndex((step) => step.key === currentStepKey),
       0,
@@ -574,24 +573,12 @@ export default function OrderTrackingPage() {
                 {Number(order.subtotal ?? 0).toFixed(2)}
               </p>
               <p>
-                <span className="font-semibold">Cargo terminal:</span> MX$
-                {Number(order.terminal_fee ?? 0).toFixed(2)}
-              </p>
-              <p>
                 <span className="font-semibold">Envío:</span> MX$
                 {Number(order.delivery_fee ?? 0).toFixed(2)}
               </p>
               <p>
                 <span className="font-semibold">Servicio:</span> MX$
                 {Number(order.service_fee ?? 0).toFixed(2)}
-              </p>
-              <p>
-                <span className="font-semibold">Plataforma por envío:</span> MX$
-                {Number(order.platform_fee ?? 0).toFixed(2)}
-              </p>
-              <p>
-                <span className="font-semibold">Repartidor por envío:</span> MX$
-                {Number(order.driver_fee ?? 0).toFixed(2)}
               </p>
               <p className="pt-2 text-base font-semibold text-orange-950">
                 Total: MX${Number(order.total_amount ?? 0).toFixed(2)}

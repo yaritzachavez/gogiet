@@ -93,13 +93,30 @@ function getProductPrice(product: {
   sale_price?: number | string | null;
   offer_price?: number | string | null;
   price_mxn?: number | string | null;
+  discount_price?: number | string | null;
+}) {
+  return Number(
+    product.discount_price ??
+      product.sale_price ??
+      product.offer_price ??
+      product.price ??
+      product.base_price ??
+      product.unit_price ??
+      product.price_mxn ??
+      0,
+  );
+}
+
+function getOriginalProductPrice(product: {
+  price?: number | string | null;
+  base_price?: number | string | null;
+  unit_price?: number | string | null;
+  price_mxn?: number | string | null;
 }) {
   return Number(
     product.price ??
       product.base_price ??
       product.unit_price ??
-      product.sale_price ??
-      product.offer_price ??
       product.price_mxn ??
       0,
   );
@@ -313,6 +330,21 @@ export default function BusinessDetailPage() {
                         selectedProduct.description_long ??
                         "",
                     ),
+                  category_name:
+                    item.category_name ||
+                    String(selectedProduct.category_name ?? ""),
+                  unit_price:
+                    Number(item.unit_price ?? 0) > 0
+                      ? Number(item.unit_price ?? 0)
+                      : getProductPrice(selectedProduct),
+                  subtotal: Number(
+                    (
+                      (Number(item.unit_price ?? item.price ?? 0) > 0
+                        ? Number(item.unit_price ?? item.price ?? 0)
+                        : getProductPrice(selectedProduct)) *
+                      (Number(item.quantity ?? 0) + modalQuantity)
+                    ).toFixed(2),
+                  ),
                 }
               : item,
           )
@@ -329,9 +361,14 @@ export default function BusinessDetailPage() {
                   selectedProduct.description_long ??
                   "",
               ),
+              category_name: String(selectedProduct.category_name ?? ""),
               price: getProductPrice(selectedProduct),
+              unit_price: getProductPrice(selectedProduct),
               image_url: getProductImage(selectedProduct),
               quantity: modalQuantity,
+              subtotal: Number(
+                (getProductPrice(selectedProduct) * modalQuantity).toFixed(2),
+              ),
             },
           ];
 
@@ -362,6 +399,27 @@ export default function BusinessDetailPage() {
       return matchesSearch && matchesCat;
     });
   }, [products, searchQuery, activeCategory]);
+
+  const availableCategories = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          products
+            .filter(
+              (product) =>
+                product.product_category_id &&
+                String(product.category_name ?? "").trim(),
+            )
+            .map((product) => [
+              String(product.product_category_id),
+              String(product.category_name),
+            ]),
+        ).entries(),
+      )
+        .map(([id, name]) => ({ id, name }))
+        .sort((a, b) => a.name.localeCompare(b.name, "es")),
+    [products],
+  );
 
   const paginatedProducts = filteredProducts.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -442,7 +500,20 @@ export default function BusinessDetailPage() {
                   >
                     Todo el menú
                   </button>
-                  {/* Aquí podrías mapear categorías reales desde los productos */}
+                  {availableCategories.map((category) => (
+                    <button
+                      key={category.id}
+                      type="button"
+                      onClick={() => setActiveCategory(category.id)}
+                      className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition ${
+                        activeCategory === category.id
+                          ? "bg-orange-50 text-orange-600"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      {category.name}
+                    </button>
+                  ))}
                 </nav>
               </div>
             </div>
@@ -470,14 +541,28 @@ export default function BusinessDetailPage() {
                     <h3 className="font-bold text-sm text-slate-900 line-clamp-2 sm:text-base">
                       {product.name}
                     </h3>
+                    {product.category_name ? (
+                      <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-orange-500">
+                        {product.category_name}
+                      </p>
+                    ) : null}
                     <p className="text-slate-500 text-xs line-clamp-2 mt-1 sm:text-sm">
                       {product.description_short}
                     </p>
                   </div>
                   <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-50">
-                    <span className="font-bold text-sm text-orange-600 sm:text-base">
-                      MX${product.price}
-                    </span>
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm text-orange-600 sm:text-base">
+                        MX${getProductPrice(product).toFixed(2)}
+                      </span>
+                      {Number(product.discount_price ?? 0) > 0 &&
+                      getOriginalProductPrice(product) >
+                        getProductPrice(product) ? (
+                        <span className="text-[11px] text-slate-400 line-through">
+                          MX${getOriginalProductPrice(product).toFixed(2)}
+                        </span>
+                      ) : null}
+                    </div>
                     <Button
                       className="h-9 min-w-0 rounded-lg bg-orange-600 px-3 hover:bg-orange-700 shadow-lg shadow-orange-600/20"
                       onClick={() => openCustomizationModal(product)}
@@ -578,7 +663,9 @@ export default function BusinessDetailPage() {
               {addingProductId ? (
                 <Loader2 className="animate-spin h-5 w-5" />
               ) : (
-                `Agregar por MX$${(selectedProduct?.price || 0) * modalQuantity}`
+                `Agregar por MX$${(
+                  getProductPrice(selectedProduct ?? {}) * modalQuantity
+                ).toFixed(2)}`
               )}
             </Button>
           </DialogFooter>

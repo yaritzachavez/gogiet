@@ -213,6 +213,7 @@ export async function GET(
 
     const products = productRows.map((row) => ({
       ...row,
+      description: row.description_short ?? "",
       image: row.image_url ?? row.thumbnail_url ?? null,
       imageUrl: row.image_url ?? row.thumbnail_url ?? null,
       photo_url: row.image_url ?? row.thumbnail_url ?? null,
@@ -222,6 +223,8 @@ export async function GET(
       logo_url: row.image_url ?? row.thumbnail_url ?? null,
       price: Number(row.price),
       discount_price: row.discount_price ? Number(row.discount_price) : null,
+      sale_price: row.discount_price ? Number(row.discount_price) : null,
+      offer_price: row.discount_price ? Number(row.discount_price) : null,
       price_per_unit: row.price_per_unit ? Number(row.price_per_unit) : null,
       is_stock_available: Boolean(row.is_stock_available),
     }));
