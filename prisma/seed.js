@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const { PrismaClient } = require("@prisma/client");
+const { seedMarketplaceProducts } = require("./seed-products");
 
 const prisma = new PrismaClient();
 
@@ -650,10 +651,28 @@ async function main() {
 
   await ensureDemoBusinesses(activeStatus.id);
 
+  const marketplaceSeedSummary = await seedMarketplaceProducts(
+    prisma,
+    activeStatus.id,
+  );
+
   console.log("Admin general inicial listo:", {
     email: adminUser.email,
     password: adminPassword,
   });
+
+  if (marketplaceSeedSummary.length === 0) {
+    console.log(
+      "No se encontraron negocios compatibles para poblar con productos demo.",
+    );
+  } else {
+    console.log("Resumen de productos demo por negocio:");
+    for (const item of marketplaceSeedSummary) {
+      console.log(
+        `- ${item.businessName}: ${item.createdCount} creados, ${item.updatedCount} actualizados, ${item.total} catalogados`,
+      );
+    }
+  }
 }
 
 main()

@@ -25,7 +25,7 @@ export default function RegisterForm() {
     setErrorMessage("");
 
     if (!acceptTerms) {
-      setErrorMessage("Debes aceptar los términos para continuar");
+      setErrorMessage("Debes aceptar los términos y condiciones");
       return;
     }
 
@@ -41,6 +41,8 @@ export default function RegisterForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
           name: `${firstName.trim()} ${lastName.trim()}`.trim(),
           email,
           phone: phoneNumber.trim(),
@@ -48,14 +50,33 @@ export default function RegisterForm() {
         }),
       });
 
-      if (res.ok) {
-        router.push("/"); // 👈 redirige al home si fue exitoso
+      const data = (await res.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            error?: string;
+            email?: string;
+            user?: { email?: string };
+          }
+        | null;
+
+      if (res.ok && data?.success) {
+        const targetEmail =
+          (typeof data?.email === "string" && data.email) ||
+          (typeof data?.user?.email === "string" && data.user.email)
+            ? String(data?.email ?? data?.user?.email)
+            : email;
+        router.push(`/verify-email?email=${encodeURIComponent(targetEmail)}`);
       } else {
-        const data = await res.json();
-        setErrorMessage(data.error || "Error en el registro");
+        if (data?.error) {
+          console.warn("Error registro:", data.error);
+        }
+        setErrorMessage(
+          data?.error ||
+            "No se pudo completar el registro. Revisa tus datos e intenta de nuevo.",
+        );
       }
     } catch (err) {
-      console.error("Error en la petición:", err);
+      console.warn("Error en la petición de registro", err);
       setErrorMessage("Error de conexión con el servidor");
     }
   };

@@ -61,6 +61,13 @@ type ActiveOrder = {
   businessName?: string;
 };
 
+type SafeFetchResult<T> = {
+  success: boolean;
+  data: T | null;
+  status: number;
+  error?: string;
+};
+
 const PLACEHOLDER_IDS = Array.from(
   { length: 10 },
   (_, i) => `placeholder-${i}`,
@@ -204,6 +211,65 @@ function getSelectedDeliveryLocation() {
     : "Mazamitla";
 }
 
+async function fetchJsonSafely<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<SafeFetchResult<T>> {
+  try {
+    const response = await fetch(url, init);
+    let data: T | null = null;
+
+    try {
+      data = (await response.json()) as T;
+    } catch (jsonError) {
+      console.error("Error parseando JSON:", {
+        url,
+        error: jsonError,
+      });
+    }
+
+    const payload =
+      data && typeof data === "object" ? (data as Record<string, unknown>) : {};
+
+    if (!response.ok || payload?.success === false) {
+      console.error("Error en endpoint:", {
+        url,
+        status: response.status,
+        statusText: response.statusText,
+        response: data,
+      });
+
+      return {
+        success: false,
+        data,
+        status: response.status,
+        error:
+          typeof payload?.error === "string"
+            ? payload.error
+            : "No se pudo completar la solicitud.",
+      };
+    }
+
+    return {
+      success: true,
+      data,
+      status: response.status,
+    };
+  } catch (error) {
+    console.error("Fetch error:", {
+      url,
+      error,
+    });
+
+    return {
+      success: false,
+      data: null,
+      status: 0,
+      error: "No se pudo conectar con el servidor.",
+    };
+  }
+}
+
 export default function ShopPage() {
   const router = useRouter();
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -215,21 +281,34 @@ export default function ShopPage() {
   const [selectedLocation, setSelectedLocation] = useState("Mazamitla");
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
   const [favoriteBusinessIds, setFavoriteBusinessIds] = useState<number[]>([]);
+  const [storesWarning, setStoresWarning] = useState("");
+  const [activeOrdersWarning, setActiveOrdersWarning] = useState("");
 
   useEffect(() => {
     async function fetchData() {
       try {
         setLoading(true);
+        setStoresWarning("");
         const query = searchQuery.trim();
-        const res = await fetch(
-          `/api/stores${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+        const url = `/api/stores${query ? `?q=${encodeURIComponent(query)}` : ""}`;
+        const result = await fetchJsonSafely<{ stores?: ApiBusiness[] }>(
+          url,
           {
             cache: "no-store",
           },
         );
-        const data = await res.json();
 
-        const parsedBusinesses: Business[] = (data.stores ?? []).map(
+        if (!result.success) {
+          setBusinesses([]);
+          setStoresWarning(
+            "No se pudieron cargar algunos productos y tiendas por ahora.",
+          );
+          return;
+        }
+
+        const data = result.data;
+
+        const parsedBusinesses: Business[] = (data?.stores ?? []).map(
           (business: ApiBusiness, index: number) => ({
             id: business.id,
             name: business.name ?? business.nombre ?? "Negocio local",
@@ -268,6 +347,10 @@ export default function ShopPage() {
         setBusinesses(parsedBusinesses);
       } catch (err) {
         console.error("Error al obtener negocios:", err);
+        setBusinesses([]);
+        setStoresWarning(
+          "No se pudieron cargar algunos productos y tiendas por ahora.",
+        );
       } finally {
         setLoading(false);
       }
@@ -292,14 +375,20 @@ export default function ShopPage() {
       }
 
       try {
-        const response = await fetch("/api/favorites?type=business", {
+        const result = await fetchJsonSafely<{
+          favorites?: Array<{ target_id?: number }>;
+        }>("/api/favorites?type=business", {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-        const data = (await response.json().catch(() => null)) as {
-          favorites?: Array<{ target_id?: number }>;
-        } | null;
+
+        if (!result.success) {
+          setFavoriteBusinessIds([]);
+          return;
+        }
+
+        const data = result.data;
 
         setFavoriteBusinessIds(
           Array.isArray(data?.favorites)
@@ -326,43 +415,37 @@ export default function ShopPage() {
       if (!token) {
         setActiveOrders([]);
         setActiveOrdersLoading(false);
+        setActiveOrdersWarning("");
         return;
       }
 
       try {
+        setActiveOrdersWarning("");
         const url = "/api/orders/active";
-        const response = await fetch(url, {
+        const result = await fetchJsonSafely<{ orders?: ActiveOrder[] }>(url, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
-        const responseText = await response.text();
-        let data: Record<string, unknown> = {};
 
-        try {
-          data = responseText ? JSON.parse(responseText) : {};
-        } catch {
-          data = { raw: responseText };
-        }
-
-        if (!response.ok || data.success === false) {
-          console.error("Error en endpoint:", {
-            url,
-            status: response.status,
-            statusText: response.statusText,
-            responseText,
-            data,
-          });
+        if (!result.success) {
           setActiveOrders([]);
+          setActiveOrdersWarning(
+            "No se pudieron cargar algunos productos o pedidos activos.",
+          );
           return;
         }
 
+        const data = result.data;
         setActiveOrders(
-          Array.isArray(data.orders) ? (data.orders as ActiveOrder[]) : [],
+          Array.isArray(data?.orders) ? (data.orders as ActiveOrder[]) : [],
         );
       } catch (error) {
         console.error("Error cargando pedidos activos:", error);
         setActiveOrders([]);
+        setActiveOrdersWarning(
+          "No se pudieron cargar algunos productos o pedidos activos.",
+        );
       } finally {
         setActiveOrdersLoading(false);
       }
@@ -458,7 +541,10 @@ export default function ShopPage() {
     const isFavorite = favoriteBusinessIds.includes(numericBusinessId);
 
     try {
-      const response = await fetch("/api/favorites", {
+      const result = await fetchJsonSafely<{
+        success?: boolean;
+        error?: string;
+      }>("/api/favorites", {
         method: isFavorite ? "DELETE" : "POST",
         headers: {
           "Content-Type": "application/json",
@@ -469,13 +555,15 @@ export default function ShopPage() {
           target_id: numericBusinessId,
         }),
       });
-      const data = (await response.json().catch(() => null)) as {
-        success?: boolean;
-        error?: string;
-      } | null;
 
-      if (!response.ok || data?.success === false) {
-        throw new Error(data?.error || "No se pudo actualizar el favorito.");
+      if (!result.success) {
+        console.error("Error actualizando favorito:", {
+          businessId: numericBusinessId,
+          error: result.error,
+          status: result.status,
+        });
+        window.alert(result.error || "No se pudo actualizar el favorito.");
+        return;
       }
 
       setFavoriteBusinessIds((prev) =>
@@ -485,11 +573,7 @@ export default function ShopPage() {
       );
     } catch (error) {
       console.error("Error actualizando favorito:", error);
-      window.alert(
-        error instanceof Error
-          ? error.message
-          : "No se pudo actualizar el favorito.",
-      );
+      window.alert("No se pudo actualizar el favorito.");
     }
   };
 
@@ -650,6 +734,12 @@ export default function ShopPage() {
           </section>
         ) : null}
 
+        {!activeOrdersLoading && activeOrdersWarning ? (
+          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+            {activeOrdersWarning}
+          </div>
+        ) : null}
+
         <section className="overflow-hidden rounded-[18px] bg-gradient-to-r from-orange-600 to-red-500 px-6 py-5 text-white shadow-lg shadow-orange-900/10">
           <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
             <Sparkles className="h-4 w-4" />
@@ -736,6 +826,16 @@ export default function ShopPage() {
                   className="h-48 rounded-[18px] bg-white shadow-sm"
                 />
               ))}
+            </div>
+          ) : storesWarning ? (
+            <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-6 py-8 text-center">
+              <Store className="mx-auto h-10 w-10 text-amber-400" />
+              <h2 className="mt-4 text-xl font-black text-slate-900">
+                No se pudieron cargar algunos productos
+              </h2>
+              <p className="mt-2 font-semibold text-slate-600">
+                {storesWarning}
+              </p>
             </div>
           ) : filteredBusinesses.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">

@@ -31,6 +31,7 @@ export default function AdminDashboardPage() {
   const [ordersMonth, setOrdersMonth] = useState<DashboardOrder[]>([]);
   const [businesses, setBusinesses] = useState<DashboardBusiness[]>([]);
   const [openSupportCount, setOpenSupportCount] = useState(0);
+  const [supportUnavailable, setSupportUnavailable] = useState(false);
   const [chatFocusToken] = useState(0);
   const chatSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -38,10 +39,15 @@ export default function AdminDashboardPage() {
     try {
       const token = localStorage.getItem("token");
       if (!token) {
-        console.error("No se encontró token para cargar el dashboard admin.");
+        console.warn("No se encontró token para cargar el dashboard admin.");
         setAdmins([]);
         setAdminsError("Inicia sesión para ver los administradores.");
         setDashboardError("Inicia sesión para ver el resumen.");
+        setOrdersToday([]);
+        setOrdersMonth([]);
+        setBusinesses([]);
+        setOpenSupportCount(0);
+        setSupportUnavailable(false);
         return;
       }
 
@@ -69,14 +75,16 @@ export default function AdminDashboardPage() {
         }),
       ]);
 
-      const adminsData = await adminsResponse.json();
-      const ordersTodayData = await ordersTodayResponse.json();
-      const ordersMonthData = await ordersMonthResponse.json();
-      const businessesData = await businessesResponse.json();
-      const supportData = await supportResponse.json();
+      const adminsData = await adminsResponse.json().catch(() => null);
+      const ordersTodayData = await ordersTodayResponse.json().catch(() => null);
+      const ordersMonthData = await ordersMonthResponse
+        .json()
+        .catch(() => null);
+      const businessesData = await businessesResponse.json().catch(() => null);
+      const supportData = await supportResponse.json().catch(() => null);
 
-      if (!adminsResponse.ok || !adminsData.success) {
-        console.error("Error real al cargar administradores:", {
+      if (!adminsResponse.ok || !adminsData?.success) {
+        console.warn("Error real al cargar administradores:", {
           endpoint: "/api/users/admins",
           status: adminsResponse.status,
           statusText: adminsResponse.statusText,
@@ -88,77 +96,81 @@ export default function AdminDashboardPage() {
         );
       } else {
         setAdmins(
-          Array.isArray(adminsData.admins)
+          Array.isArray(adminsData?.admins)
             ? (adminsData.admins as AdminUser[])
-            : Array.isArray(adminsData.users)
+            : Array.isArray(adminsData?.users)
               ? (adminsData.users as AdminUser[])
               : [],
         );
         setAdminsError(
-          Array.isArray(adminsData.admins) && adminsData.admins.length === 0
+          Array.isArray(adminsData?.admins) && adminsData.admins.length === 0
             ? "No hay administradores para mostrar en este momento."
             : "",
         );
       }
 
-      if (!ordersTodayResponse.ok || !ordersTodayData.success) {
-        console.error("Error real al cargar pedidos del día:", {
+      if (!ordersTodayResponse.ok || !ordersTodayData?.success) {
+        console.warn("Error real al cargar pedidos del día:", {
           status: ordersTodayResponse.status,
           body: ordersTodayData,
         });
         setOrdersToday([]);
       } else {
         setOrdersToday(
-          Array.isArray(ordersTodayData.orders)
+          Array.isArray(ordersTodayData?.orders)
             ? (ordersTodayData.orders as DashboardOrder[])
             : [],
         );
       }
 
-      if (!ordersMonthResponse.ok || !ordersMonthData.success) {
-        console.error("Error real al cargar pedidos del mes:", {
+      if (!ordersMonthResponse.ok || !ordersMonthData?.success) {
+        console.warn("Error real al cargar pedidos del mes:", {
           status: ordersMonthResponse.status,
           body: ordersMonthData,
         });
         setOrdersMonth([]);
       } else {
         setOrdersMonth(
-          Array.isArray(ordersMonthData.orders)
+          Array.isArray(ordersMonthData?.orders)
             ? (ordersMonthData.orders as DashboardOrder[])
             : [],
         );
       }
 
       if (!businessesResponse.ok) {
-        console.error("Error real al cargar negocios del dashboard:", {
+        console.warn("Error real al cargar negocios del dashboard:", {
           status: businessesResponse.status,
           body: businessesData,
         });
         setBusinesses([]);
       } else {
         setBusinesses(
-          Array.isArray(businessesData.negocios)
+          Array.isArray(businessesData?.negocios)
             ? (businessesData.negocios as DashboardBusiness[])
             : [],
         );
       }
 
-      if (!supportResponse.ok || !supportData.success) {
-        console.error("Error real al cargar soporte del dashboard:", {
+      if (!supportResponse.ok || !supportData?.success) {
+        console.warn("Error real al cargar soporte del dashboard:", {
           status: supportResponse.status,
           body: supportData,
         });
         setOpenSupportCount(0);
+        setSupportUnavailable(true);
       } else {
         setOpenSupportCount(
           Array.isArray(supportData.threads) ? supportData.threads.length : 0,
         );
+        setSupportUnavailable(false);
       }
 
       setDashboardError("");
     } catch (error) {
-      console.error("Error cargando resumen admin:", error);
+      console.warn("Error cargando resumen admin:", error);
       setDashboardError("No pudimos actualizar el resumen en tiempo real.");
+      setOpenSupportCount(0);
+      setSupportUnavailable(true);
     }
   }, []);
 
@@ -255,6 +267,11 @@ export default function AdminDashboardPage() {
         {dashboardError ? (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-white/10 dark:bg-white/5 dark:text-red-200">
             {dashboardError}
+          </div>
+        ) : null}
+        {supportUnavailable ? (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-white/10 dark:bg-white/5 dark:text-amber-200">
+            Soporte no disponible temporalmente.
           </div>
         ) : null}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:gap-4 lg:grid-cols-4 lg:gap-6">

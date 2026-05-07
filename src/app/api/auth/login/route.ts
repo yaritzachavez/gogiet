@@ -8,6 +8,7 @@ import {
   getLocationLabel,
 } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import { isUserTemporarilyVerified } from "@/lib/email-verification";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 
 type UserRow = {
@@ -17,6 +18,9 @@ type UserRow = {
   email: string;
   password_hash: string;
   status_id: number;
+  email_verified: number | boolean | null;
+  verification_code: string | null;
+  verification_expires_at: string | null;
 };
 
 export async function POST(req: Request) {
@@ -40,7 +44,16 @@ export async function POST(req: Request) {
 
     const [rows] = await pool.query(
       `
-      SELECT id, first_name, last_name, email, password_hash, status_id
+      SELECT
+        id,
+        first_name,
+        last_name,
+        email,
+        password_hash,
+        status_id,
+        email_verified,
+        verification_code,
+        verification_expires_at
       FROM users
       WHERE email = ?
       `,
@@ -82,6 +95,23 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { success: false, error: "Correo o contraseña incorrectos" },
         { status: 401 },
+      );
+    }
+
+    if (
+      !isUserTemporarilyVerified({
+        email_verified:
+          user.email_verified === null ? null : Boolean(user.email_verified),
+        verification_code: user.verification_code,
+        verification_expires_at: user.verification_expires_at,
+      })
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Debes verificar tu correo antes de iniciar sesión",
+        },
+        { status: 403 },
       );
     }
 

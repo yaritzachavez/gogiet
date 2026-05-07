@@ -48,6 +48,14 @@ export default function LoginForm() {
         // Redirigir según rol
         router.push(data.redirectTo);
       } else {
+        if (
+          res.status === 403 &&
+          data?.error === "Debes verificar tu correo antes de iniciar sesión"
+        ) {
+          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+          return;
+        }
+
         setErrorMessage(data.error || "Error en el inicio de sesión");
       }
     } catch (err) {
