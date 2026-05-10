@@ -224,12 +224,19 @@ export async function POST(req: Request) {
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
     const realIp = req.headers.get("x-real-ip");
 
-    await createUserSession({
-      userId: user.id,
-      token,
-      deviceName,
-      location: getLocationLabel(forwardedFor || realIp),
-    });
+    try {
+      await createUserSession({
+        userId: user.id,
+        token,
+        deviceName,
+        location: getLocationLabel(forwardedFor || realIp),
+      });
+    } catch (sessionError) {
+      console.warn(
+        "POST /api/auth/login no pudo registrar la sesión, pero el login seguirá:",
+        sessionError,
+      );
+    }
 
     await pool.query(
       `
@@ -240,7 +247,7 @@ export async function POST(req: Request) {
       [user.id],
     );
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       message: "Login exitoso",
       token,
@@ -253,6 +260,16 @@ export async function POST(req: Request) {
         roles: publicRoles,
       },
     });
+
+    response.cookies.set("authToken", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 9,
+    });
+
+    return response;
   } catch (error) {
     console.error("POST /api/auth/login error exacto:", error);
     return NextResponse.json(

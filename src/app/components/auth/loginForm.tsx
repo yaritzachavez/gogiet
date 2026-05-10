@@ -72,6 +72,7 @@ export default function LoginForm() {
       setSubmitting(true);
       const res = await fetch("/api/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -101,7 +102,6 @@ export default function LoginForm() {
           },
           data.token,
         );
-        document.cookie = `authToken=${data.token}; path=/; max-age=32400; secure; samesite=lax`;
         // Redirigir según rol
         router.push(data.redirectTo || "/");
       } else {

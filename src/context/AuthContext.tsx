@@ -49,6 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const loadUserAddress = useCallback(async (token: string) => {
     try {
       const addressRes = await fetch("/api/account/address", {
+        credentials: "include",
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -86,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const verifyRes = await fetch("/api/auth/verify", {
+          credentials: "include",
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -95,6 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         const rolesRes = await fetch("/api/auth/role", {
+          credentials: "include",
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -145,6 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Obtener roles desde el backend
       try {
         const rolesRes = await fetch("/api/auth/role", {
+          credentials: "include",
           headers: {
             Authorization: `Bearer ${token}`,
           },
