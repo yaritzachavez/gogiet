@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { isValidEmail } from "@/lib/auth-account-shared";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function LoginForm() {
@@ -18,12 +19,52 @@ export default function LoginForm() {
   const router = useRouter();
   const { login } = useAuth();
 
+  const getLoginErrorMessage = (
+    status: number,
+    data?: { error?: string; message?: string } | null,
+  ) => {
+    if (data?.error?.trim()) {
+      return data.error.trim();
+    }
+
+    if (status === 404) {
+      return "No encontramos una cuenta con ese correo.";
+    }
+
+    if (status === 401) {
+      return "La contraseña no es correcta.";
+    }
+
+    if (status === 403) {
+      return "Debes verificar tu correo antes de continuar.";
+    }
+
+    if (status === 429) {
+      return "Tu cuenta está temporalmente bloqueada. Intenta nuevamente en unos minutos.";
+    }
+
+    if (status >= 500) {
+      return "Ocurrió un problema en el servidor. Intenta nuevamente.";
+    }
+
+    return formatApiError(
+      status,
+      data,
+      "No pudimos iniciar sesión. Intenta nuevamente.",
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
     if (!email.trim() || !password) {
       setErrorMessage("Completa tu correo y contraseña para continuar.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setErrorMessage("Ingresa un correo válido.");
       return;
     }
 
@@ -72,20 +113,14 @@ export default function LoginForm() {
           return;
         }
 
-        setErrorMessage(
-          formatApiError(
-            res.status,
-            data,
-            "No pudimos iniciar sesión. Intenta nuevamente.",
-          ),
-        );
+        setErrorMessage(getLoginErrorMessage(res.status, data));
       }
     } catch (err) {
       console.warn("Error en la petición de login", err);
       setErrorMessage(
         getFriendlyErrorMessage(
           err,
-          "Tu conexión se perdió. Revisa tu internet e intenta nuevamente.",
+          "Error de conexión. Revisa tu internet e intenta nuevamente.",
         ),
       );
     } finally {

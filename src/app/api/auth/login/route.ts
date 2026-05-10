@@ -32,7 +32,10 @@ type UserRow = {
 export async function POST(req: Request) {
   try {
     await ensureUserAuthSecurityColumns();
-    const { email, password } = await req.json();
+    const body = (await req.json().catch(() => null)) as
+      | { email?: string; password?: string }
+      | null;
+    const { email, password } = body ?? {};
     const normalizedEmail = normalizeEmail(email ?? "");
 
     console.log("POST /api/auth/login email recibido:", normalizedEmail);
@@ -114,7 +117,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "No pudimos iniciar sesión. Intenta nuevamente.",
+          error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
         },
         { status: 500 },
       );
@@ -255,7 +258,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: "No pudimos iniciar sesión. Intenta nuevamente.",
+        error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
       },
       { status: 500 },
     );
