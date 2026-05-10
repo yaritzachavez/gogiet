@@ -173,7 +173,7 @@ export async function POST(req: Request) {
         lastName: resolvedLastName,
         email,
         phone,
-        passwordHash,
+        password: passwordHash,
         statusId: 1,
         email_verified: false,
         verification_code: verificationCode,

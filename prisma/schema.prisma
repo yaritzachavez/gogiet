@@ -22,7 +22,7 @@ model User {
   reset_password_sent_at DateTime?            @map("reset_password_sent_at") @db.DateTime(0)
   login_attempts       Int                    @default(0) @map("login_attempts")
   locked_until         DateTime?              @map("locked_until") @db.DateTime(0)
-  passwordHash         String                 @map("password_hash") @db.VarChar(255)
+  password             String                 @map("password") @db.VarChar(255)
   birthDate            DateTime?              @map("birth_date") @db.Date
   profile_image_url    String?                @db.Text
   zone                 String?                @map("delivery_zone") @db.VarChar(120)

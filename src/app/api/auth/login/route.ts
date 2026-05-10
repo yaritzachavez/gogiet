@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         firstName: true,
         lastName: true,
         email: true,
-        passwordHash: true,
+        password: true,
         statusId: true,
         email_verified: true,
         verification_code: true,
@@ -108,8 +108,8 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!user.passwordHash) {
-      console.error("POST /api/auth/login usuario sin password_hash:", user.id);
+    if (!user.password) {
+      console.error("POST /api/auth/login usuario sin password:", user.id);
       return json(
         {
           success: false,
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
     const pepper = process.env.PASSWORD_PEPPER ?? "";
     const passwordMatch = await bcrypt.compare(
       password + pepper,
-      user.passwordHash,
+      user.password,
     );
 
     console.log("POST /api/auth/login password valida:", passwordMatch);

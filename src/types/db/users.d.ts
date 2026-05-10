@@ -5,7 +5,7 @@ export interface DBUser {
   email: string;
   profile_image_url?: string | null;
   avatar_url?: string | null;
-  password_hash?: string;
+  password?: string;
   phone: string | null;
   is_verified: boolean;
   created_at: Date;
