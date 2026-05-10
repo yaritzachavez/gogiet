@@ -10,22 +10,9 @@ import {
 } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
 import { isUserTemporarilyVerified } from "@/lib/email-verification";
+import { prisma } from "@/lib/prisma";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
-
-type UserRow = {
-  id: number;
-  first_name: string;
-  last_name: string | null;
-  email: string;
-  password_hash: string;
-  status_id: number;
-  email_verified: number | boolean | null;
-  verification_code: string | null;
-  verification_expires_at: string | null;
-  login_attempts: number | null;
-  locked_until: string | null;
-};
 
 export function OPTIONS(req: Request) {
   return handleCorsPreflight(req);
@@ -57,33 +44,40 @@ export async function POST(req: Request) {
       );
     }
 
-    const [rows] = await pool.query(
-      `
-      SELECT
-        id,
-        first_name,
-        last_name,
-        email,
-        password_hash,
-        status_id,
-        email_verified,
-        verification_code,
-        verification_expires_at,
-        login_attempts,
-        locked_until
-      FROM users
-      WHERE email = ?
-      `,
-      [normalizedEmail],
-    );
-    const users = rows as UserRow[];
+    const user = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+        },
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        passwordHash: true,
+        statusId: true,
+        email_verified: true,
+        verification_code: true,
+        verification_expires_at: true,
+        login_attempts: true,
+        locked_until: true,
+      },
+    });
 
+    console.log("EMAIL BUSCADO:", normalizedEmail);
     console.log(
-      "POST /api/auth/login encontro usuario:",
-      users.length > 0 ? users[0].id : null,
+      "USUARIO ENCONTRADO:",
+      user
+        ? {
+            id: user.id,
+            email: user.email,
+            statusId: user.statusId,
+          }
+        : null,
     );
 
-    if (users.length === 0) {
+    if (!user) {
       return json(
         {
           success: false,
@@ -93,9 +87,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = users[0];
-
-    if (Number(user.status_id ?? 0) !== 1) {
+    if (Number(user.statusId ?? 0) !== 1) {
       return json(
         {
           success: false,
@@ -116,7 +108,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!user.password_hash) {
+    if (!user.passwordHash) {
       console.error("POST /api/auth/login usuario sin password_hash:", user.id);
       return json(
         {
@@ -130,7 +122,7 @@ export async function POST(req: Request) {
     const pepper = process.env.PASSWORD_PEPPER ?? "";
     const passwordMatch = await bcrypt.compare(
       password + pepper,
-      user.password_hash,
+      user.passwordHash,
     );
 
     console.log("POST /api/auth/login password valida:", passwordMatch);
@@ -216,7 +208,7 @@ export async function POST(req: Request) {
     const token = jwt.sign(
       {
         id: user.id,
-        name: `${user.first_name} ${user.last_name ?? ""}`.trim(),
+        name: `${user.firstName} ${user.lastName ?? ""}`.trim(),
         roles: dbRoles,
       },
       secret,
@@ -258,7 +250,7 @@ export async function POST(req: Request) {
       redirectTo,
       user: {
         id: user.id,
-        name: `${user.first_name} ${user.last_name ?? ""}`.trim(),
+        name: `${user.firstName} ${user.lastName ?? ""}`.trim(),
         email: user.email,
         role: primaryRole,
         roles: publicRoles,
