@@ -2,10 +2,7 @@ import bcrypt from "bcrypt";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
-import {
-  ensureUserAuthSecurityColumns,
-  normalizeEmail,
-} from "@/lib/auth-account";
+import { normalizeEmail } from "@/lib/auth-account";
 import {
   createUserSession,
   getDeviceName,
@@ -39,7 +36,6 @@ export async function POST(req: Request) {
     const json = (body: unknown, init?: ResponseInit) =>
       withCors(req, NextResponse.json(body, init));
 
-    await ensureUserAuthSecurityColumns();
     const body = (await req.json().catch(() => null)) as
       | { email?: string; password?: string }
       | null;

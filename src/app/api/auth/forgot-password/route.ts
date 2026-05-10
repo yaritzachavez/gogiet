@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  ensureUserAuthSecurityColumns,
   generateResetToken,
   generateTokenExpiration,
   hashToken,
@@ -25,7 +24,6 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ForgotPasswordBody;
     const email = normalizeEmail(body.email ?? "");
 

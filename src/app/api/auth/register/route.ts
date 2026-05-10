@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 
 import {
-  ensureUserAuthSecurityColumns,
   isValidEmail,
   isValidPhone,
   normalizeEmail,
@@ -36,7 +35,6 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as RegisterBody;
     const firstName = body.firstName?.trim();
     const lastName = body.lastName?.trim();

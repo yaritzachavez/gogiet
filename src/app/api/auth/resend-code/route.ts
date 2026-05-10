@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import {
-  ensureUserAuthSecurityColumns,
   isCooldownActive,
   normalizeEmail,
 } from "@/lib/auth-account";
@@ -26,7 +25,6 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ResendCodeBody;
     const email = normalizeEmail(body.email ?? "");
 

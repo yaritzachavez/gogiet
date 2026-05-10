@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 
 import {
-  ensureUserAuthSecurityColumns,
   hashToken,
   validatePasswordStrength,
 } from "@/lib/auth-account";
@@ -24,7 +23,6 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ResetPasswordBody;
     const token = String(body.token ?? "").trim();
     const password = String(body.password ?? "");

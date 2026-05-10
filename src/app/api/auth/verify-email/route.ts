@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { ensureUserAuthSecurityColumns, normalizeEmail } from "@/lib/auth-account";
+import { normalizeEmail } from "@/lib/auth-account";
 import { prisma } from "@/lib/prisma";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -18,7 +18,6 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as VerifyEmailBody;
     const email = normalizeEmail(body.email ?? "");
     const code = String(body.code ?? "").trim();
