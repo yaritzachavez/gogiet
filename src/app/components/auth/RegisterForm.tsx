@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isValidEmail, normalizePhone, validatePasswordStrength } from "@/lib/auth-account";
+import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function RegisterForm() {
   const [firstName, setFirstName] = useState("");
@@ -17,24 +19,49 @@ export default function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(""); // 👈 estado para errores
+  const [errorMessage, setErrorMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
 
+    if (
+      !firstName.trim() ||
+      !lastName.trim() ||
+      !email.trim() ||
+      !phoneNumber.trim() ||
+      !password
+    ) {
+      setErrorMessage("Completa todos los campos obligatorios.");
+      return;
+    }
+
+    if (!isValidEmail(email.trim())) {
+      setErrorMessage("Ingresa un correo válido.");
+      return;
+    }
+
+    const passwordError = validatePasswordStrength(password);
+
+    if (passwordError) {
+      setErrorMessage(passwordError);
+      return;
+    }
+
     if (!acceptTerms) {
-      setErrorMessage("Debes aceptar los términos y condiciones");
+      setErrorMessage("Debes aceptar los términos y condiciones.");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("Las contraseñas no coinciden");
+      setErrorMessage("Las contraseñas no coinciden.");
       return;
     }
 
     try {
+      setSubmitting(true);
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
@@ -45,7 +72,7 @@ export default function RegisterForm() {
           lastName: lastName.trim(),
           name: `${firstName.trim()} ${lastName.trim()}`.trim(),
           email,
-          phone: phoneNumber.trim(),
+          phone: normalizePhone(phoneNumber),
           password,
         }),
       });
@@ -71,13 +98,23 @@ export default function RegisterForm() {
           console.warn("Error registro:", data.error);
         }
         setErrorMessage(
-          data?.error ||
-            "No se pudo completar el registro. Revisa tus datos e intenta de nuevo.",
+          formatApiError(
+            res.status,
+            data,
+            "No pudimos crear tu cuenta. Intenta nuevamente.",
+          ),
         );
       }
     } catch (err) {
       console.warn("Error en la petición de registro", err);
-      setErrorMessage("Error de conexión con el servidor");
+      setErrorMessage(
+        getFriendlyErrorMessage(
+          err,
+          "No pudimos crear tu cuenta. Revisa tu conexión e intenta nuevamente.",
+        ),
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -151,7 +188,7 @@ export default function RegisterForm() {
             type="tel"
             placeholder="Tu número de contacto"
             value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
+            onChange={(e) => setPhoneNumber(normalizePhone(e.target.value))}
             className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
             required
           />
@@ -204,9 +241,9 @@ export default function RegisterForm() {
         <Button
           type="submit"
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 rounded-lg"
-          disabled={!acceptTerms}
+          disabled={!acceptTerms || submitting}
         >
-          Registrarse
+          {submitting ? "Creando cuenta..." : "Registrarse"}
         </Button>
 
         <div className="text-center">

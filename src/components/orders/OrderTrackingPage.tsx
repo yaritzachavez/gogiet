@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { ReceiptText } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
+import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
@@ -158,6 +164,17 @@ function clearStoredSession() {
   }
 }
 
+const moneyFormatter = new Intl.NumberFormat("es-MX", {
+  style: "currency",
+  currency: "MXN",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatMoney(value: number) {
+  return `${moneyFormatter.format(Number.isFinite(value) ? value : 0)} MXN`;
+}
+
 export default function OrderTrackingPage() {
   const params = useParams<{ orderId?: string; id?: string }>();
   const router = useRouter();
@@ -168,14 +185,37 @@ export default function OrderTrackingPage() {
   const [paymentActionLoading, setPaymentActionLoading] = useState(false);
   const orderId = params.orderId ?? params.id ?? "";
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadOrder = async (showLoader = false) => {
+    const token = getStoredToken();
 
-    const loadOrder = async (showLoader = false) => {
-      const token = getStoredToken();
+    if (!token) {
+      setErrorMessage("Tu sesión expiró. Inicia sesión nuevamente.");
+      setLoading(false);
+      window.setTimeout(() => {
+        router.replace("/login");
+      }, 1200);
+      return;
+    }
 
-      if (!token) {
-        if (!isMounted) return;
+    try {
+      if (showLoader) {
+        setLoading(true);
+      }
+
+      const response = await fetch(`/api/orders/${orderId}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = (await response.json().catch(() => null)) as Record<
+        string,
+        unknown
+      > | null;
+
+      if (response.status === 401 || response.status === 403) {
+        clearStoredSession();
         setErrorMessage("Tu sesión expiró. Inicia sesión nuevamente.");
         setLoading(false);
         window.setTimeout(() => {
@@ -184,78 +224,55 @@ export default function OrderTrackingPage() {
         return;
       }
 
-      try {
-        if (showLoader && isMounted) {
-          setLoading(true);
-        }
-
-        const response = await fetch(`/api/orders/${orderId}`, {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const data = (await response.json().catch(() => null)) as Record<
-          string,
-          unknown
-        > | null;
-
-        if (response.status === 401 || response.status === 403) {
-          if (!isMounted) return;
-          clearStoredSession();
-          setErrorMessage("Tu sesión expiró. Inicia sesión nuevamente.");
-          setLoading(false);
-          window.setTimeout(() => {
-            router.replace("/login");
-          }, 1200);
-          return;
-        }
-
-        if (!response.ok || !data?.order) {
-          if (!isMounted) return;
-          setErrorMessage(
-            (typeof data?.error === "string" && data.error) ||
-              "No pudimos cargar tu pedido.",
-          );
-          return;
-        }
-
-        if (!isMounted) return;
-        setOrder(data.order as OrderDetail);
-        setErrorMessage("");
-        try {
-          const rawUser = window.localStorage.getItem("user");
-          const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-          const userRoles = Array.isArray(parsedUser?.roles)
-            ? parsedUser.roles
-            : [];
-          setIsAdminGeneral(
-            userRoles.includes("ADMIN_GENERAL") ||
-              userRoles.includes("admin_general"),
-          );
-        } catch (parseError) {
-          console.error(
-            "No se pudieron leer los roles del usuario.",
-            parseError,
-          );
-          setIsAdminGeneral(false);
-        }
-      } catch (error) {
-        if (!isMounted) return;
-        console.error(error);
-        setErrorMessage("No pudimos cargar el seguimiento de tu pedido.");
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+      if (!response.ok || !data?.order) {
+        setErrorMessage(
+          formatApiError(
+            response.status,
+            data,
+            "No pudimos cargar la información del pedido.",
+          ),
+        );
+        return;
       }
-    };
+
+      setOrder(data.order as OrderDetail);
+      setErrorMessage("");
+      try {
+        const rawUser = window.localStorage.getItem("user");
+        const parsedUser = rawUser ? JSON.parse(rawUser) : null;
+        const userRoles = Array.isArray(parsedUser?.roles)
+          ? parsedUser.roles
+          : [];
+        setIsAdminGeneral(
+          userRoles.includes("ADMIN_GENERAL") ||
+            userRoles.includes("admin_general"),
+        );
+      } catch (parseError) {
+        console.warn("No se pudieron leer los roles del usuario.", parseError);
+        setIsAdminGeneral(false);
+      }
+    } catch (error) {
+      console.warn("No pudimos cargar el seguimiento del pedido.", error);
+      setErrorMessage(
+        getFriendlyErrorMessage(
+          error,
+          "No pudimos cargar el seguimiento de tu pedido.",
+        ),
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
 
     if (orderId) {
       void loadOrder(true);
       const intervalId = window.setInterval(() => {
-        void loadOrder(false);
+        if (isMounted) {
+          void loadOrder(false);
+        }
       }, 10_000);
 
       return () => {
@@ -289,11 +306,11 @@ export default function OrderTrackingPage() {
     return (
       <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
         <div className="mx-auto max-w-4xl">
-          <div className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+          <SectionCard className="p-6">
             <p className="text-sm text-orange-900/70">
               Cargando seguimiento del pedido...
             </p>
-          </div>
+          </SectionCard>
         </div>
       </main>
     );
@@ -302,18 +319,19 @@ export default function OrderTrackingPage() {
   if (errorMessage || !order) {
     return (
       <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
-        <div className="mx-auto max-w-4xl space-y-4">
-          <div className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
-            <p className="text-sm text-orange-900/75">
-              {errorMessage || "No encontramos este pedido."}
-            </p>
+        <div className="mx-auto max-w-4xl">
+          <EmptyState
+            icon={ReceiptText}
+            title="No pudimos cargar tu pedido"
+            description={errorMessage || "No encontramos este pedido."}
+            actionLabel="Reintentar"
+            onAction={() => void loadOrder(true)}
+          />
+          <div className="mt-4 flex justify-center">
+            <Button asChild variant="outline">
+              <Link href="/pedidos">Volver a mis pedidos</Link>
+            </Button>
           </div>
-          <Link
-            href="/pedidos"
-            className="inline-flex rounded-2xl border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50"
-          >
-            Volver a mis pedidos
-          </Link>
         </div>
       </main>
     );
@@ -388,8 +406,11 @@ export default function OrderTrackingPage() {
 
       if (!response.ok || !data?.success) {
         setErrorMessage(
-          (typeof data?.error === "string" && data.error) ||
-            "No se pudo validar el pago.",
+          formatApiError(
+            response.status,
+            data,
+            "No pudimos validar el pago. Intenta nuevamente.",
+          ),
         );
         return;
       }
@@ -418,8 +439,13 @@ export default function OrderTrackingPage() {
           : current,
       );
     } catch (validationError) {
-      console.error("Error validando pago:", validationError);
-      setErrorMessage("No se pudo validar el pago de transferencia.");
+      console.warn("Error validando pago:", validationError);
+      setErrorMessage(
+        getFriendlyErrorMessage(
+          validationError,
+          "No pudimos validar el pago de transferencia.",
+        ),
+      );
     } finally {
       setPaymentActionLoading(false);
     }
@@ -428,36 +454,49 @@ export default function OrderTrackingPage() {
   return (
     <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="space-y-2">
-          <Link
-            href="/pedidos"
-            className="inline-flex rounded-2xl border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50"
-          >
-            Volver a mis pedidos
-          </Link>
-          <h1 className="text-3xl font-semibold">Seguimiento del pedido</h1>
-          <p className="text-sm text-orange-900/70">
-            Pedido #{order.id} creado el{" "}
-            {new Date(order.created_at).toLocaleString("es-MX", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            })}
-          </p>
-        </header>
+        <PageHeader
+          eyebrow="Estado del pedido"
+          title="Seguimiento del pedido"
+          description={
+            <>
+              Pedido #{order.id} creado el{" "}
+              {new Date(order.created_at).toLocaleString("es-MX", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </>
+          }
+          actions={
+            <Button asChild variant="outline">
+              <Link href="/pedidos">Volver a mis pedidos</Link>
+            </Button>
+          }
+        />
 
         {transferPending ? (
-          <div className="rounded-3xl border border-orange-200 bg-orange-50/70 p-4 text-sm text-orange-900">
+          <SectionCard className="border-orange-200 bg-orange-50/70 p-4 text-sm text-orange-900">
             Estamos validando tu comprobante de transferencia.
-          </div>
+          </SectionCard>
         ) : null}
         {transferRejected ? (
-          <div className="rounded-3xl border border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+          <SectionCard className="border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
             El pago por transferencia fue rechazado.
             {latestRejectionReason ? ` ${latestRejectionReason}` : ""}
-          </div>
+          </SectionCard>
+        ) : null}
+        {resolveCanonicalOrderStatus(order.status_name) === "delivered" ? (
+          <SectionCard className="border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-700">
+            Tu pedido ya fue entregado. Gracias por pedir en Gogi Eats.
+          </SectionCard>
+        ) : null}
+        {resolveCanonicalOrderStatus(order.status_name) === "cancelled" ? (
+          <SectionCard className="border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+            Este pedido fue cancelado.
+            {latestRejectionReason ? ` ${latestRejectionReason}` : ""}
+          </SectionCard>
         ) : null}
 
-        <section className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+        <SectionCard className="p-6">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-lg font-semibold text-orange-950">
@@ -516,10 +555,10 @@ export default function OrderTrackingPage() {
               );
             })}
           </div>
-        </section>
+        </SectionCard>
 
         {order.delivery_user_id ? (
-          <section className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+          <SectionCard className="p-6">
             <div className="flex items-center gap-4">
               <UserAvatar
                 name={order.delivery_name}
@@ -541,11 +580,11 @@ export default function OrderTrackingPage() {
                 </p>
               </div>
             </div>
-          </section>
+          </SectionCard>
         ) : null}
 
         <section className="grid gap-4 sm:grid-cols-2">
-          <article className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+          <SectionCard className="p-6">
             <h2 className="text-lg font-semibold text-orange-950">Resumen</h2>
             <div className="mt-4 space-y-2 text-sm text-orange-900">
               {isAdminGeneral ? (
@@ -569,28 +608,32 @@ export default function OrderTrackingPage() {
                 {order.business_name || "Sin negocio"}
               </p>
               <p>
-                <span className="font-semibold">Subtotal:</span> MX$
-                {Number(order.subtotal ?? 0).toFixed(2)}
+                <span className="font-semibold">Subtotal:</span>{" "}
+                {formatMoney(Number(order.subtotal ?? 0))}
               </p>
               <p>
-                <span className="font-semibold">Envío:</span> MX$
-                {Number(order.delivery_fee ?? 0).toFixed(2)}
+                <span className="font-semibold">Envío:</span>{" "}
+                {formatMoney(Number(order.delivery_fee ?? 0))}
               </p>
               <p>
-                <span className="font-semibold">Servicio:</span> MX$
-                {Number(order.service_fee ?? 0).toFixed(2)}
+                <span className="font-semibold">Servicio:</span>{" "}
+                {formatMoney(Number(order.service_fee ?? 0))}
               </p>
               <p className="pt-2 text-base font-semibold text-orange-950">
-                Total: MX${Number(order.total_amount ?? 0).toFixed(2)}
+                Total: {formatMoney(Number(order.total_amount ?? 0))}
               </p>
               <p>
                 <span className="font-semibold">Dirección:</span>{" "}
                 {address || "Sin dirección disponible"}
               </p>
+              <p>
+                <span className="font-semibold">Método de pago:</span>{" "}
+                {order.payment_method || "No especificado"}
+              </p>
             </div>
-          </article>
+          </SectionCard>
 
-          <article className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+          <SectionCard className="p-6">
             <h2 className="text-lg font-semibold text-orange-950">Productos</h2>
             <div className="mt-4 space-y-3">
               {order.items.map((item, index) => (
@@ -602,8 +645,8 @@ export default function OrderTrackingPage() {
                     {item.product_name}
                   </p>
                   <p className="mt-1 text-sm text-orange-900/75">
-                    Cantidad: {Number(item.quantity ?? 0)} · MX$
-                    {Number(item.subtotal ?? 0).toFixed(2)}
+                    Cantidad: {Number(item.quantity ?? 0)} ·{" "}
+                    {formatMoney(Number(item.subtotal ?? 0))}
                   </p>
                   {item.notes ? (
                     <p className="mt-1 text-xs text-orange-900/65">
@@ -613,11 +656,11 @@ export default function OrderTrackingPage() {
                 </div>
               ))}
             </div>
-          </article>
+          </SectionCard>
         </section>
 
         {normalizeStatus(order.payment_method) === "transferencia" ? (
-          <section className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+          <SectionCard className="p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-orange-950">
@@ -660,8 +703,8 @@ export default function OrderTrackingPage() {
                   {transferAccount.holder}
                 </p>
                 <p>
-                  <span className="font-semibold">Total del pedido:</span> MX$
-                  {Number(order.total_amount ?? 0).toFixed(2)}
+                  <span className="font-semibold">Total del pedido:</span>{" "}
+                  {formatMoney(Number(order.total_amount ?? 0))}
                 </p>
                 <p>
                   <span className="font-semibold">Fecha del pedido:</span>{" "}
@@ -700,7 +743,7 @@ export default function OrderTrackingPage() {
                 )}
               </div>
             </div>
-          </section>
+          </SectionCard>
         ) : null}
       </div>
     </main>

@@ -18,6 +18,8 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import BusinessCard from "./components/BusinessCard";
 
 type Business = {
@@ -638,6 +640,17 @@ export default function ShopPage() {
           </div>
         </header>
 
+        <PageHeader
+          eyebrow="Marketplace local"
+          title="Descubre negocios que sí antojan"
+          description="Explora aliados cercanos con entregas rápidas, promociones del día y favoritos listos para volver a pedir."
+          actions={
+            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-700 shadow-sm">
+              {filteredBusinesses.length} aliados disponibles
+            </div>
+          }
+        />
+
         <section>
           <label className="relative block">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
@@ -762,14 +775,17 @@ export default function ShopPage() {
 
         {favoriteBusinesses.length > 0 ? (
           <section className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
-                  Tus favoritos
-                </h1>
-              </div>
-              <button
-                type="button"
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+                Tus favoritos
+              </h1>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Regresa rápido a los negocios que más te gustan.
+              </p>
+            </div>
+            <button
+              type="button"
                 className="inline-flex items-center gap-1.5 text-sm font-black text-orange-600 transition hover:text-orange-700"
               >
                 {favoriteBusinesses.length} guardados
@@ -805,9 +821,12 @@ export default function ShopPage() {
         <section className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-black tracking-tight sm:text-3xl">
+              <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
                 Más populares
               </h1>
+              <p className="mt-1 text-sm font-semibold text-slate-500">
+                Tiendas destacadas por velocidad, variedad y favoritos del día.
+              </p>
             </div>
             <button
               type="button"
@@ -828,15 +847,11 @@ export default function ShopPage() {
               ))}
             </div>
           ) : storesWarning ? (
-            <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-6 py-8 text-center">
-              <Store className="mx-auto h-10 w-10 text-amber-400" />
-              <h2 className="mt-4 text-xl font-black text-slate-900">
-                No se pudieron cargar algunos productos
-              </h2>
-              <p className="mt-2 font-semibold text-slate-600">
-                {storesWarning}
-              </p>
-            </div>
+            <EmptyState
+              icon={Store}
+              title="No se pudieron cargar algunos productos"
+              description={storesWarning}
+            />
           ) : filteredBusinesses.length > 0 ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {filteredBusinesses.map((business, index) => (
@@ -861,15 +876,16 @@ export default function ShopPage() {
               ))}
             </div>
           ) : (
-            <div className="rounded-[24px] border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-              <Store className="mx-auto h-10 w-10 text-slate-300" />
-              <h2 className="mt-4 text-xl font-black text-slate-900">
-                No encontramos aliados
-              </h2>
-              <p className="mt-2 font-semibold text-slate-500">
-                Prueba con otra búsqueda o cambia el filtro seleccionado.
-              </p>
-            </div>
+            <EmptyState
+              icon={Store}
+              title="No encontramos aliados"
+              description="Prueba con otra búsqueda o cambia el filtro seleccionado para descubrir negocios cercanos."
+              actionLabel="Ver todo"
+              onAction={() => {
+                setSelectedFilter("Todos");
+                setSearchQuery("");
+              }}
+            />
           )}
         </section>
       </div>

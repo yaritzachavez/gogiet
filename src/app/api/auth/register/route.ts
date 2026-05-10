@@ -2,6 +2,14 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 
 import {
+  ensureUserAuthSecurityColumns,
+  isValidEmail,
+  isValidPhone,
+  normalizeEmail,
+  normalizePhone,
+  validatePasswordStrength,
+} from "@/lib/auth-account";
+import {
   generateVerificationCode,
   generateVerificationExpiration,
   sendVerificationCodeEmail,
@@ -18,26 +26,23 @@ type RegisterBody = {
   password?: string;
 };
 
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
 export async function POST(req: Request) {
   try {
+    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as RegisterBody;
     const firstName = body.firstName?.trim();
     const lastName = body.lastName?.trim();
     const fallbackName = body.name?.trim();
     const name = fallbackName || `${firstName ?? ""} ${lastName ?? ""}`.trim();
-    const email = body.email?.trim().toLowerCase();
-    const phone = body.phone?.trim() || null;
+    const email = normalizeEmail(body.email ?? "");
+    const phone = normalizePhone(body.phone ?? "") || null;
     const password = body.password;
 
     if (!firstName && !fallbackName) {
       return NextResponse.json(
         {
           success: false,
-          error: "El nombre es obligatorio",
+          error: "Completa todos los campos obligatorios.",
         },
         { status: 400 },
       );
@@ -47,7 +52,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "El apellido es obligatorio",
+          error: "Completa todos los campos obligatorios.",
         },
         { status: 400 },
       );
@@ -57,7 +62,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "El correo es obligatorio",
+          error: "Completa todos los campos obligatorios.",
         },
         { status: 400 },
       );
@@ -67,7 +72,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "El teléfono es obligatorio",
+          error: "Completa todos los campos obligatorios.",
         },
         { status: 400 },
       );
@@ -77,7 +82,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "La contraseña es obligatoria",
+          error: "Completa todos los campos obligatorios.",
         },
         { status: 400 },
       );
@@ -87,17 +92,29 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "El email no tiene un formato válido",
+          error: "Ingresa un correo válido.",
         },
         { status: 400 },
       );
     }
 
-    if (password.length < 8) {
+    if (!phone || !isValidPhone(phone)) {
       return NextResponse.json(
         {
           success: false,
-          error: "La contraseña debe tener al menos 8 caracteres",
+          error: "Ingresa un número de teléfono válido.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const passwordError = validatePasswordStrength(password);
+
+    if (passwordError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: passwordError,
         },
         { status: 400 },
       );
@@ -112,7 +129,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Este correo ya está registrado",
+          error: "El correo ya está registrado.",
         },
         { status: 409 },
       );
@@ -128,7 +145,7 @@ export async function POST(req: Request) {
         return NextResponse.json(
           {
             success: false,
-            error: "Este teléfono ya está registrado",
+            error: "El número de teléfono ya está registrado.",
           },
           { status: 409 },
         );
@@ -155,6 +172,9 @@ export async function POST(req: Request) {
         email_verified: false,
         verification_code: verificationCode,
         verification_expires_at: verificationExpiresAt,
+        verification_sent_at: new Date(),
+        login_attempts: 0,
+        locked_until: null,
         user_roles: {
           create: {
             roles: {
@@ -185,7 +205,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "No se pudo enviar el código de verificación",
+          error: "No se pudo enviar el código de verificación.",
         },
         { status: 500 },
       );
@@ -213,7 +233,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Este correo o teléfono ya está registrado",
+          error: "El correo o el número de teléfono ya están registrados.",
         },
         { status: 409 },
       );
@@ -226,7 +246,7 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Este correo o teléfono ya está registrado",
+          error: "El correo o el número de teléfono ya están registrados.",
         },
         { status: 409 },
       );
@@ -235,7 +255,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: "Error interno al crear la cuenta",
+        error: "No pudimos crear tu cuenta. Intenta nuevamente.",
       },
       { status: 500 },
     );

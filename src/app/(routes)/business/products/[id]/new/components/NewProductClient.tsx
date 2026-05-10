@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   type ChangeEvent,
@@ -10,6 +9,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { AppImage } from "@/components/ui/app-image";
 
 export default function NewProductClient({
   businessId,
@@ -864,13 +864,16 @@ export default function NewProductClient({
 
                     {imagePreview ? (
                       <div className="mt-3 overflow-hidden rounded-xl border border-[#d6e3d0]">
-                        <Image
+                        <AppImage
                           src={imagePreview}
                           alt="Vista previa del producto"
                           width={1200}
                           height={900}
-                          className="h-64 w-full object-cover"
-                          unoptimized
+                          aspectClassName="aspect-[4/3]"
+                          className="h-64 w-full"
+                          imageClassName="object-cover"
+                          optimize={false}
+                          fallbackLabel="Vista previa"
                         />
                         {imageFileName ? (
                           <p className="truncate border-t border-[#d6e3d0] px-3 py-2 text-xs font-medium text-[#5c6f5b]">

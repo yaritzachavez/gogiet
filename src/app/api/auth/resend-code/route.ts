@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 
 import {
+  ensureUserAuthSecurityColumns,
+  isCooldownActive,
+  normalizeEmail,
+} from "@/lib/auth-account";
+import {
   generateVerificationCode,
   generateVerificationExpiration,
   sendVerificationCodeEmail,
@@ -13,10 +18,9 @@ type ResendCodeBody = {
 
 export async function POST(req: Request) {
   try {
+    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ResendCodeBody;
-    const email = String(body.email ?? "")
-      .trim()
-      .toLowerCase();
+    const email = normalizeEmail(body.email ?? "");
 
     if (!email) {
       return NextResponse.json(
@@ -30,6 +34,7 @@ export async function POST(req: Request) {
       select: {
         id: true,
         email_verified: true,
+        verification_sent_at: true,
       },
     });
 
@@ -47,6 +52,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (isCooldownActive(user.verification_sent_at, 60_000)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Espera un minuto antes de reenviar el código.",
+        },
+        { status: 429 },
+      );
+    }
+
     const verificationCode = generateVerificationCode();
     const verificationExpiresAt = generateVerificationExpiration();
 
@@ -56,6 +71,7 @@ export async function POST(req: Request) {
         email_verified: false,
         verification_code: verificationCode,
         verification_expires_at: verificationExpiresAt,
+        verification_sent_at: new Date(),
       },
     });
 
@@ -63,7 +79,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: "Te enviamos un nuevo código de verificación",
+      message: "Te enviamos un código de verificación.",
     });
   } catch (error) {
     console.error("Error POST /api/auth/resend-code:", error);

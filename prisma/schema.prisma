@@ -16,6 +16,12 @@ model User {
   email_verified       Boolean?               @default(false) @map("email_verified")
   verification_code    String?                @map("verification_code") @db.VarChar(12)
   verification_expires_at DateTime?           @map("verification_expires_at") @db.DateTime(0)
+  verification_sent_at DateTime?              @map("verification_sent_at") @db.DateTime(0)
+  reset_password_token String?                @map("reset_password_token") @db.VarChar(255)
+  reset_password_expires_at DateTime?         @map("reset_password_expires_at") @db.DateTime(0)
+  reset_password_sent_at DateTime?            @map("reset_password_sent_at") @db.DateTime(0)
+  login_attempts       Int                    @default(0) @map("login_attempts")
+  locked_until         DateTime?              @map("locked_until") @db.DateTime(0)
   passwordHash         String                 @map("password_hash") @db.VarChar(255)
   birthDate            DateTime?              @map("birth_date") @db.Date
   profile_image_url    String?                @db.Text

@@ -8,11 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -20,7 +22,13 @@ export default function LoginForm() {
     e.preventDefault();
     setErrorMessage("");
 
+    if (!email.trim() || !password) {
+      setErrorMessage("Completa tu correo y contraseña para continuar.");
+      return;
+    }
+
     try {
+      setSubmitting(true);
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -32,9 +40,17 @@ export default function LoginForm() {
         }),
       });
 
-      const data = await res.json();
+      const data = (await res.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            error?: string;
+            token?: string;
+            redirectTo?: string;
+            user?: { id: number; name: string; roles?: string[] };
+          }
+        | null;
 
-      if (res.ok) {
+      if (res.ok && data?.success && data?.token && data?.user) {
         localStorage.setItem("token", data.token);
         login(
           {
@@ -46,7 +62,7 @@ export default function LoginForm() {
         );
         document.cookie = `authToken=${data.token}; path=/; max-age=32400; secure; samesite=lax`;
         // Redirigir según rol
-        router.push(data.redirectTo);
+        router.push(data.redirectTo || "/");
       } else {
         if (
           res.status === 403 &&
@@ -56,11 +72,24 @@ export default function LoginForm() {
           return;
         }
 
-        setErrorMessage(data.error || "Error en el inicio de sesión");
+        setErrorMessage(
+          formatApiError(
+            res.status,
+            data,
+            "No pudimos iniciar sesión. Intenta nuevamente.",
+          ),
+        );
       }
     } catch (err) {
-      console.error("Error en la petición:", err);
-      setErrorMessage("Error de conexión con el servidor");
+      console.warn("Error en la petición de login", err);
+      setErrorMessage(
+        getFriendlyErrorMessage(
+          err,
+          "Tu conexión se perdió. Revisa tu internet e intenta nuevamente.",
+        ),
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -106,14 +135,23 @@ export default function LoginForm() {
             className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
             required
           />
+          <div className="text-right">
+            <Link
+              href="/request-reset"
+              className="text-sm font-semibold text-orange-600 hover:text-orange-700"
+            >
+              Olvidé mi contraseña
+            </Link>
+          </div>
         </div>
 
         {/* Login Button */}
         <Button
           type="submit"
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 rounded-lg"
+          disabled={submitting}
         >
-          Iniciar sesión
+          {submitting ? "Ingresando..." : "Iniciar sesión"}
         </Button>
 
         {/* Register Link */}

@@ -5,10 +5,14 @@ import {
   Bell,
   CreditCard,
   Headset,
+  Inbox,
   Package,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
 
 type NotificationItem = {
   id: number;
@@ -164,23 +168,13 @@ export default function NotificationsPage() {
   return (
     <main className="min-h-screen bg-[#f6f7f8] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-[0.2em] text-orange-600">
-                Centro
-              </p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight">
-                Notificaciones
-              </h1>
-              <p className="mt-2 font-semibold text-slate-500">
-                {unreadCount} notificaciones sin leer
-              </p>
-            </div>
-          </div>
-        </section>
+        <PageHeader
+          eyebrow="Centro"
+          title="Notificaciones"
+          description={`${unreadCount} notificaciones sin leer`}
+        />
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <SectionCard className="p-6">
           {loading ? (
             <p className="font-semibold text-slate-500">
               Cargando notificaciones...
@@ -188,9 +182,12 @@ export default function NotificationsPage() {
           ) : error ? (
             <p className="font-semibold text-slate-500">{error}</p>
           ) : notifications.length === 0 ? (
-            <p className="font-semibold text-slate-500">
-              Aún no tienes notificaciones
-            </p>
+            <EmptyState
+              icon={Inbox}
+              title="Aún no tienes notificaciones"
+              description="Cuando haya novedades de pedidos, pagos o soporte, las verás aquí."
+              className="border-none px-0 py-6 shadow-none"
+            />
           ) : (
             <div className="space-y-4">
               {notifications.map((notification) => (
@@ -243,7 +240,7 @@ export default function NotificationsPage() {
               ))}
             </div>
           )}
-        </section>
+        </SectionCard>
       </div>
     </main>
   );

@@ -70,8 +70,11 @@ type AdminMessageRow = RowDataPacket & {
   created_at: string;
 };
 
-function unauthorized(message = "Token inválido o faltante") {
-  return NextResponse.json({ error: message }, { status: 401 });
+function unauthorized(message = "Necesitas iniciar sesión para continuar.") {
+  return NextResponse.json(
+    { success: false, error: message },
+    { status: 401 },
+  );
 }
 
 function getAuthUser(req: NextRequest): JwtPayload | null {
@@ -660,8 +663,8 @@ export async function GET(req: NextRequest) {
     console.error("Error GET /api/orders:", error);
     return NextResponse.json(
       {
-        error: "Error interno del servidor",
-        details: error instanceof Error ? error.message : String(error),
+        success: false,
+        error: "No pudimos cargar tus pedidos. Intenta nuevamente.",
       },
       { status: 500 },
     );
@@ -683,14 +686,14 @@ export async function POST(req: NextRequest) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: "user_id es requerido" },
+        { success: false, error: "No pudimos identificar al usuario del pedido" },
         { status: 400 },
       );
     }
 
     if (!items.length) {
       return NextResponse.json(
-        { error: "El pedido debe incluir al menos un producto" },
+        { success: false, error: "Agrega al menos un producto antes de continuar" },
         { status: 400 },
       );
     }
@@ -714,7 +717,10 @@ export async function POST(req: NextRequest) {
       )
     ) {
       return NextResponse.json(
-        { error: "Cada item requiere product_id, quantity y precios válidos" },
+        {
+          success: false,
+          error: "Hay productos con cantidad o precio inválido en el pedido",
+        },
         { status: 400 },
       );
     }
@@ -777,7 +783,10 @@ export async function POST(req: NextRequest) {
     if (!addressId || !addressIsValid) {
       await conn.rollback();
       return NextResponse.json(
-        { error: "La dirección de entrega no es válida para este usuario" },
+        {
+          success: false,
+          error: "La dirección de entrega no es válida para este usuario",
+        },
         { status: 400 },
       );
     }
@@ -797,7 +806,10 @@ export async function POST(req: NextRequest) {
     if (products.length !== new Set(productIds).size) {
       await conn.rollback();
       return NextResponse.json(
-        { error: "Uno o más productos no existen para este negocio" },
+        {
+          success: false,
+          error: "Uno o más productos ya no están disponibles para este pedido",
+        },
         { status: 400 },
       );
     }
@@ -813,6 +825,7 @@ export async function POST(req: NextRequest) {
       await conn.rollback();
       return NextResponse.json(
         {
+          success: false,
           error:
             "Todos los productos del pedido deben pertenecer al mismo negocio",
         },
@@ -827,7 +840,8 @@ export async function POST(req: NextRequest) {
       await conn.rollback();
       return NextResponse.json(
         {
-          error: "El negocio del pedido no coincide con los productos enviados",
+          success: false,
+          error: "No pudimos validar el negocio de este pedido.",
         },
         { status: 400 },
       );
@@ -852,7 +866,10 @@ export async function POST(req: NextRequest) {
     ) {
       await conn.rollback();
       return NextResponse.json(
-        { error: "Este negocio no está disponible para recibir pedidos" },
+        {
+          success: false,
+          error: "Este negocio no está disponible para recibir pedidos",
+        },
         { status: 400 },
       );
     }
@@ -919,7 +936,7 @@ export async function POST(req: NextRequest) {
     ) {
       await conn.rollback();
       return NextResponse.json(
-        { error: "Los montos del pedido no son válidos" },
+        { success: false, error: "Los montos del pedido no son válidos" },
         { status: 400 },
       );
     }
@@ -1172,7 +1189,7 @@ export async function POST(req: NextRequest) {
     await conn.commit();
 
     return NextResponse.json(
-      { message: "Pedido creado correctamente", order },
+      { success: true, message: "Pedido creado correctamente", order },
       { status: 201 },
     );
   } catch (error) {
@@ -1184,8 +1201,8 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json(
       {
-        error: "Error interno del servidor",
-        details: error instanceof Error ? error.message : String(error),
+        success: false,
+        error: "Tu pedido no se pudo completar. Intenta nuevamente.",
       },
       { status: 500 },
     );

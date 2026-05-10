@@ -3,6 +3,10 @@ import jwt, { type SignOptions } from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
 import {
+  ensureUserAuthSecurityColumns,
+  normalizeEmail,
+} from "@/lib/auth-account";
+import {
   createUserSession,
   getDeviceName,
   getLocationLabel,
@@ -21,14 +25,15 @@ type UserRow = {
   email_verified: number | boolean | null;
   verification_code: string | null;
   verification_expires_at: string | null;
+  login_attempts: number | null;
+  locked_until: string | null;
 };
 
 export async function POST(req: Request) {
   try {
+    await ensureUserAuthSecurityColumns();
     const { email, password } = await req.json();
-    const normalizedEmail = String(email ?? "")
-      .trim()
-      .toLowerCase();
+    const normalizedEmail = normalizeEmail(email ?? "");
 
     console.log("POST /api/auth/login email recibido:", normalizedEmail);
     logDbUsage("/api/auth/login", {
@@ -37,7 +42,10 @@ export async function POST(req: Request) {
 
     if (!normalizedEmail || !password) {
       return NextResponse.json(
-        { success: false, error: "Faltan datos" },
+        {
+          success: false,
+          error: "Completa tu correo y contraseña para continuar.",
+        },
         { status: 400 },
       );
     }
@@ -53,7 +61,9 @@ export async function POST(req: Request) {
         status_id,
         email_verified,
         verification_code,
-        verification_expires_at
+        verification_expires_at,
+        login_attempts,
+        locked_until
       FROM users
       WHERE email = ?
       `,
@@ -68,17 +78,44 @@ export async function POST(req: Request) {
 
     if (users.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Correo o contraseña incorrectos" },
-        { status: 401 },
+        {
+          success: false,
+          error: "No encontramos una cuenta con ese correo.",
+        },
+        { status: 404 },
       );
     }
 
     const user = users[0];
 
+    if (Number(user.status_id ?? 0) !== 1) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Tu cuenta está inactiva. Contacta a soporte.",
+        },
+        { status: 403 },
+      );
+    }
+
+    if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Tu cuenta está temporalmente bloqueada por demasiados intentos. Intenta nuevamente en unos minutos.",
+        },
+        { status: 429 },
+      );
+    }
+
     if (!user.password_hash) {
       console.error("POST /api/auth/login usuario sin password_hash:", user.id);
       return NextResponse.json(
-        { success: false, error: "El usuario no tiene contraseña configurada" },
+        {
+          success: false,
+          error: "No pudimos iniciar sesión. Intenta nuevamente.",
+        },
         { status: 500 },
       );
     }
@@ -92,9 +129,26 @@ export async function POST(req: Request) {
     console.log("POST /api/auth/login password valida:", passwordMatch);
 
     if (!passwordMatch) {
+      const attempts = Number(user.login_attempts ?? 0) + 1;
+      const shouldLock = attempts >= 5;
+
+      await pool.query(
+        `
+        UPDATE users
+        SET login_attempts = ?, locked_until = ?, updated_at = NOW()
+        WHERE id = ?
+        `,
+        [shouldLock ? 0 : attempts, shouldLock ? new Date(Date.now() + 15 * 60 * 1000) : null, user.id],
+      );
+
       return NextResponse.json(
-        { success: false, error: "Correo o contraseña incorrectos" },
-        { status: 401 },
+        {
+          success: false,
+          error: shouldLock
+            ? "Tu cuenta está temporalmente bloqueada por demasiados intentos. Intenta nuevamente en unos minutos."
+            : "La contraseña no es correcta.",
+        },
+        { status: shouldLock ? 429 : 401 },
       );
     }
 
@@ -174,6 +228,15 @@ export async function POST(req: Request) {
       location: getLocationLabel(forwardedFor || realIp),
     });
 
+    await pool.query(
+      `
+      UPDATE users
+      SET login_attempts = 0, locked_until = NULL, last_login = NOW(), updated_at = NOW()
+      WHERE id = ?
+      `,
+      [user.id],
+    );
+
     return NextResponse.json({
       success: true,
       message: "Login exitoso",
@@ -192,8 +255,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Error en el servidor",
-        details: error instanceof Error ? error.message : String(error),
+        error: "No pudimos iniciar sesión. Intenta nuevamente.",
       },
       { status: 500 },
     );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { ensureUserAuthSecurityColumns, normalizeEmail } from "@/lib/auth-account";
 import { prisma } from "@/lib/prisma";
 
 type VerifyEmailBody = {
@@ -9,15 +10,14 @@ type VerifyEmailBody = {
 
 export async function POST(req: Request) {
   try {
+    await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as VerifyEmailBody;
-    const email = String(body.email ?? "")
-      .trim()
-      .toLowerCase();
+    const email = normalizeEmail(body.email ?? "");
     const code = String(body.code ?? "").trim();
 
     if (!email || !code) {
       return NextResponse.json(
-        { success: false, error: "email y code son obligatorios" },
+        { success: false, error: "Ingresa tu correo y el código de verificación." },
         { status: 400 },
       );
     }
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
     if (!user.verification_code || user.verification_code !== code) {
       return NextResponse.json(
-        { success: false, error: "El código de verificación no es válido" },
+        { success: false, error: "Código inválido." },
         { status: 400 },
       );
     }
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       user.verification_expires_at.getTime() < Date.now()
     ) {
       return NextResponse.json(
-        { success: false, error: "El código ya venció. Solicita uno nuevo" },
+        { success: false, error: "El código expiró." },
         { status: 400 },
       );
     }

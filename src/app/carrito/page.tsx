@@ -1,14 +1,15 @@
 "use client";
 
-import Image from "next/image";
-import Link from "next/link";
+import { ArrowRight, ShoppingCart } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import AddressRequiredDialog, {
   type SavedAddress,
 } from "@/components/address/AddressRequiredDialog";
+import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -16,12 +17,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
 import { useAuth } from "@/context/AuthContext";
 import {
   CART_UPDATED_EVENT,
   readStoredCartSnapshot,
   writeStoredCartSnapshot,
 } from "@/lib/cart-storage";
+import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import type { ShippingByAddressResult } from "@/lib/shipping";
 
@@ -43,6 +47,7 @@ type StoredCartItem = {
   price?: number;
   subtotal?: number;
   notes?: string;
+  customizationsSummary?: string;
   customizations?: {
     selectedOptions?: Array<{
       groupName?: string;
@@ -137,6 +142,17 @@ const PAYMENT_METHOD_OPTIONS = [
 
 type PaymentMethodOption = (typeof PAYMENT_METHOD_OPTIONS)[number]["id"];
 
+const moneyFormatter = new Intl.NumberFormat("es-MX", {
+  style: "currency",
+  currency: "MXN",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+function formatMoney(value: number) {
+  return `${moneyFormatter.format(Number.isFinite(value) ? value : 0)} MXN`;
+}
+
 const TRANSFER_ACCOUNT = {
   bank: "BBVA",
   holder: "Gogi Eats",
@@ -195,6 +211,8 @@ export default function CarritoPage() {
   const [transferError, setTransferError] = useState("");
   const [deliveryInstructions, setDeliveryInstructions] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
+  const [cartLoading, setCartLoading] = useState(true);
+  const [cartLoadError, setCartLoadError] = useState("");
 
   const mapStoredSnapshotToCartItems = useCallback(
     (items: ReturnType<typeof readStoredCartSnapshot>): StoredCartItem[] => {
@@ -217,6 +235,8 @@ export default function CarritoPage() {
             Number(item.unit_price ?? item.price ?? 0) *
               Number(item.quantity ?? 0),
         ),
+        notes: item.notes || "",
+        customizationsSummary: item.customizations_summary || "",
       }));
     },
     [],
@@ -238,30 +258,39 @@ export default function CarritoPage() {
         image_url: item.image,
         quantity: item.quantity,
         subtotal: getCartItemSubtotal(item),
+        notes: String(item.notes ?? "").trim(),
+        customizations_summary: String(item.customizationsSummary ?? "").trim(),
       })),
     );
   }, []);
 
   const loadCart = useCallback(async () => {
     const localSnapshot = readStoredCartSnapshot();
+    setCartLoading(true);
+    setCartLoadError("");
 
     if (!user) {
       const localItems = mapStoredSnapshotToCartItems(localSnapshot);
       setCartId(null);
       setCartItems(localItems);
+      setCartLoading(false);
       return;
     }
 
     try {
       const token = window.localStorage.getItem("token");
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 12000);
       const res = await fetch(`/api/cart?user_id=${user.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        signal: controller.signal,
       });
-      const data = await res.json();
+      window.clearTimeout(timeoutId);
+      const data = await res.json().catch(() => null);
 
       if (
-        data.cart &&
-        Array.isArray(data.products) &&
+        data?.cart &&
+        Array.isArray(data?.products) &&
         data.products.length > 0
       ) {
         const snapshotByProductId = new Map(
@@ -302,6 +331,10 @@ export default function CarritoPage() {
             ),
             subtotal: Number(p.total ?? 0),
             extras: [],
+            notes: String(snapshot?.notes ?? ""),
+            customizationsSummary: String(
+              snapshot?.customizations_summary ?? "",
+            ),
           };
         });
 
@@ -322,10 +355,18 @@ export default function CarritoPage() {
         syncCartStorage([]);
       }
     } catch (err) {
-      console.error("Error cargando carrito:", err);
+      console.warn("Error cargando carrito:", err);
       const localItems = mapStoredSnapshotToCartItems(localSnapshot);
       setCartId(null);
       setCartItems(localItems);
+      setCartLoadError(
+        getFriendlyErrorMessage(
+          err,
+          "No pudimos actualizar tu carrito. Mostramos la última versión guardada.",
+        ),
+      );
+    } finally {
+      setCartLoading(false);
     }
   }, [mapStoredSnapshotToCartItems, syncCartStorage, user]);
 
@@ -432,6 +473,8 @@ export default function CarritoPage() {
                       : repairedPrice) * Number(item.quantity ?? 0)
                   ).toFixed(2),
                 ),
+                notes: String(item.notes ?? ""),
+                customizationsSummary: String(item.customizationsSummary ?? ""),
               },
             ] as const;
           }),
@@ -447,7 +490,7 @@ export default function CarritoPage() {
           return nextItems;
         });
       } catch (error) {
-        console.error("No se pudo reparar el carrito:", error);
+        console.warn("No se pudo reparar el carrito:", error);
       }
     }
 
@@ -478,14 +521,23 @@ export default function CarritoPage() {
             neighborhood: savedAddress.neighborhood,
           }),
         });
-        const data = await response.json();
-        if (response.ok && data.success) {
+        const data = await response.json().catch(() => null);
+        if (response.ok && data?.success) {
           setShipping(data.shipping);
+        } else {
+          setShipping({
+            ...DEFAULT_SHIPPING_STATE,
+            message: formatApiError(
+              response.status,
+              data,
+              "No pudimos calcular el envío. Revisa tu dirección.",
+            ),
+          });
         }
       } catch (_error) {
         setShipping({
           ...DEFAULT_SHIPPING_STATE,
-          message: "Error al calcular envío.",
+          message: "No pudimos calcular el envío. Revisa tu dirección.",
         });
       }
     };
@@ -515,6 +567,53 @@ export default function CarritoPage() {
       }),
     [shipping.distanceKm, shipping.shippingCost, subtotal],
   );
+
+  const hasValidItems = useMemo(
+    () =>
+      cartItems.length > 0 &&
+      cartItems.every(
+        (item) =>
+          Number(item.productId ?? 0) > 0 &&
+          Number(item.quantity ?? 0) > 0 &&
+          getCartItemUnitPrice(item) > 0,
+      ),
+    [cartItems],
+  );
+
+  const hasValidBusiness = useMemo(
+    () => cartItems.some((item) => Number(item.businessId ?? 0) > 0),
+    [cartItems],
+  );
+
+  const checkoutBlockReason = useMemo(() => {
+    if (!user) return "Necesitas iniciar sesión para continuar.";
+    if (cartLoading) return "Estamos actualizando tu carrito.";
+    if (cartItems.length === 0) return "Tu carrito está vacío.";
+    if (!hasValidItems) return "Hay productos sin precio válido en tu carrito.";
+    if (!hasValidBusiness) return "No pudimos identificar el negocio del pedido.";
+    if (!savedAddress) return "Agrega una dirección para continuar.";
+    if (shipping.requiresConfirmation)
+      return shipping.message || "No pudimos calcular el envío. Revisa tu dirección.";
+    if (commissionBreakdown.total <= 0)
+      return "El total del pedido no es válido.";
+    return "";
+  }, [
+    cartItems.length,
+    cartLoading,
+    commissionBreakdown.total,
+    hasValidBusiness,
+    hasValidItems,
+    savedAddress,
+    shipping.message,
+    shipping.requiresConfirmation,
+    user,
+  ]);
+
+  const canContinueToPayment = !checkoutBlockReason && !submittingOrder;
+  const canSubmitOrder =
+    !checkoutBlockReason &&
+    !submittingOrder &&
+    Boolean(selectedPaymentMethod);
 
   // --- Handlers ---
   const handleQuantityChange = async (id: string, delta: number) => {
@@ -555,36 +654,51 @@ export default function CarritoPage() {
     }
 
     const token = window.localStorage.getItem("token");
-    await fetch("/api/cart/add-product", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({
-        cart_id: cartId,
-        product_id: id,
-        quantity: newQty,
-        discount: 0,
-      }),
-    });
-    window.dispatchEvent(new Event(CART_UPDATED_EVENT));
-  };
-
-  const handleRemove = async (id: string) => {
-    setCartItems((prev) => prev.filter((i) => i.id !== id));
-    if (cartId) {
-      const token = window.localStorage.getItem("token");
-      await fetch("/api/cart/remove-product", {
+    try {
+      await fetch("/api/cart/add-product", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ cart_id: cartId, product_id: id }),
+        body: JSON.stringify({
+          cart_id: cartId,
+          product_id: id,
+          quantity: newQty,
+          discount: 0,
+        }),
       });
+    } catch (error) {
+      console.warn("No se pudo sincronizar la cantidad del carrito.", error);
+      setCartLoadError(
+        "No pudimos actualizar la cantidad en este momento. Reintenta en unos segundos.",
+      );
     }
-    syncCartStorage(cartItems.filter((item) => item.id !== id));
+    window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+  };
+
+  const handleRemove = async (id: string) => {
+    const nextItems = cartItems.filter((item) => item.id !== id);
+    setCartItems(nextItems);
+    if (cartId) {
+      const token = window.localStorage.getItem("token");
+      try {
+        await fetch("/api/cart/remove-product", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ cart_id: cartId, product_id: id }),
+        });
+      } catch (error) {
+        console.warn("No se pudo quitar el producto del carrito.", error);
+        setCartLoadError(
+          "No pudimos quitar el producto en este momento. Reintenta de nuevo.",
+        );
+      }
+    }
+    syncCartStorage(nextItems);
     window.dispatchEvent(new Event(CART_UPDATED_EVENT));
   };
 
@@ -608,7 +722,7 @@ export default function CarritoPage() {
               product_id: Number(item.productId ?? item.id),
             }),
           }).catch((error) => {
-            console.error("No se pudo limpiar item del carrito:", error);
+            console.warn("No se pudo limpiar item del carrito:", error);
           }),
         ),
       );
@@ -621,8 +735,13 @@ export default function CarritoPage() {
   };
 
   const handleCheckout = () => {
-    if (!user) {
-      window.alert("Inicia sesión para continuar con tu pedido.");
+    setTransferError("");
+
+    if (!user || !hasValidItems || !hasValidBusiness) {
+      setTransferError(
+        checkoutBlockReason ||
+          "No pudimos continuar con tu pedido. Revisa tu carrito.",
+      );
       return;
     }
 
@@ -630,14 +749,29 @@ export default function CarritoPage() {
       setAddressDialogOpen(true);
       return;
     }
+
     if (shipping.requiresConfirmation) {
-      window.alert("Debemos confirmar el costo de envío para tu zona.");
+      setTransferError(
+        shipping.message || "No pudimos calcular el envío. Revisa tu dirección.",
+      );
       return;
     }
     setPaymentDialogOpen(true);
   };
 
   const handleConfirmOrder = async () => {
+    if (!canSubmitOrder) {
+      setTransferError(
+        checkoutBlockReason || "Revisa la información del pedido para continuar.",
+      );
+      return;
+    }
+
+    if (!selectedPaymentMethod) {
+      setTransferError("Selecciona un método de pago.");
+      return;
+    }
+
     if (selectedPaymentMethod === "transferencia") {
       setPaymentDialogOpen(false);
       setTransferDialogOpen(true);
@@ -651,9 +785,20 @@ export default function CarritoPage() {
     proofUrl = "",
     _proofName = "",
   ) => {
+    if (!canSubmitOrder) {
+      setTransferError(
+        checkoutBlockReason || "Tu pedido no se pudo completar. Intenta nuevamente.",
+      );
+      return;
+    }
+
     setSubmittingOrder(true);
     try {
       const token = window.localStorage.getItem("token");
+      if (!token) {
+        throw new Error("Necesitas iniciar sesión para continuar.");
+      }
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: {
@@ -688,8 +833,8 @@ export default function CarritoPage() {
           })),
         }),
       });
-      const data = await res.json();
-      if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (res.ok && data?.success && data?.order?.id) {
         setCartItems([]);
         setCartId(null);
         syncCartStorage([]);
@@ -703,10 +848,21 @@ export default function CarritoPage() {
         return;
       }
 
-      throw new Error(data?.error || "No se pudo crear el pedido");
+      throw new Error(
+        formatApiError(
+          res.status,
+          data,
+          "No pudimos confirmar tu pedido. Intenta nuevamente.",
+        ),
+      );
     } catch (_error) {
       const message =
-        _error instanceof Error ? _error.message : "Error al crear el pedido";
+        _error instanceof Error
+          ? getFriendlyErrorMessage(
+              _error,
+              "No pudimos confirmar tu pedido. Intenta nuevamente.",
+            )
+          : "No pudimos confirmar tu pedido. Intenta nuevamente.";
       setTransferError(message);
     } finally {
       setSubmittingOrder(false);
@@ -733,10 +889,16 @@ export default function CarritoPage() {
         body: formData,
       });
 
-      const uploadData = await uploadRes.json();
+      const uploadData = await uploadRes.json().catch(() => null);
 
-      if (!uploadRes.ok || !uploadData.success || !uploadData.url) {
-        throw new Error(uploadData?.error || "No se pudo subir el comprobante");
+      if (!uploadRes.ok || !uploadData?.success || !uploadData?.url) {
+        throw new Error(
+          formatApiError(
+            uploadRes.status,
+            uploadData,
+            "No pudimos subir la imagen. Intenta nuevamente.",
+          ),
+        );
       }
 
       await processOrder(
@@ -747,8 +909,11 @@ export default function CarritoPage() {
     } catch (error) {
       const message =
         error instanceof Error
-          ? error.message
-          : "No se pudo registrar la transferencia";
+          ? getFriendlyErrorMessage(
+              error,
+              "No pudimos registrar la transferencia. Intenta nuevamente.",
+            )
+          : "No pudimos registrar la transferencia. Intenta nuevamente.";
       setTransferError(message);
     } finally {
       setSubmittingOrder(false);
@@ -756,81 +921,162 @@ export default function CarritoPage() {
   };
 
   // --- Render condicional para vacíos ---
-  if (cartItems.length === 0)
+  if (cartLoading && cartItems.length === 0)
     return (
-      <div className="p-20 text-center">
-        Tu carrito está vacío.{" "}
-        <Link href="/shop" className="text-orange-600">
-          Ir a la tienda
-        </Link>
+      <div className="min-h-screen bg-[#f6f7fb] px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-3xl">
+          <SectionCard className="p-6">
+            <p className="text-sm font-semibold text-slate-500">
+              Estamos cargando tu carrito...
+            </p>
+          </SectionCard>
+        </div>
+      </div>
+    );
+
+  if (!cartLoading && cartItems.length === 0)
+    return (
+      <div className="min-h-screen bg-[#f6f7fb] px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-3xl">
+          <EmptyState
+            icon={ShoppingCart}
+            title="Tu carrito está vacío"
+            description="Explora negocios cercanos, agrega tus favoritos y vuelve aquí para terminar tu pedido."
+            actionLabel="Ir a la tienda"
+            onAction={() => router.push("/shop")}
+          />
+        </div>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-white/80 text-orange-950">
-      <div className="container mx-auto grid gap-8 px-4 py-12 lg:grid-cols-[2fr_1fr]">
+    <div className="min-h-screen bg-[#f6f7fb] text-orange-950">
+      <div className="container mx-auto space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+        <PageHeader
+          eyebrow="Checkout"
+          title="Tu pedido está casi listo"
+          description="Revisa tus productos, confirma la dirección y elige cómo quieres pagar."
+        />
+        {cartLoadError ? (
+          <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span>{cartLoadError}</span>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void loadCart()}
+                className="border-amber-300 text-amber-800"
+              >
+                Reintentar
+              </Button>
+            </div>
+          </div>
+        ) : null}
+        {transferError ? (
+          <div className="rounded-[24px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {transferError}
+          </div>
+        ) : null}
+        <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <section className="space-y-6">
-          <h1 className="text-3xl font-semibold">Tu pedido</h1>
+          <h2 className="text-2xl font-black tracking-tight text-slate-950">
+            Productos seleccionados
+          </h2>
+          {cartLoading ? (
+            <SectionCard className="p-6">
+              <p className="text-sm font-semibold text-slate-500">
+                Actualizando tu carrito...
+              </p>
+            </SectionCard>
+          ) : null}
           {cartItems.map((item) => (
-            <div
+            <SectionCard
               key={item.id}
-              className="flex gap-4 bg-white p-4 rounded-3xl border border-orange-100"
+              className="flex gap-4 p-4 sm:p-5"
             >
-              <div className="relative h-24 w-24 overflow-hidden rounded-xl">
-                <Image
+              <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-slate-100">
+                <AppImage
                   src={item.image}
-                  fill
                   alt={item.nombre}
-                  className="object-cover"
+                  width={192}
+                  height={192}
+                  aspectClassName="aspect-square"
+                  className="h-full w-full"
+                  imageClassName="object-cover"
+                  fallbackLabel="Producto"
                 />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold">{item.nombre}</h3>
-                <p className="text-sm text-orange-800/60">{item.negocio}</p>
+                <h3 className="text-lg font-black tracking-tight text-slate-950">
+                  {item.nombre}
+                </h3>
+                <p className="mt-1 text-sm font-semibold text-orange-700/80">
+                  {item.negocio}
+                </p>
                 {item.description ? (
-                  <p className="mt-1 text-xs text-orange-900/55">
+                  <p className="mt-2 text-sm leading-5 text-slate-500">
                     {item.description}
                   </p>
                 ) : null}
-                <div className="mt-2 flex items-center gap-4">
-                  <div className="flex items-center gap-2 border rounded-full px-2">
+                {item.customizationsSummary || item.notes ? (
+                  <div className="mt-3 space-y-1">
+                    {item.customizationsSummary ? (
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        {item.customizationsSummary}
+                      </p>
+                    ) : null}
+                    {item.notes ? (
+                      <p className="text-xs font-medium text-slate-500">
+                        {item.notes}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
                     <button
                       type="button"
                       onClick={() => handleQuantityChange(item.id, -1)}
+                      className="inline-flex size-8 items-center justify-center rounded-full text-slate-600 hover:bg-white"
                     >
                       −
                     </button>
-                    <span className="font-bold">{item.quantity}</span>
+                    <span className="min-w-[20px] text-center font-black text-slate-900">
+                      {item.quantity}
+                    </span>
                     <button
                       type="button"
                       onClick={() => handleQuantityChange(item.id, 1)}
+                      className="inline-flex size-8 items-center justify-center rounded-full text-slate-600 hover:bg-white"
                     >
                       +
                     </button>
                   </div>
-                  <span className="text-sm font-semibold text-orange-900/70">
-                    MX${getCartItemUnitPrice(item).toFixed(2)} c/u
+                  <span className="rounded-full bg-orange-50 px-3 py-1 text-sm font-bold text-orange-700">
+                    {formatMoney(getCartItemUnitPrice(item))} c/u
                   </span>
-                  <span className="font-bold">
-                    MX${getCartItemSubtotal(item).toFixed(2)}
+                  <span className="text-base font-black text-slate-950">
+                    {formatMoney(getCartItemSubtotal(item))}
                   </span>
                 </div>
               </div>
-            </div>
+            </SectionCard>
           ))}
 
           <textarea
             value={deliveryInstructions}
             onChange={(e) => setDeliveryInstructions(e.target.value)}
             placeholder="Instrucciones para el repartidor..."
-            className="w-full p-4 rounded-2xl border border-orange-200"
+            className="w-full p-4 text-sm font-medium"
             rows={3}
           />
         </section>
 
         <aside className="space-y-6">
-          <div className="bg-white p-6 rounded-3xl border border-orange-100 shadow-sm">
-            <h2 className="text-xl font-bold mb-4">Resumen</h2>
+          <SectionCard className="p-6">
+            <h2 className="mb-4 text-xl font-black tracking-tight text-slate-950">
+              Resumen de compra
+            </h2>
             {hasOnlyZeroPriceItems ? (
               <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
                 <p className="text-sm font-semibold text-orange-900">
@@ -846,40 +1092,49 @@ export default function CarritoPage() {
                 </Button>
               </div>
             ) : null}
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>MX${subtotal.toFixed(2)}</span>
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between font-medium text-slate-600">
+                <span>Productos</span>
+                <span className="font-bold text-slate-900">
+                  {formatMoney(subtotal)}
+                </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between font-medium text-slate-600">
                 <span>Servicio</span>
-                <span>MX${commissionBreakdown.serviceFee.toFixed(2)}</span>
+                <span className="font-bold text-slate-900">
+                  {formatMoney(commissionBreakdown.serviceFee)}
+                </span>
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between font-medium text-slate-600">
                 <span>Envío</span>
-                <span>
+                <span className="font-bold text-slate-900">
                   {commissionBreakdown.deliveryFee > 0
-                    ? `MX$${commissionBreakdown.deliveryFee.toFixed(2)}`
+                    ? formatMoney(commissionBreakdown.deliveryFee)
                     : "Gratis"}
                 </span>
               </div>
-              <div className="flex justify-between font-bold text-lg border-t pt-2">
+              <div className="flex justify-between border-t border-slate-100 pt-3 text-lg font-black text-slate-950">
                 <span>Total</span>
-                <span>MX${commissionBreakdown.total.toFixed(2)}</span>
+                <span>{formatMoney(commissionBreakdown.total)}</span>
               </div>
             </div>
 
-            <div className="mt-6 p-4 bg-orange-50 rounded-2xl">
+            <div className="mt-6 rounded-[24px] bg-orange-50 p-4">
               <p className="text-xs font-bold uppercase text-orange-800">
                 Entrega en:
               </p>
-              <p className="text-sm">
+              <p className="mt-1 text-sm font-semibold text-slate-700">
                 {savedAddress?.fullAddress || "Sin dirección"}
               </p>
+              {shipping.message ? (
+                <p className="mt-2 text-xs font-medium text-slate-500">
+                  {shipping.message}
+                </p>
+              ) : null}
               <Button
                 variant="link"
                 onClick={() => setAddressDialogOpen(true)}
-                className="p-0 h-auto text-orange-600"
+                className="mt-2 h-auto p-0 text-orange-600"
               >
                 Cambiar
               </Button>
@@ -887,12 +1142,21 @@ export default function CarritoPage() {
 
             <Button
               onClick={handleCheckout}
-              className="w-full mt-6 bg-orange-600 hover:bg-orange-700 h-12 rounded-2xl"
+              size="lg"
+              className="mt-6 w-full"
+              disabled={!canContinueToPayment}
             >
-              Continuar al pago
+              {submittingOrder ? "Procesando..." : "Continuar al pago"}
+              <ArrowRight className="h-4 w-4" />
             </Button>
-          </div>
+            {checkoutBlockReason ? (
+              <p className="mt-3 text-sm font-semibold text-slate-500">
+                {checkoutBlockReason}
+              </p>
+            ) : null}
+          </SectionCard>
         </aside>
+        </div>
       </div>
 
       {/* Diálogos */}
@@ -903,28 +1167,52 @@ export default function CarritoPage() {
       />
 
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="rounded-[28px] border-white/80 bg-white">
           <DialogHeader>
             <DialogTitle>Método de pago</DialogTitle>
           </DialogHeader>
+          <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">
+            <p className="font-semibold text-slate-900">
+              Resumen antes de confirmar
+            </p>
+            <p className="mt-2">
+              Productos: {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+            </p>
+            <p>Subtotal: {formatMoney(subtotal)}</p>
+            <p>Envío: {commissionBreakdown.deliveryFee > 0 ? formatMoney(commissionBreakdown.deliveryFee) : "Gratis"}</p>
+            <p>Servicio: {formatMoney(commissionBreakdown.serviceFee)}</p>
+            <p className="mt-1 font-black text-slate-950">
+              Total: {formatMoney(commissionBreakdown.total)}
+            </p>
+            <p className="mt-2 text-xs">
+              Dirección: {savedAddress?.fullAddress || "Sin dirección"}
+            </p>
+            <p className="mt-1 text-xs">
+              Método:{" "}
+              {selectedPaymentMethod === "transferencia"
+                ? "Transferencia"
+                : "Efectivo al recibir"}
+            </p>
+          </div>
           <div className="grid gap-3">
             {PAYMENT_METHOD_OPTIONS.map((opt) => (
               <button
                 type="button"
                 key={opt.id}
                 onClick={() => setSelectedPaymentMethod(opt.id)}
-                className={`p-4 text-left border rounded-2xl transition ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-50" : ""}`}
+                className={`rounded-[22px] border p-4 text-left transition ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-50 shadow-sm" : "border-slate-200 bg-white hover:border-orange-200"}`}
               >
-                <p className="font-bold">{opt.label}</p>
-                <p className="text-xs opacity-70">{opt.description}</p>
+                <p className="font-black text-slate-950">{opt.label}</p>
+                <p className="mt-1 text-sm text-slate-500">{opt.description}</p>
               </button>
             ))}
           </div>
           <DialogFooter>
             <Button
               onClick={handleConfirmOrder}
-              disabled={submittingOrder}
-              className="w-full bg-orange-600"
+              disabled={!canSubmitOrder}
+              size="lg"
+              className="w-full"
             >
               {submittingOrder ? "Procesando..." : "Finalizar Pedido"}
             </Button>
@@ -934,11 +1222,11 @@ export default function CarritoPage() {
 
       {/* Diálogo de Transferencia */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="rounded-[28px] border-white/80 bg-white">
           <DialogHeader>
             <DialogTitle>Datos de Transferencia</DialogTitle>
           </DialogHeader>
-          <div className="p-4 bg-slate-50 rounded-2xl text-sm space-y-1">
+          <div className="space-y-1 rounded-[24px] bg-slate-50 p-4 text-sm">
             <p>
               <strong>Banco:</strong> {TRANSFER_ACCOUNT.bank}
             </p>
@@ -948,8 +1236,8 @@ export default function CarritoPage() {
             <p>
               <strong>Titular:</strong> {TRANSFER_ACCOUNT.holder}
             </p>
-            <p className="pt-2 text-orange-700 font-bold text-center">
-              Total a pagar: MX${commissionBreakdown.total.toFixed(2)}
+            <p className="pt-2 text-center font-black text-orange-700">
+              Total a pagar: {formatMoney(commissionBreakdown.total)}
             </p>
           </div>
           <div className="py-4">
@@ -982,8 +1270,9 @@ export default function CarritoPage() {
           <DialogFooter>
             <Button
               onClick={handleTransferOrder}
-              disabled={submittingOrder}
-              className="w-full bg-orange-600"
+              disabled={submittingOrder || !transferReceiptFile || !canSubmitOrder}
+              size="lg"
+              className="w-full"
             >
               {submittingOrder ? "Subiendo comprobante..." : "Ya transferí"}
             </Button>

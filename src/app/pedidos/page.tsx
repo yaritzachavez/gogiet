@@ -1,7 +1,10 @@
 "use client";
 
-import Link from "next/link";
+import { PackageSearch } from "lucide-react";
 import { useEffect, useState } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
 import { getOrderStatusLabel } from "@/lib/order-status";
 
 type OrderProduct = {
@@ -86,37 +89,36 @@ export default function PedidosPage() {
   }
 
   return (
-    <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
+    <main className="min-h-[70vh] bg-[#f6f7fb] px-4 py-8 text-orange-950 sm:px-6">
       <div className="mx-auto max-w-4xl space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold">Mis pedidos</h1>
-          <p className="text-sm text-orange-900/70">
-            Revisa el estado y el detalle de tus pedidos recientes.
-          </p>
-        </header>
+        <PageHeader
+          eyebrow="Historial"
+          title="Mis pedidos"
+          description="Revisa el estado, montos y detalles de tus compras recientes."
+        />
 
         {errorMessage ? (
-          <div className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
+          <SectionCard className="p-6">
             <p className="text-sm text-orange-900/75">{errorMessage}</p>
-          </div>
+          </SectionCard>
         ) : null}
 
         {!errorMessage && orders.length === 0 ? (
-          <div className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm">
-            <p className="text-sm text-orange-900/75">Aún no tienes pedidos</p>
-            <Link
-              href="/shop"
-              className="mt-4 inline-flex rounded-2xl border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50"
-            >
-              Ir a comprar
-            </Link>
-          </div>
+          <EmptyState
+            icon={PackageSearch}
+            title="Aún no tienes pedidos"
+            description="Cuando hagas tu primer pedido, aquí podrás seguirlo y revisar tus compras recientes."
+            actionLabel="Ir a comprar"
+            onAction={() => {
+              window.location.href = "/shop";
+            }}
+          />
         ) : null}
 
         {orders.map((order) => (
-          <article
+          <SectionCard
             key={order.id}
-            className="rounded-3xl border border-orange-100 bg-white p-6 shadow-sm"
+            className="p-6"
           >
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -185,7 +187,7 @@ export default function PedidosPage() {
                 </div>
               </div>
             </div>
-          </article>
+          </SectionCard>
         ))}
       </div>
     </main>

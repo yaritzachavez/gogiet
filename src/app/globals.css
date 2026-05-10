@@ -115,7 +115,20 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    @apply transition-all duration-200;
+  }
+
+  input,
+  textarea,
+  select {
+    @apply rounded-2xl border-slate-200 bg-white shadow-sm focus:border-orange-300 focus:ring-4 focus:ring-orange-100;
   }
 }
 

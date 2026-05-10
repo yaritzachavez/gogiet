@@ -1,9 +1,9 @@
 "use client";
 
 import { Heart } from "lucide-react";
-import Image from "next/image";
 import { useState } from "react";
 
+import { AppImage } from "@/components/ui/app-image";
 import type { CategoryKey } from "@/lib/categoryTheme";
 import { getCategoryTheme } from "@/lib/categoryTheme";
 
@@ -33,7 +33,15 @@ export function ProductCard({
   return (
     <article className="group relative flex flex-col rounded-[22px] border border-[#e2d9d0] bg-gradient-to-br from-white via-[#faf7f2] to-[#f5efe8] p-3 shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(0,0,0,0.12)]">
       <div className="relative h-40 w-full overflow-hidden rounded-[18px]">
-        <Image src={image} alt={title} fill className="object-cover" />
+        <AppImage
+          src={image}
+          alt={title}
+          width={640}
+          height={480}
+          className="h-full w-full"
+          imageClassName="object-cover"
+          fallbackLabel="Sin foto"
+        />
         <div className="absolute inset-0 bg-black/15" />
         {badge ? (
           <span className="absolute left-3 top-3 rounded-full bg-white/85 px-3 py-1 text-xs font-semibold text-[#6d8b74]">

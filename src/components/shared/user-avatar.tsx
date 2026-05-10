@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { AppImage } from "@/components/ui/app-image";
 
 type UserAvatarProps = {
   name?: string | null;
@@ -40,12 +40,23 @@ export function UserAvatar({
       style={{ width: size, height: size }}
     >
       {normalizedSrc ? (
-        <Image
+        <AppImage
           src={normalizedSrc}
           alt={name ? `Foto de ${name}` : "Foto de perfil"}
-          fill
-          className="object-cover"
+          width={size}
+          height={size}
+          aspectClassName="aspect-square"
+          className="h-full w-full rounded-full"
+          imageClassName="rounded-full object-cover"
           sizes={`${size}px`}
+          fallbackNode={
+            <span
+              className={`font-extrabold uppercase tracking-wide ${textClassName}`.trim()}
+              style={{ fontSize: Math.max(12, Math.round(size * 0.34)) }}
+            >
+              {initials}
+            </span>
+          }
         />
       ) : (
         <span

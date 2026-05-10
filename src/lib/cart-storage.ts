@@ -15,6 +15,8 @@ export type StoredCartSnapshotItem = {
   image_url: string;
   quantity: number;
   subtotal?: number;
+  notes?: string;
+  customizations_summary?: string;
 };
 
 function normalizeStoredItem(
@@ -43,6 +45,8 @@ function normalizeStoredItem(
     image_url?: string;
     quantity?: number;
     subtotal?: number;
+    notes?: string;
+    customizations_summary?: string;
   },
 ): StoredCartSnapshotItem | null {
   const productId = Number(item.product_id ?? item.productId ?? item.id);
@@ -84,6 +88,8 @@ function normalizeStoredItem(
         ) || 0
       ).toFixed(2),
     ),
+    notes: String(item.notes ?? "").trim(),
+    customizations_summary: String(item.customizations_summary ?? "").trim(),
   };
 }
 
@@ -126,12 +132,14 @@ export function readStoredCartSnapshot() {
             image_url?: string;
             quantity?: number;
             subtotal?: number;
+            notes?: string;
+            customizations_summary?: string;
           },
         ),
       )
       .filter((item): item is StoredCartSnapshotItem => Boolean(item));
   } catch (error) {
-    console.error("No se pudo leer el carrito guardado", error);
+    console.warn("No se pudo leer el carrito guardado", error);
     return [];
   }
 }

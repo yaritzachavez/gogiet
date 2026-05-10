@@ -7,6 +7,7 @@ import { Suspense, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 function VerifyEmailContent() {
   const router = useRouter();
@@ -26,7 +27,7 @@ function VerifyEmailContent() {
     setSuccessMessage("");
 
     if (!email || !code.trim()) {
-      setErrorMessage("Ingresa tu correo y el código de verificación");
+      setErrorMessage("Ingresa tu correo y el código de verificación.");
       return;
     }
 
@@ -50,7 +51,11 @@ function VerifyEmailContent() {
 
       if (!response.ok || payload?.success === false) {
         setErrorMessage(
-          payload?.error || "No se pudo verificar el código enviado",
+          formatApiError(
+            response.status,
+            payload,
+            "No pudimos verificar el código enviado.",
+          ),
         );
         return;
       }
@@ -62,8 +67,10 @@ function VerifyEmailContent() {
         router.push("/auth?mode=login");
       }, 1200);
     } catch (error) {
-      console.error("Error verificando correo:", error);
-      setErrorMessage("No se pudo verificar el código");
+      console.warn("Error verificando correo:", error);
+      setErrorMessage(
+        getFriendlyErrorMessage(error, "No pudimos verificar el código."),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -74,7 +81,7 @@ function VerifyEmailContent() {
     setSuccessMessage("");
 
     if (!email) {
-      setErrorMessage("Falta el correo a verificar");
+      setErrorMessage("Falta el correo a verificar.");
       return;
     }
 
@@ -94,7 +101,13 @@ function VerifyEmailContent() {
       } | null;
 
       if (!response.ok || payload?.success === false) {
-        setErrorMessage(payload?.error || "No se pudo reenviar el código");
+        setErrorMessage(
+          formatApiError(
+            response.status,
+            payload,
+            "No pudimos reenviar el código.",
+          ),
+        );
         return;
       }
 
@@ -102,8 +115,10 @@ function VerifyEmailContent() {
         payload?.message || "Te enviamos un nuevo código de verificación",
       );
     } catch (error) {
-      console.error("Error reenviando código:", error);
-      setErrorMessage("No se pudo reenviar el código");
+      console.warn("Error reenviando código:", error);
+      setErrorMessage(
+        getFriendlyErrorMessage(error, "No pudimos reenviar el código."),
+      );
     } finally {
       setResending(false);
     }

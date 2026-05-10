@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AddressRequiredDialog, {
   type SavedAddress,
 } from "@/components/address/AddressRequiredDialog";
+import { AppImage } from "@/components/ui/app-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +17,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
+import { SectionCard } from "@/components/ui/section-card";
 import { useAuth } from "@/context/AuthContext";
 import {
   readStoredCartSnapshot,
@@ -437,52 +441,56 @@ export default function BusinessDetailPage() {
     );
 
   return (
-    <div className="min-h-screen bg-[#f8f8f8]">
-      <main className="mx-auto max-w-7xl px-4 py-8">
+    <div className="min-h-screen bg-[#f6f7fb]">
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         {/* Header del Negocio */}
-        <section className="bg-white rounded-[30px] p-8 border border-slate-200 shadow-sm flex flex-col md:flex-row gap-6 mb-8">
-          <div className="relative h-32 w-32 shrink-0 rounded-3xl overflow-hidden bg-slate-100 border">
-            <img
+        <SectionCard className="mb-8 flex flex-col gap-6 p-5 sm:p-8 md:flex-row">
+          <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-3xl border bg-slate-100">
+            <AppImage
               src={getBusinessImage(business ?? {})}
-              alt="Logo"
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                e.currentTarget.onerror = null;
-                e.currentTarget.src = BUSINESS_PLACEHOLDER_IMAGE;
-              }}
+              alt={business?.name ? `Imagen de ${business.name}` : "Logo"}
+              width={256}
+              height={256}
+              aspectClassName="aspect-square"
+              className="h-full w-full"
+              imageClassName="object-cover"
+              fallbackLabel="Negocio"
             />
           </div>
-          <div className="flex flex-col justify-center">
-            <h1 className="text-4xl font-extrabold text-slate-900">
-              {business?.name}
-            </h1>
-            <p className="text-slate-500 mt-2 max-w-2xl">
-              {business?.description_long}
-            </p>
+          <div className="flex min-w-0 flex-1 flex-col justify-center">
+            <PageHeader
+              className="border-none bg-transparent px-0 py-0 shadow-none"
+              eyebrow="Menú del negocio"
+              title={String(business?.name ?? "Negocio local")}
+              description={String(
+                business?.description_long ??
+                  "Descubre productos destacados y arma tu pedido en segundos.",
+              )}
+            />
             <div className="flex flex-wrap gap-3 mt-4">
               <Badge
                 variant="secondary"
-                className="px-3 py-1 text-sm font-medium"
+                className="rounded-full px-3 py-1.5 text-sm font-bold"
               >
                 {business?.estimated_delivery_minutes || 30} min
               </Badge>
               <Badge
-                className={`px-3 py-1 text-sm font-medium ${business?.is_open_now ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-red-100 text-red-700 hover:bg-red-100"}`}
+                className={`rounded-full px-3 py-1.5 text-sm font-bold ${business?.is_open_now ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-red-100 text-red-700 hover:bg-red-100"}`}
               >
                 {business?.is_open_now ? "Abierto ahora" : "Cerrado"}
               </Badge>
             </div>
           </div>
-        </section>
+        </SectionCard>
 
         {/* Buscador y Grid */}
         <div className="grid lg:grid-cols-[260px_1fr] gap-8">
           <aside className="space-y-6">
-            <div className="sticky top-24">
+            <SectionCard className="sticky top-24 p-4 sm:p-5">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                 <input
-                  className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 transition"
+                  className="w-full pl-10 pr-4 py-3.5 text-sm font-semibold"
                   placeholder="Buscar en el menú..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -496,18 +504,18 @@ export default function BusinessDetailPage() {
                   <button
                     type="button"
                     onClick={() => setActiveCategory("all")}
-                    className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition ${activeCategory === "all" ? "bg-orange-50 text-orange-600" : "text-slate-600 hover:bg-slate-100"}`}
-                  >
-                    Todo el menú
-                  </button>
+                      className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${activeCategory === "all" ? "bg-orange-50 text-orange-600 shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
+                    >
+                      Todo el menú
+                    </button>
                   {availableCategories.map((category) => (
                     <button
                       key={category.id}
                       type="button"
                       onClick={() => setActiveCategory(category.id)}
-                      className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition ${
+                      className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
                         activeCategory === category.id
-                          ? "bg-orange-50 text-orange-600"
+                          ? "bg-orange-50 text-orange-600 shadow-sm"
                           : "text-slate-600 hover:bg-slate-100"
                       }`}
                     >
@@ -516,7 +524,7 @@ export default function BusinessDetailPage() {
                   ))}
                 </nav>
               </div>
-            </div>
+            </SectionCard>
           </aside>
 
           <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -524,35 +532,36 @@ export default function BusinessDetailPage() {
               paginatedProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-white p-3 rounded-xl border border-slate-200 hover:shadow-lg hover:shadow-orange-900/5 transition-all duration-300 group flex flex-col"
+                  className="group flex flex-col rounded-[24px] border border-slate-200/90 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)]"
                 >
-                  <div className="relative aspect-square rounded-lg overflow-hidden mb-3 bg-slate-50">
-                    <img
+                  <div className="relative mb-3 aspect-square overflow-hidden rounded-[18px] bg-slate-50">
+                    <AppImage
                       src={getProductImage(product)}
                       alt={product.name || "Producto"}
-                      className="h-full w-full object-cover group-hover:scale-110 transition duration-500"
-                      onError={(e) => {
-                        e.currentTarget.onerror = null;
-                        e.currentTarget.src = PRODUCT_PLACEHOLDER_IMAGE;
-                      }}
+                      width={480}
+                      height={480}
+                      aspectClassName="aspect-square"
+                      className="h-full w-full"
+                      imageClassName="object-cover group-hover:scale-110 transition duration-500"
+                      fallbackLabel="Producto"
                     />
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-sm text-slate-900 line-clamp-2 sm:text-base">
+                    <h3 className="line-clamp-2 text-sm font-black tracking-tight text-slate-900 sm:text-base">
                       {product.name}
                     </h3>
                     {product.category_name ? (
-                      <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-orange-500">
+                      <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-orange-500">
                         {product.category_name}
                       </p>
                     ) : null}
-                    <p className="text-slate-500 text-xs line-clamp-2 mt-1 sm:text-sm">
+                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500 sm:text-sm">
                       {product.description_short}
                     </p>
                   </div>
-                  <div className="mt-3 flex items-center justify-between pt-2 border-t border-slate-50">
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
                     <div className="flex flex-col">
-                      <span className="font-bold text-sm text-orange-600 sm:text-base">
+                      <span className="text-sm font-black text-orange-600 sm:text-base">
                         MX${getProductPrice(product).toFixed(2)}
                       </span>
                       {Number(product.discount_price ?? 0) > 0 &&
@@ -564,7 +573,7 @@ export default function BusinessDetailPage() {
                       ) : null}
                     </div>
                     <Button
-                      className="h-9 min-w-0 rounded-lg bg-orange-600 px-3 hover:bg-orange-700 shadow-lg shadow-orange-600/20"
+                      className="h-10 min-w-0 rounded-2xl px-3"
                       onClick={() => openCustomizationModal(product)}
                     >
                       <Plus className="h-4 w-4" />
@@ -573,9 +582,17 @@ export default function BusinessDetailPage() {
                 </div>
               ))
             ) : (
-              <div className="col-span-full py-20 text-center text-slate-400">
-                No se encontraron productos en esta categoría.
-              </div>
+              <EmptyState
+                className="col-span-full"
+                icon={Search}
+                title="No encontramos productos"
+                description="Prueba con otra búsqueda o cambia la categoría para descubrir más opciones del negocio."
+                actionLabel="Ver todo el menú"
+                onAction={() => {
+                  setActiveCategory("all");
+                  setSearchQuery("");
+                }}
+              />
             )}
           </section>
         </div>
@@ -629,9 +646,12 @@ export default function BusinessDetailPage() {
                 </div>
               ))
             ) : (
-              <div className="text-center py-6 text-slate-400 italic">
-                Este producto no requiere personalización.
-              </div>
+              <EmptyState
+                icon={Search}
+                title="Sin personalizaciones"
+                description="Este producto ya está listo para pedir tal como aparece en el menú."
+                className="border-none bg-slate-50 py-8 shadow-none"
+              />
             )}
           </div>
 
