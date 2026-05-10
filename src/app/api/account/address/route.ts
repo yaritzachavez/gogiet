@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { ensureAddressesTable } from "@/lib/addresses-table";
 import { getAuthUser } from "@/lib/admin-security";
 import { prisma } from "@/lib/prisma";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 import { getDefaultShippingZoneByName } from "@/lib/shipping-zones";
 
 type StoredAddressMeta = {
@@ -21,6 +22,10 @@ type ShippingZoneRow = {
 };
 
 const DELIVERY_LOCATION_STORAGE_KEY = "gogi:selected-delivery-location";
+
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
 
 function getUserIdFromRequest(req: NextRequest) {
   const authUser = getAuthUser(req);
@@ -152,13 +157,16 @@ async function resolveShippingZone(zoneName: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
   try {
     await ensureAddressesTable();
 
     const userId = getUserIdFromRequest(req);
 
     if (!userId) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "Inicia sesión para guardar tu dirección" },
         { status: 401 },
       );
@@ -184,13 +192,13 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({
+    return json({
       success: true,
       address: address ? normalizeAddressResponse(address) : null,
     });
   } catch (error) {
     console.error("SAVE ADDRESS ERROR:", error);
-    return NextResponse.json(
+    return json(
       {
         success: false,
         error:

@@ -16,6 +16,7 @@ import {
 } from "@/lib/email-verification";
 import { prisma } from "@/lib/prisma";
 import { mapPublicRoleToDbRole } from "@/lib/role-utils";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type RegisterBody = {
   firstName?: string;
@@ -26,7 +27,14 @@ type RegisterBody = {
   password?: string;
 };
 
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
   try {
     await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as RegisterBody;
@@ -39,7 +47,7 @@ export async function POST(req: Request) {
     const password = body.password;
 
     if (!firstName && !fallbackName) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Completa todos los campos obligatorios.",
@@ -49,7 +57,7 @@ export async function POST(req: Request) {
     }
 
     if (!lastName && !fallbackName) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Completa todos los campos obligatorios.",
@@ -59,7 +67,7 @@ export async function POST(req: Request) {
     }
 
     if (!email) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Completa todos los campos obligatorios.",
@@ -69,7 +77,7 @@ export async function POST(req: Request) {
     }
 
     if (!phone) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Completa todos los campos obligatorios.",
@@ -79,7 +87,7 @@ export async function POST(req: Request) {
     }
 
     if (!password) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Completa todos los campos obligatorios.",
@@ -89,7 +97,7 @@ export async function POST(req: Request) {
     }
 
     if (!isValidEmail(email)) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Ingresa un correo válido.",
@@ -99,7 +107,7 @@ export async function POST(req: Request) {
     }
 
     if (!phone || !isValidPhone(phone)) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Ingresa un número de teléfono válido.",
@@ -111,7 +119,7 @@ export async function POST(req: Request) {
     const passwordError = validatePasswordStrength(password);
 
     if (passwordError) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: passwordError,
@@ -126,7 +134,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "El correo ya está registrado.",
@@ -142,7 +150,7 @@ export async function POST(req: Request) {
       });
 
       if (existingPhone) {
-        return NextResponse.json(
+        return json(
           {
             success: false,
             error: "El número de teléfono ya está registrado.",
@@ -202,7 +210,7 @@ export async function POST(req: Request) {
         where: { id: user.id },
       });
 
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "No se pudo enviar el código de verificación.",
@@ -211,7 +219,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json(
+    return json(
       {
         success: true,
         message: "Usuario registrado. Revisa tu correo para verificar tu cuenta",
@@ -230,7 +238,7 @@ export async function POST(req: Request) {
       "code" in error &&
       error.code === "P2002"
     ) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "El correo o el número de teléfono ya están registrados.",
@@ -243,7 +251,7 @@ export async function POST(req: Request) {
       error instanceof Error &&
       error.message.toLowerCase().includes("duplicate entry")
     ) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "El correo o el número de teléfono ya están registrados.",
@@ -252,7 +260,7 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json(
+    return json(
       {
         success: false,
         error: "No pudimos crear tu cuenta. Intenta nuevamente.",

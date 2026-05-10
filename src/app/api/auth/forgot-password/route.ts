@@ -10,22 +10,27 @@ import {
   sendPasswordResetEmail,
 } from "@/lib/auth-account";
 import { prisma } from "@/lib/prisma";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type ForgotPasswordBody = {
   email?: string;
 };
 
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
   try {
     await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ForgotPasswordBody;
     const email = normalizeEmail(body.email ?? "");
 
     if (!email) {
-      return NextResponse.json(
-        { success: false, error: "Ingresa un correo válido." },
-        { status: 400 },
-      );
+      return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({
@@ -38,14 +43,14 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "No encontramos una cuenta con ese correo." },
         { status: 404 },
       );
     }
 
     if (isCooldownActive(user.reset_password_sent_at, 60_000)) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Espera un minuto antes de solicitar otro enlace.",
@@ -69,7 +74,7 @@ export async function POST(req: Request) {
 
     await sendPasswordResetEmail(user.email, resetToken);
 
-    return NextResponse.json({
+    return json({
       success: true,
       message: "Te enviamos instrucciones para recuperar tu contraseña.",
     });
@@ -82,7 +87,7 @@ export async function POST(req: Request) {
       console.error("Error POST /api/auth/forgot-password:", error);
     }
 
-    return NextResponse.json(
+    return json(
       {
         success: false,
         error: "No pudimos enviar las instrucciones de recuperación.",

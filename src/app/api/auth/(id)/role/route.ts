@@ -3,14 +3,22 @@ import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
 import { mapDbRoleToPublicRole } from "@/lib/role-utils";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
+
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
 
 export async function GET(req: Request) {
   try {
     const auth = req.headers.get("authorization");
     if (!auth?.startsWith("Bearer ")) {
-      return NextResponse.json(
+      return withCors(
+        req,
+        NextResponse.json(
         { error: "Token no proporcionado" },
         { status: 401 },
+        ),
       );
     }
 
@@ -30,27 +38,33 @@ export async function GET(req: Request) {
       [decoded.id],
     );
 
-    return NextResponse.json({
-      roles: Array.isArray(rows)
-        ? rows.map((row) => {
-            const roleRow = row as { id?: number; name?: string };
-            return {
-              id: roleRow.id,
-              name:
-                mapDbRoleToPublicRole(String(roleRow.name ?? "")) ??
-                String(roleRow.name ?? ""),
-            };
-          })
-        : [],
-    });
+    return withCors(
+      req,
+      NextResponse.json({
+        roles: Array.isArray(rows)
+          ? rows.map((row) => {
+              const roleRow = row as { id?: number; name?: string };
+              return {
+                id: roleRow.id,
+                name:
+                  mapDbRoleToPublicRole(String(roleRow.name ?? "")) ??
+                  String(roleRow.name ?? ""),
+              };
+            })
+          : [],
+      }),
+    );
   } catch (error) {
     console.error(error);
-    return NextResponse.json(
+    return withCors(
+      req,
+      NextResponse.json(
       {
         error: "Error al obtener roles",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
+      ),
     );
   }
 }

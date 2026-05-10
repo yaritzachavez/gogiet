@@ -11,19 +11,27 @@ import {
   sendVerificationCodeEmail,
 } from "@/lib/email-verification";
 import { prisma } from "@/lib/prisma";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type ResendCodeBody = {
   email?: string;
 };
 
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
   try {
     await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ResendCodeBody;
     const email = normalizeEmail(body.email ?? "");
 
     if (!email) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "El email es obligatorio" },
         { status: 400 },
       );
@@ -39,21 +47,21 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "No encontramos una cuenta con ese correo" },
         { status: 404 },
       );
     }
 
     if (user.email_verified) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "Este correo ya fue verificado" },
         { status: 400 },
       );
     }
 
     if (isCooldownActive(user.verification_sent_at, 60_000)) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Espera un minuto antes de reenviar el código.",
@@ -77,13 +85,13 @@ export async function POST(req: Request) {
 
     await sendVerificationCodeEmail(email, verificationCode);
 
-    return NextResponse.json({
+    return json({
       success: true,
       message: "Te enviamos un código de verificación.",
     });
   } catch (error) {
     console.error("Error POST /api/auth/resend-code:", error);
-    return NextResponse.json(
+    return json(
       { success: false, error: "No se pudo reenviar el código" },
       { status: 500 },
     );

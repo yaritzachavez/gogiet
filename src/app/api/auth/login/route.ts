@@ -14,6 +14,7 @@ import {
 import pool, { logDbUsage } from "@/lib/db";
 import { isUserTemporarilyVerified } from "@/lib/email-verification";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type UserRow = {
   id: number;
@@ -29,8 +30,15 @@ type UserRow = {
   locked_until: string | null;
 };
 
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
   try {
+    const json = (body: unknown, init?: ResponseInit) =>
+      withCors(req, NextResponse.json(body, init));
+
     await ensureUserAuthSecurityColumns();
     const body = (await req.json().catch(() => null)) as
       | { email?: string; password?: string }
@@ -44,7 +52,7 @@ export async function POST(req: Request) {
     });
 
     if (!normalizedEmail || !password) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Completa tu correo y contraseña para continuar.",
@@ -80,7 +88,7 @@ export async function POST(req: Request) {
     );
 
     if (users.length === 0) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "No encontramos una cuenta con ese correo.",
@@ -92,7 +100,7 @@ export async function POST(req: Request) {
     const user = users[0];
 
     if (Number(user.status_id ?? 0) !== 1) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Tu cuenta está inactiva. Contacta a soporte.",
@@ -102,7 +110,7 @@ export async function POST(req: Request) {
     }
 
     if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error:
@@ -114,7 +122,7 @@ export async function POST(req: Request) {
 
     if (!user.password_hash) {
       console.error("POST /api/auth/login usuario sin password_hash:", user.id);
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
@@ -144,7 +152,7 @@ export async function POST(req: Request) {
         [shouldLock ? 0 : attempts, shouldLock ? new Date(Date.now() + 15 * 60 * 1000) : null, user.id],
       );
 
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: shouldLock
@@ -163,7 +171,7 @@ export async function POST(req: Request) {
         verification_expires_at: user.verification_expires_at,
       })
     ) {
-      return NextResponse.json(
+      return json(
         {
           success: false,
           error: "Debes verificar tu correo antes de iniciar sesión",
@@ -269,15 +277,18 @@ export async function POST(req: Request) {
       maxAge: 60 * 60 * 9,
     });
 
-    return response;
+    return withCors(req, response);
   } catch (error) {
     console.error("POST /api/auth/login error exacto:", error);
-    return NextResponse.json(
+    return withCors(
+      req,
+      NextResponse.json(
       {
         success: false,
         error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
       },
       { status: 500 },
+      ),
     );
   }
 }

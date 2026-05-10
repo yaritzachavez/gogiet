@@ -7,6 +7,7 @@ import {
   validatePasswordStrength,
 } from "@/lib/auth-account";
 import { prisma } from "@/lib/prisma";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type ResetPasswordBody = {
   token?: string;
@@ -14,7 +15,14 @@ type ResetPasswordBody = {
   confirmPassword?: string;
 };
 
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
   try {
     await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as ResetPasswordBody;
@@ -23,7 +31,7 @@ export async function POST(req: Request) {
     const confirmPassword = String(body.confirmPassword ?? "");
 
     if (!token || !password || !confirmPassword) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "Completa todos los campos obligatorios." },
         { status: 400 },
       );
@@ -32,14 +40,14 @@ export async function POST(req: Request) {
     const passwordError = validatePasswordStrength(password);
 
     if (passwordError) {
-      return NextResponse.json(
+      return json(
         { success: false, error: passwordError },
         { status: 400 },
       );
     }
 
     if (password !== confirmPassword) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "Las contraseñas no coinciden." },
         { status: 400 },
       );
@@ -58,7 +66,7 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "El enlace expiró." },
         { status: 400 },
       );
@@ -68,7 +76,7 @@ export async function POST(req: Request) {
       !user.reset_password_expires_at ||
       user.reset_password_expires_at.getTime() < Date.now()
     ) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "El enlace expiró." },
         { status: 400 },
       );
@@ -90,13 +98,13 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({
+    return json({
       success: true,
       message: "Tu contraseña fue actualizada correctamente.",
     });
   } catch (error) {
     console.error("Error POST /api/auth/reset-password:", error);
-    return NextResponse.json(
+    return json(
       {
         success: false,
         error: "No pudimos actualizar tu contraseña. Intenta nuevamente.",

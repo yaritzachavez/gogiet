@@ -2,13 +2,21 @@ import { NextResponse } from "next/server";
 
 import { ensureUserAuthSecurityColumns, normalizeEmail } from "@/lib/auth-account";
 import { prisma } from "@/lib/prisma";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type VerifyEmailBody = {
   email?: string;
   code?: string;
 };
 
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
+}
+
 export async function POST(req: Request) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
   try {
     await ensureUserAuthSecurityColumns();
     const body = (await req.json()) as VerifyEmailBody;
@@ -16,7 +24,7 @@ export async function POST(req: Request) {
     const code = String(body.code ?? "").trim();
 
     if (!email || !code) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "Ingresa tu correo y el código de verificación." },
         { status: 400 },
       );
@@ -33,21 +41,21 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "No encontramos una cuenta con ese correo" },
         { status: 404 },
       );
     }
 
     if (user.email_verified) {
-      return NextResponse.json({
+      return json({
         success: true,
         message: "Correo verificado correctamente",
       });
     }
 
     if (!user.verification_code || user.verification_code !== code) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "Código inválido." },
         { status: 400 },
       );
@@ -57,7 +65,7 @@ export async function POST(req: Request) {
       !user.verification_expires_at ||
       user.verification_expires_at.getTime() < Date.now()
     ) {
-      return NextResponse.json(
+      return json(
         { success: false, error: "El código expiró." },
         { status: 400 },
       );
@@ -72,13 +80,13 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({
+    return json({
       success: true,
       message: "Correo verificado correctamente",
     });
   } catch (error) {
     console.error("Error POST /api/auth/verify-email:", error);
-    return NextResponse.json(
+    return json(
       { success: false, error: "No se pudo verificar el correo" },
       { status: 500 },
     );
