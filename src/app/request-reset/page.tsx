@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { isValidEmail, normalizeEmail } from "@/lib/auth-account";
+import { isValidEmail, normalizeEmail } from "@/lib/auth-account-shared";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function RequestResetPage() {

@@ -7,7 +7,7 @@ import { Suspense, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { validatePasswordStrength } from "@/lib/auth-account";
+import { validatePasswordStrength } from "@/lib/auth-account-shared";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 function ResetPasswordContent() {
