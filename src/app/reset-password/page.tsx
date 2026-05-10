@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { validatePasswordStrength } from "@/lib/auth-account-shared";
+import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 function ResetPasswordContent() {
@@ -42,7 +43,7 @@ function ResetPasswordContent() {
 
     try {
       setSubmitting(true);
-      const response = await fetch("/api/auth/reset-password", {
+      const response = await fetch(getClientApiUrl("/api/auth/reset-password"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

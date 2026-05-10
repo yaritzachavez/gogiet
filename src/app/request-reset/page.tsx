@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-account-shared";
+import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function RequestResetPage() {
@@ -28,7 +29,7 @@ export default function RequestResetPage() {
 
     try {
       setSubmitting(true);
-      const response = await fetch("/api/auth/forgot-password", {
+      const response = await fetch(getClientApiUrl("/api/auth/forgot-password"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

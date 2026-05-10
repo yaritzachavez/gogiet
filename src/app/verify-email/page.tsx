@@ -7,6 +7,7 @@ import { Suspense, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 function VerifyEmailContent() {
@@ -33,7 +34,7 @@ function VerifyEmailContent() {
 
     try {
       setSubmitting(true);
-      const response = await fetch("/api/auth/verify-email", {
+      const response = await fetch(getClientApiUrl("/api/auth/verify-email"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -87,7 +88,7 @@ function VerifyEmailContent() {
 
     try {
       setResending(true);
-      const response = await fetch("/api/auth/resend-code", {
+      const response = await fetch(getClientApiUrl("/api/auth/resend-code"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -13,6 +13,7 @@ import {
   normalizePhone,
   validatePasswordStrength,
 } from "@/lib/auth-account-shared";
+import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function RegisterForm() {
@@ -66,7 +67,7 @@ export default function RegisterForm() {
 
     try {
       setSubmitting(true);
-      const res = await fetch("/api/auth/register", {
+      const res = await fetch(getClientApiUrl("/api/auth/register"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

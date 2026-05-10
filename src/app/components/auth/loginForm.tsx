@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
 import { isValidEmail } from "@/lib/auth-account-shared";
+import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function LoginForm() {
@@ -70,7 +71,7 @@ export default function LoginForm() {
 
     try {
       setSubmitting(true);
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch(getClientApiUrl("/api/auth/login"), {
         method: "POST",
         credentials: "include",
         headers: {

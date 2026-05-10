@@ -45,7 +45,7 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
-    "http://localhost:3000";
+    "https://www.gogieats.shop";
   const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(email)}`;
 
   await getResendClient().emails.send({
