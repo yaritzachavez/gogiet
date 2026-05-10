@@ -280,6 +280,25 @@ export async function POST(req: Request) {
     return withCors(req, response);
   } catch (error) {
     console.error("POST /api/auth/login error exacto:", error);
+
+    if (typeof error === "object" && error !== null) {
+      const prismaError = error as {
+        name?: string;
+        code?: string;
+        clientVersion?: string;
+        meta?: unknown;
+        message?: string;
+      };
+
+      console.error("POST /api/auth/login prisma/meta:", {
+        name: prismaError.name,
+        code: prismaError.code,
+        clientVersion: prismaError.clientVersion,
+        meta: prismaError.meta,
+        message: prismaError.message,
+      });
+    }
+
     return withCors(
       req,
       NextResponse.json(

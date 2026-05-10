@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
+import type { RowDataPacket } from "mysql2/promise";
 
-import { prisma } from "@/lib/prisma";
+import pool from "@/lib/db";
 import { getResendClient } from "@/lib/resend";
 export {
   generateTokenExpiration,
@@ -20,25 +21,97 @@ export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
+type ColumnDefinition = {
+  name: string;
+  sql: string;
+};
+
+const AUTH_USER_COLUMNS: ColumnDefinition[] = [
+  { name: "phone", sql: "ADD COLUMN phone VARCHAR(20) NULL" },
+  {
+    name: "email_verified",
+    sql: "ADD COLUMN email_verified BOOLEAN NULL DEFAULT FALSE",
+  },
+  {
+    name: "verification_code",
+    sql: "ADD COLUMN verification_code VARCHAR(12) NULL",
+  },
+  {
+    name: "verification_expires_at",
+    sql: "ADD COLUMN verification_expires_at DATETIME NULL",
+  },
+  {
+    name: "verification_sent_at",
+    sql: "ADD COLUMN verification_sent_at DATETIME NULL",
+  },
+  {
+    name: "reset_password_token",
+    sql: "ADD COLUMN reset_password_token VARCHAR(255) NULL",
+  },
+  {
+    name: "reset_password_expires_at",
+    sql: "ADD COLUMN reset_password_expires_at DATETIME NULL",
+  },
+  {
+    name: "reset_password_sent_at",
+    sql: "ADD COLUMN reset_password_sent_at DATETIME NULL",
+  },
+  {
+    name: "login_attempts",
+    sql: "ADD COLUMN login_attempts INT NOT NULL DEFAULT 0",
+  },
+  {
+    name: "locked_until",
+    sql: "ADD COLUMN locked_until DATETIME NULL",
+  },
+  {
+    name: "last_login",
+    sql: "ADD COLUMN last_login DATETIME NULL",
+  },
+];
+
 export async function ensureUserAuthSecurityColumns() {
-  await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_sent_at DATETIME NULL",
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `
+      SELECT COLUMN_NAME
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'users'
+    `,
   );
-  await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_token VARCHAR(255) NULL",
+
+  const existingColumns = new Set(
+    rows
+      .map((row) => String(row.COLUMN_NAME ?? "").trim())
+      .filter(Boolean),
   );
-  await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_expires_at DATETIME NULL",
-  );
-  await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_password_sent_at DATETIME NULL",
-  );
-  await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS login_attempts INT NOT NULL DEFAULT 0",
-  );
-  await prisma.$executeRawUnsafe(
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until DATETIME NULL",
-  );
+
+  for (const column of AUTH_USER_COLUMNS) {
+    if (existingColumns.has(column.name)) {
+      continue;
+    }
+
+    try {
+      await pool.query(`ALTER TABLE users ${column.sql}`);
+      existingColumns.add(column.name);
+      console.log(`[auth-account] columna agregada en users: ${column.name}`);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+
+      if (message.includes("duplicate column name")) {
+        existingColumns.add(column.name);
+        continue;
+      }
+
+      console.error("[auth-account] error agregando columna users", {
+        column: column.name,
+        sql: column.sql,
+        error,
+      });
+      throw error;
+    }
+  }
 }
 
 export async function sendPasswordResetEmail(email: string, resetToken: string) {

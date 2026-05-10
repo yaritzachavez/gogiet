@@ -1,0 +1,11 @@
+ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL;
+ALTER TABLE users ADD COLUMN email_verified BOOLEAN NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN verification_code VARCHAR(12) NULL;
+ALTER TABLE users ADD COLUMN verification_expires_at DATETIME NULL;
+ALTER TABLE users ADD COLUMN verification_sent_at DATETIME NULL;
+ALTER TABLE users ADD COLUMN reset_password_token VARCHAR(255) NULL;
+ALTER TABLE users ADD COLUMN reset_password_expires_at DATETIME NULL;
+ALTER TABLE users ADD COLUMN reset_password_sent_at DATETIME NULL;
+ALTER TABLE users ADD COLUMN login_attempts INT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN locked_until DATETIME NULL;
+ALTER TABLE users ADD COLUMN last_login DATETIME NULL;
