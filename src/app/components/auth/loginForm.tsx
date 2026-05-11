@@ -36,10 +36,6 @@ export default function LoginForm() {
       return "La contraseña no es correcta.";
     }
 
-    if (status === 403) {
-      return "Debes verificar tu correo antes de continuar.";
-    }
-
     if (status === 429) {
       return "Tu cuenta está temporalmente bloqueada. Intenta nuevamente en unos minutos.";
     }
@@ -106,14 +102,6 @@ export default function LoginForm() {
         // Redirigir según rol
         router.push(data.redirectTo || "/");
       } else {
-        if (
-          res.status === 403 &&
-          data?.error === "Debes verificar tu correo antes de iniciar sesión"
-        ) {
-          router.push(`/verify-email?email=${encodeURIComponent(email)}`);
-          return;
-        }
-
         setErrorMessage(getLoginErrorMessage(res.status, data));
       }
     } catch (err) {

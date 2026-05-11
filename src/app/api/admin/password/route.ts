@@ -78,7 +78,7 @@ export async function PATCH(req: NextRequest) {
     await pool.query<ResultSetHeader>(
       `
         UPDATE users
-        SET password = ?, updated_at = NOW()
+        SET password_hash = ?, updated_at = NOW()
         WHERE id = ?
       `,
       [passwordHash, authUser.id],

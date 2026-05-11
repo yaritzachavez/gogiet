@@ -1,4 +1,4 @@
-import { getResendClient } from "@/lib/resend";
+import { getEmailFromAddress, getResendClient } from "@/lib/resend";
 
 export function generateVerificationCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -12,8 +12,8 @@ export async function sendVerificationCodeEmail(
   email: string,
   verificationCode: string,
 ) {
-  await getResendClient().emails.send({
-    from: "Gogi Eats <onboarding@resend.dev>",
+  const response = await getResendClient().emails.send({
+    from: getEmailFromAddress(),
     to: email,
     subject: "Codigo de verificacion - Gogi Eats",
     html: `
@@ -23,23 +23,21 @@ export async function sendVerificationCodeEmail(
       <p>Este codigo vence en 10 minutos.</p>
     `,
   });
+
+  if (response.error) {
+    throw new Error(response.error.message || "No se pudo enviar el correo de verificacion");
+  }
 }
 
 export function isUserTemporarilyVerified(user: {
-  email_verified?: boolean | null;
   verification_code?: string | null;
   verification_expires_at?: Date | string | null;
 }) {
-  if (user.email_verified === true) {
-    return true;
-  }
-
   if (
-    user.email_verified === false &&
     user.verification_code &&
     user.verification_expires_at
   ) {
-    return false;
+    return new Date(user.verification_expires_at).getTime() < Date.now();
   }
 
   return true;

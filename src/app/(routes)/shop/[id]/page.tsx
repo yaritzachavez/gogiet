@@ -484,7 +484,7 @@ export default function BusinessDetailPage() {
         </SectionCard>
 
         {/* Buscador y Grid */}
-        <div className="grid lg:grid-cols-[260px_1fr] gap-8">
+        <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
           <aside className="space-y-6">
             <SectionCard className="sticky top-24 p-4 sm:p-5">
               <div className="relative">
@@ -527,27 +527,28 @@ export default function BusinessDetailPage() {
             </SectionCard>
           </aside>
 
-          <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {paginatedProducts.length > 0 ? (
               paginatedProducts.map((product) => (
                 <div
                   key={product.id}
-                  className="group flex flex-col rounded-[24px] border border-slate-200/90 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)]"
+                  className="group flex min-h-[360px] max-h-[400px] flex-col overflow-hidden rounded-[24px] border border-slate-200/90 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)]"
                 >
-                  <div className="relative mb-3 aspect-square overflow-hidden rounded-[18px] bg-slate-50">
+                  <div className="relative mb-3 h-40 overflow-hidden rounded-[18px] bg-slate-50">
                     <AppImage
                       src={getProductImage(product)}
                       alt={product.name || "Producto"}
                       width={480}
-                      height={480}
-                      aspectClassName="aspect-square"
+                      height={360}
+                      aspectClassName="aspect-[4/3]"
                       className="h-full w-full"
                       imageClassName="object-cover group-hover:scale-110 transition duration-500"
                       fallbackLabel="Producto"
                     />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="line-clamp-2 text-sm font-black tracking-tight text-slate-900 sm:text-base">
+                  <div className="flex flex-1 flex-col">
+                    <div className="space-y-1.5">
+                    <h3 className="line-clamp-2 min-h-[2.8rem] text-base font-black tracking-tight text-slate-900">
                       {product.name}
                     </h3>
                     {product.category_name ? (
@@ -555,13 +556,13 @@ export default function BusinessDetailPage() {
                         {product.category_name}
                       </p>
                     ) : null}
-                    <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500 sm:text-sm">
-                      {product.description_short}
+                    <p className="line-clamp-2 min-h-[2.75rem] text-sm leading-5 text-slate-500">
+                      {product.description_short || "Disponible para entrega rápida."}
                     </p>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                    </div>
+                  <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
                     <div className="flex flex-col">
-                      <span className="text-sm font-black text-orange-600 sm:text-base">
+                      <span className="text-base font-black text-orange-600">
                         MX${getProductPrice(product).toFixed(2)}
                       </span>
                       {Number(product.discount_price ?? 0) > 0 &&
@@ -573,11 +574,12 @@ export default function BusinessDetailPage() {
                       ) : null}
                     </div>
                     <Button
-                      className="h-10 min-w-0 rounded-2xl px-3"
+                      className="h-10 min-w-[44px] rounded-2xl px-3"
                       onClick={() => openCustomizationModal(product)}
                     >
                       <Plus className="h-4 w-4" />
                     </Button>
+                  </div>
                   </div>
                 </div>
               ))

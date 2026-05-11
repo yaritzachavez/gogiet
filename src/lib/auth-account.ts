@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 
-import { getResendClient } from "@/lib/resend";
+import { getEmailFromAddress, getResendClient } from "@/lib/resend";
 export {
   generateTokenExpiration,
   isCooldownActive,
@@ -26,8 +26,8 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
     "https://www.gogieats.shop";
   const resetUrl = `${baseUrl.replace(/\/$/, "")}/reset-password?token=${encodeURIComponent(resetToken)}&email=${encodeURIComponent(email)}`;
 
-  await getResendClient().emails.send({
-    from: "Gogi Eats <onboarding@resend.dev>",
+  const response = await getResendClient().emails.send({
+    from: getEmailFromAddress(),
     to: email,
     subject: "Recupera tu contraseña - Gogi Eats",
     html: `
@@ -37,4 +37,8 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
       <p>Este enlace vence en 30 minutos.</p>
     `,
   });
+
+  if (response.error) {
+    throw new Error(response.error.message || "No se pudo enviar el correo de recuperacion");
+  }
 }

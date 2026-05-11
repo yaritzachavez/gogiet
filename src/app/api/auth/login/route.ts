@@ -8,11 +8,19 @@ import {
   getDeviceName,
   getLocationLabel,
 } from "@/lib/admin-security";
-import pool, { logDbUsage } from "@/lib/db";
-import { isUserTemporarilyVerified } from "@/lib/email-verification";
+import pool, { getDbRuntimeConfig, logDbUsage } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
+
+type AuthUserRecord = {
+  id: number;
+  firstName: string;
+  lastName: string | null;
+  email: string;
+  password: string;
+  statusId: number;
+};
 
 export function OPTIONS(req: Request) {
   return handleCorsPreflight(req);
@@ -33,6 +41,7 @@ export async function POST(req: Request) {
     logDbUsage("/api/auth/login", {
       email: normalizedEmail,
     });
+    console.log("POST /api/auth/login db runtime:", getDbRuntimeConfig());
 
     if (!normalizedEmail || !password) {
       return json(
@@ -44,11 +53,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await prisma.user.findFirst({
+    const rawEmail = String(email ?? "").trim();
+
+    let user = (await prisma.user.findUnique({
       where: {
-        email: {
-          equals: normalizedEmail,
-        },
+        email: normalizedEmail,
       },
       select: {
         id: true,
@@ -57,15 +66,11 @@ export async function POST(req: Request) {
         email: true,
         password: true,
         statusId: true,
-        email_verified: true,
-        verification_code: true,
-        verification_expires_at: true,
-        login_attempts: true,
-        locked_until: true,
       },
-    });
+    })) as AuthUserRecord | null;
 
     console.log("EMAIL BUSCADO:", normalizedEmail);
+    console.log("EMAIL ORIGINAL:", rawEmail);
     console.log(
       "USUARIO ENCONTRADO:",
       user
@@ -73,9 +78,97 @@ export async function POST(req: Request) {
             id: user.id,
             email: user.email,
             statusId: user.statusId,
+            fields: Object.keys(user).filter((field) => field !== "password"),
           }
         : null,
     );
+
+    if (!user && rawEmail && rawEmail !== normalizedEmail) {
+      const fallbackUser = (await prisma.user.findFirst({
+        where: {
+          email: rawEmail,
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          password: true,
+          statusId: true,
+        },
+      })) as AuthUserRecord | null;
+
+      console.log(
+        "USUARIO ENCONTRADO FALLBACK RAW EMAIL:",
+        fallbackUser
+          ? {
+              id: fallbackUser.id,
+              email: fallbackUser.email,
+              statusId: fallbackUser.statusId,
+              fields: Object.keys(fallbackUser).filter((field) => field !== "password"),
+            }
+          : null,
+      );
+
+      if (fallbackUser) {
+        return json(
+          {
+            success: false,
+            error:
+              "Encontramos la cuenta con un formato de correo distinto en la base de datos. Intenta nuevamente o actualiza el correo registrado.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
+    if (!user) {
+      const [normalizedRows] = await pool.query(
+        `
+        SELECT id
+        FROM users
+        WHERE LOWER(TRIM(email)) = ?
+        LIMIT 1
+        `,
+        [normalizedEmail],
+      );
+
+      const normalizedMatches = normalizedRows as Array<{ id?: number }>;
+      const normalizedMatchId = Number(normalizedMatches[0]?.id ?? 0);
+
+      console.log("LOGIN FALLBACK LOWER(TRIM(email)) MATCH:", {
+        found: normalizedMatchId > 0,
+        id: normalizedMatchId > 0 ? normalizedMatchId : null,
+      });
+
+      if (normalizedMatchId > 0) {
+        user = (await prisma.user.findUnique({
+          where: {
+            id: normalizedMatchId,
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            password: true,
+            statusId: true,
+          },
+        })) as AuthUserRecord | null;
+
+        console.log(
+          "USUARIO ENCONTRADO POR FALLBACK NORMALIZED EMAIL:",
+          user
+            ? {
+                id: user.id,
+                email: user.email,
+                statusId: user.statusId,
+                fields: Object.keys(user).filter((field) => field !== "password"),
+              }
+            : null,
+        );
+      }
+    }
 
     if (!user) {
       return json(
@@ -97,17 +190,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
-      return json(
-        {
-          success: false,
-          error:
-            "Tu cuenta está temporalmente bloqueada por demasiados intentos. Intenta nuevamente en unos minutos.",
-        },
-        { status: 429 },
-      );
-    }
-
     if (!user.password) {
       console.error("POST /api/auth/login usuario sin password:", user.id);
       return json(
@@ -126,62 +208,55 @@ export async function POST(req: Request) {
     );
 
     console.log("POST /api/auth/login password valida:", passwordMatch);
+    console.log("bcrypt ok:", passwordMatch);
 
     if (!passwordMatch) {
-      const attempts = Number(user.login_attempts ?? 0) + 1;
-      const shouldLock = attempts >= 5;
+      return json(
+        {
+          success: false,
+          error: "La contraseña no es correcta.",
+        },
+        { status: 401 },
+      );
+    }
 
-      await pool.query(
+    let roles: Array<{ id: number; name: string }> = [];
+    let dbRoles: string[] = [];
+    let publicRoles: string[] = [];
+    let primaryRole: string | null = null;
+
+    try {
+      const [roleRows] = await pool.query(
         `
-        UPDATE users
-        SET login_attempts = ?, locked_until = ?, updated_at = NOW()
-        WHERE id = ?
+        SELECT r.id, r.name
+        FROM user_roles ur
+        INNER JOIN roles r ON r.id = ur.role_id
+        WHERE ur.user_id = ?
         `,
-        [shouldLock ? 0 : attempts, shouldLock ? new Date(Date.now() + 15 * 60 * 1000) : null, user.id],
+        [user.id],
       );
 
-      return json(
-        {
-          success: false,
-          error: shouldLock
-            ? "Tu cuenta está temporalmente bloqueada por demasiados intentos. Intenta nuevamente en unos minutos."
-            : "La contraseña no es correcta.",
-        },
-        { status: shouldLock ? 429 : 401 },
-      );
+      roles = roleRows as { id: number; name: string }[];
+      dbRoles = roles.map((role) => role.name);
+      publicRoles = mapDbRolesToPublicRoles(dbRoles);
+      primaryRole = publicRoles[0] ?? null;
+      console.log("roles encontrados:", {
+        count: roles.length,
+        dbRoles,
+        publicRoles,
+      });
+    } catch (roleError) {
+      console.warn("POST /api/auth/login no pudo cargar roles:", roleError);
+      roles = [];
+      dbRoles = [];
+      publicRoles = ["customer"];
+      primaryRole = "customer";
     }
 
-    if (
-      !isUserTemporarilyVerified({
-        email_verified:
-          user.email_verified === null ? null : Boolean(user.email_verified),
-        verification_code: user.verification_code,
-        verification_expires_at: user.verification_expires_at,
-      })
-    ) {
-      return json(
-        {
-          success: false,
-          error: "Debes verificar tu correo antes de iniciar sesión",
-        },
-        { status: 403 },
-      );
+    if (publicRoles.length === 0) {
+      publicRoles = ["customer"];
+      primaryRole = "customer";
     }
-
-    const [roleRows] = await pool.query(
-      `
-      SELECT r.id, r.name
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ?
-      `,
-      [user.id],
-    );
-
-    const roles = roleRows as { id: number; name: string }[];
-    const dbRoles = roles.map((role) => role.name);
-    const publicRoles = mapDbRolesToPublicRoles(dbRoles);
-    const primaryRole = publicRoles[0] ?? null;
 
     console.log("POST /api/auth/login role del usuario:", {
       dbRoles,
@@ -214,6 +289,12 @@ export async function POST(req: Request) {
       secret,
       options,
     );
+    console.log("token creado:", {
+      userId: user.id,
+      hasRoles: dbRoles.length > 0,
+      expiresIn,
+      hasJwtSecret: Boolean(process.env.JWT_SECRET),
+    });
 
     const deviceName = getDeviceName(req.headers.get("user-agent"));
     const forwardedFor =
@@ -227,6 +308,10 @@ export async function POST(req: Request) {
         deviceName,
         location: getLocationLabel(forwardedFor || realIp),
       });
+      console.log("sesión creada:", {
+        userId: user.id,
+        deviceName,
+      });
     } catch (sessionError) {
       console.warn(
         "POST /api/auth/login no pudo registrar la sesión, pero el login seguirá:",
@@ -237,7 +322,7 @@ export async function POST(req: Request) {
     await pool.query(
       `
       UPDATE users
-      SET login_attempts = 0, locked_until = NULL, last_login = NOW(), updated_at = NOW()
+      SET last_login = NOW(), updated_at = NOW()
       WHERE id = ?
       `,
       [user.id],
@@ -267,6 +352,7 @@ export async function POST(req: Request) {
 
     return withCors(req, response);
   } catch (error) {
+    console.error("LOGIN ERROR:", error);
     console.error("POST /api/auth/login error exacto:", error);
 
     if (typeof error === "object" && error !== null) {

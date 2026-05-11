@@ -8,11 +8,6 @@ import {
   normalizePhone,
   validatePasswordStrength,
 } from "@/lib/auth-account";
-import {
-  generateVerificationCode,
-  generateVerificationExpiration,
-  sendVerificationCodeEmail,
-} from "@/lib/email-verification";
 import { prisma } from "@/lib/prisma";
 import { mapPublicRoleToDbRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
@@ -24,6 +19,7 @@ type RegisterBody = {
   email?: string;
   phone?: string;
   password?: string;
+  confirmPassword?: string;
 };
 
 export function OPTIONS(req: Request) {
@@ -35,14 +31,19 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
+    console.log("REGISTER START");
     const body = (await req.json()) as RegisterBody;
     const firstName = body.firstName?.trim();
     const lastName = body.lastName?.trim();
     const fallbackName = body.name?.trim();
     const name = fallbackName || `${firstName ?? ""} ${lastName ?? ""}`.trim();
     const email = normalizeEmail(body.email ?? "");
-    const phone = normalizePhone(body.phone ?? "") || null;
+    const cleanPhone = String(body.phone ?? "").replace(/\D/g, "");
+    console.log("EMAIL:", email);
+    console.log("PHONE:", cleanPhone);
+    const phone = cleanPhone || null;
     const password = body.password;
+    const confirmPassword = body.confirmPassword;
 
     if (!firstName && !fallbackName) {
       return json(
@@ -94,6 +95,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      return json(
+        {
+          success: false,
+          error: "Las contraseñas no coinciden.",
+        },
+        { status: 400 },
+      );
+    }
+
     if (!isValidEmail(email)) {
       return json(
         {
@@ -130,6 +141,7 @@ export async function POST(req: Request) {
       where: { email },
       select: { id: true },
     });
+    console.log("USUARIO EXISTENTE:", Boolean(existingUser));
 
     if (existingUser) {
       return json(
@@ -161,36 +173,22 @@ export async function POST(req: Request) {
     const saltRounds = Number(process.env.SALT_ROUNDS ?? 12);
     const pepper = process.env.PASSWORD_PEPPER ?? "";
     const passwordHash = await bcrypt.hash(password + pepper, saltRounds);
-    const verificationCode = generateVerificationCode();
-    const verificationExpiresAt = generateVerificationExpiration();
+    console.log("PASSWORD HASH GENERADO:", Boolean(passwordHash));
     const resolvedFirstName = firstName || name.split(/\s+/)[0] || "";
     const resolvedLastName =
       lastName || name.split(/\s+/).slice(1).join(" ").trim() || null;
 
+    const userCreateData: Record<string, unknown> = {
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName,
+      email,
+      phone,
+      password: passwordHash,
+      statusId: 1,
+    };
+
     const user = await prisma.user.create({
-      data: {
-        firstName: resolvedFirstName,
-        lastName: resolvedLastName,
-        email,
-        phone,
-        password: passwordHash,
-        statusId: 1,
-        email_verified: false,
-        verification_code: verificationCode,
-        verification_expires_at: verificationExpiresAt,
-        verification_sent_at: new Date(),
-        login_attempts: 0,
-        locked_until: null,
-        user_roles: {
-          create: {
-            roles: {
-              connect: {
-                name: mapPublicRoleToDbRole("CLIENTE"),
-              },
-            },
-          },
-        },
-      },
+      data: userCreateData as never,
       select: {
         id: true,
         firstName: true,
@@ -199,35 +197,42 @@ export async function POST(req: Request) {
         createdAt: true,
       },
     });
+    console.log("USUARIO CREADO ID:", user.id);
 
     try {
-      await sendVerificationCodeEmail(email, verificationCode);
-    } catch (emailError) {
-      console.error("Error enviando código de verificación:", emailError);
-      await prisma.user.delete({
-        where: { id: user.id },
+      const defaultRoleName = mapPublicRoleToDbRole("CLIENTE");
+      const defaultRole = await prisma.roles.findUnique({
+        where: { name: defaultRoleName },
+        select: { id: true, name: true },
       });
 
-      return json(
-        {
-          success: false,
-          error: "No se pudo enviar el código de verificación.",
-        },
-        { status: 500 },
-      );
+      if (defaultRole) {
+        await prisma.user_roles.create({
+          data: {
+            user_id: user.id,
+            role_id: defaultRole.id,
+          },
+        });
+        console.log("ROL DEFAULT ASIGNADO");
+      } else {
+        console.warn("REGISTER DEFAULT ROLE NO ENCONTRADO:", defaultRoleName);
+      }
+    } catch (roleError) {
+      console.warn("REGISTER ROLE ASSIGNMENT ERROR:", roleError);
     }
 
     return json(
       {
         success: true,
-        message: "Usuario registrado. Revisa tu correo para verificar tu cuenta",
-        requiresVerification: true,
+        message: "Usuario creado correctamente.",
+        requiresVerification: false,
         email,
         user,
       },
       { status: 201 },
     );
   } catch (error: unknown) {
+    console.error("REGISTER ERROR:", error);
     console.error("Error POST /api/auth/register:", error);
 
     if (
@@ -261,7 +266,10 @@ export async function POST(req: Request) {
     return json(
       {
         success: false,
-        error: "No pudimos crear tu cuenta. Intenta nuevamente.",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Error desconocido al registrar",
       },
       { status: 500 },
     );

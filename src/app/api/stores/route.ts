@@ -69,11 +69,6 @@ export async function GET(req: Request) {
         b.status_id = 1
         OR LOWER(COALESCE(sc.name, '')) IN ('activo', 'active')
       )
-        AND (
-          p.id IS NULL
-          OR p.status_id = 1
-          OR LOWER(COALESCE(psc.name, '')) IN ('activo', 'active')
-        )
         ${
           searchLike
             ? `

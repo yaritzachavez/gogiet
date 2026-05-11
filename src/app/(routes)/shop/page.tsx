@@ -38,6 +38,8 @@ type Business = {
   discount?: string;
   mainPhoto?: string | null;
   avatar_url?: string | null;
+  logo_url?: string | null;
+  cover_image_url?: string | null;
 };
 
 type ApiBusiness = {
@@ -54,6 +56,8 @@ type ApiBusiness = {
   product_names?: string[];
   product_categories?: string[];
   avatar_url?: string | null;
+  logo_url?: string | null;
+  cover_image_url?: string | null;
 };
 
 type ActiveOrder = {
@@ -302,9 +306,7 @@ export default function ShopPage() {
 
         if (!result.success) {
           setBusinesses([]);
-          setStoresWarning(
-            "No se pudieron cargar algunos productos y tiendas por ahora.",
-          );
+          setStoresWarning("No pudimos cargar los aliados por ahora.");
           return;
         }
 
@@ -339,9 +341,28 @@ export default function ShopPage() {
             priceTier: getPriceTier(index),
             badge: getBadge(index),
             discount: getDiscount(index),
+            mainPhoto:
+              typeof business.cover_image_url === "string" &&
+              business.cover_image_url.trim().length > 0
+                ? business.cover_image_url
+                : typeof business.logo_url === "string" &&
+                    business.logo_url.trim().length > 0
+                  ? business.logo_url
+                  : typeof business.avatar_url === "string" &&
+                      business.avatar_url.trim().length > 0
+                    ? business.avatar_url
+                    : null,
             avatar_url:
               typeof business.avatar_url === "string"
                 ? business.avatar_url
+                : null,
+            logo_url:
+              typeof business.logo_url === "string"
+                ? business.logo_url
+                : null,
+            cover_image_url:
+              typeof business.cover_image_url === "string"
+                ? business.cover_image_url
                 : null,
           }),
         );
@@ -350,9 +371,7 @@ export default function ShopPage() {
       } catch (err) {
         console.error("Error al obtener negocios:", err);
         setBusinesses([]);
-        setStoresWarning(
-          "No se pudieron cargar algunos productos y tiendas por ahora.",
-        );
+        setStoresWarning("No pudimos cargar los aliados por ahora.");
       } finally {
         setLoading(false);
       }
@@ -432,9 +451,7 @@ export default function ShopPage() {
 
         if (!result.success) {
           setActiveOrders([]);
-          setActiveOrdersWarning(
-            "No se pudieron cargar algunos productos o pedidos activos.",
-          );
+          setActiveOrdersWarning("No pudimos actualizar tus pedidos activos.");
           return;
         }
 
@@ -445,9 +462,7 @@ export default function ShopPage() {
       } catch (error) {
         console.error("Error cargando pedidos activos:", error);
         setActiveOrders([]);
-        setActiveOrdersWarning(
-          "No se pudieron cargar algunos productos o pedidos activos.",
-        );
+        setActiveOrdersWarning("No pudimos actualizar tus pedidos activos.");
       } finally {
         setActiveOrdersLoading(false);
       }
@@ -747,12 +762,6 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        {!activeOrdersLoading && activeOrdersWarning ? (
-          <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
-            {activeOrdersWarning}
-          </div>
-        ) : null}
-
         <section className="overflow-hidden rounded-[18px] bg-gradient-to-r from-orange-600 to-red-500 px-6 py-5 text-white shadow-lg shadow-orange-900/10">
           <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
             <Sparkles className="h-4 w-4" />
@@ -808,7 +817,13 @@ export default function ShopPage() {
                   priceTier={business.priceTier}
                   badge={business.badge}
                   discount={business.discount}
-                  imagen={business.avatar_url ?? undefined}
+                  imagen={
+                    business.mainPhoto ??
+                    business.cover_image_url ??
+                    business.logo_url ??
+                    business.avatar_url ??
+                    undefined
+                  }
                   href={`/shop/${business.id ?? index}`}
                   isFavorite={favoriteBusinessIdsSet.has(Number(business.id))}
                   onToggleFavorite={handleToggleFavorite}
@@ -849,7 +864,7 @@ export default function ShopPage() {
           ) : storesWarning ? (
             <EmptyState
               icon={Store}
-              title="No se pudieron cargar algunos productos"
+              title="No pudimos cargar los aliados"
               description={storesWarning}
             />
           ) : filteredBusinesses.length > 0 ? (
@@ -868,7 +883,13 @@ export default function ShopPage() {
                   priceTier={business.priceTier}
                   badge={business.badge}
                   discount={business.discount}
-                  imagen={business.avatar_url ?? undefined}
+                  imagen={
+                    business.mainPhoto ??
+                    business.cover_image_url ??
+                    business.logo_url ??
+                    business.avatar_url ??
+                    undefined
+                  }
                   href={`/shop/${business.id ?? index}`}
                   isFavorite={favoriteBusinessIdsSet.has(Number(business.id))}
                   onToggleFavorite={handleToggleFavorite}

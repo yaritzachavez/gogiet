@@ -14,7 +14,7 @@ import {
   validatePasswordStrength,
 } from "@/lib/auth-account-shared";
 import { getClientApiUrl } from "@/lib/client-api";
-import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
+import { getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function RegisterForm() {
   const [firstName, setFirstName] = useState("");
@@ -25,12 +25,14 @@ export default function RegisterForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
+    setSuccessMessage("");
 
     if (
       !firstName.trim() ||
@@ -67,7 +69,7 @@ export default function RegisterForm() {
 
     try {
       setSubmitting(true);
-      const res = await fetch(getClientApiUrl("/api/auth/register"), {
+      const response = await fetch(getClientApiUrl("/api/auth/register"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -79,36 +81,34 @@ export default function RegisterForm() {
           email,
           phone: normalizePhone(phoneNumber),
           password,
+          confirmPassword,
         }),
       });
 
-      const data = (await res.json().catch(() => null)) as
+      const data = (await response.json().catch(() => null)) as
         | {
             success?: boolean;
             error?: string;
+            message?: string;
             email?: string;
+            requiresVerification?: boolean;
             user?: { email?: string };
           }
         | null;
 
-      if (res.ok && data?.success) {
-        const targetEmail =
-          (typeof data?.email === "string" && data.email) ||
-          (typeof data?.user?.email === "string" && data.user.email)
-            ? String(data?.email ?? data?.user?.email)
-            : email;
-        router.push(`/verify-email?email=${encodeURIComponent(targetEmail)}`);
+      if (response.ok && data?.success) {
+        setSuccessMessage("Cuenta creada correctamente.");
+        router.push("/login");
       } else {
-        if (data?.error) {
-          console.warn("Error registro:", data.error);
-        }
         setErrorMessage(
-          formatApiError(
-            res.status,
-            data,
+          data?.error ||
+            data?.message ||
             "No pudimos crear tu cuenta. Intenta nuevamente.",
-          ),
         );
+        console.error("REGISTER FRONTEND ERROR:", {
+          status: response.status,
+          data,
+        });
       }
     } catch (err) {
       console.warn("Error en la petición de registro", err);
@@ -133,6 +133,9 @@ export default function RegisterForm() {
         {/* 👇 mensaje de error */}
         {errorMessage && (
           <p className="text-red-500 text-sm text-center">{errorMessage}</p>
+        )}
+        {successMessage && (
+          <p className="text-green-600 text-sm text-center">{successMessage}</p>
         )}
 
         {/* First Name */}
