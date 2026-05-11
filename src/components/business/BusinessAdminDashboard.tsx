@@ -515,21 +515,34 @@ export function BusinessAdminDashboard() {
   const [busyKey, setBusyKey] = useState("");
   const [salesRange, setSalesRange] = useState<SalesRange>("month");
 
+  const dedupedProducts = useMemo(
+    () =>
+      uniqueByKey(Array.isArray(products) ? products : [], (product) => {
+        const stableId =
+          product.id ??
+          (product as ProductItem & { product_id?: number | string }).product_id ??
+          product.name;
+
+        return `product-${String(stableId)}`;
+      }),
+    [products],
+  );
+
   const productCategoryOptions = useMemo(
     () =>
       Array.from(
         new Set(
-          (products ?? [])
+          dedupedProducts
             .map((product) => String(product.category_name ?? "").trim())
             .filter(Boolean),
         ),
       ).sort((a, b) => a.localeCompare(b, "es")),
-    [products],
+    [dedupedProducts],
   );
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = productSearch.trim().toLowerCase();
-    const baseProducts = Array.isArray(products) ? [...products] : [];
+    const baseProducts = [...dedupedProducts];
 
     const nextProducts = baseProducts.filter((product) => {
       const name = String(product.name ?? "").toLowerCase();
@@ -586,11 +599,11 @@ export function BusinessAdminDashboard() {
 
     return nextProducts;
   }, [
+    dedupedProducts,
     productCategoryFilter,
     productSearch,
     productSort,
     productStatusFilter,
-    products,
   ]);
 
   const loadDashboard = useCallback(async () => {
@@ -2606,7 +2619,10 @@ export function BusinessAdminDashboard() {
                         >
                           <option value="all">Todas las categorías</option>
                           {productCategoryOptions.map((category) => (
-                            <option key={category} value={category}>
+                            <option
+                              key={`category-${category}`}
+                              value={category}
+                            >
                               {category}
                             </option>
                           ))}
@@ -2679,8 +2695,8 @@ export function BusinessAdminDashboard() {
 
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm font-semibold text-slate-500">
-                      Mostrando {filteredProducts.length} de {products.length}{" "}
-                      productos
+                      Mostrando {filteredProducts.length} de{" "}
+                      {dedupedProducts.length} productos
                     </p>
                     {productSearch ||
                     productCategoryFilter !== "all" ||
@@ -2702,9 +2718,9 @@ export function BusinessAdminDashboard() {
                   </div>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
-                  {filteredProducts.map((product) => (
+                  {filteredProducts.map((product, index) => (
                     <div
-                      key={product.id}
+                      key={`product-${product.id ?? product.name}-${index}`}
                       className="rounded-2xl border border-slate-200 bg-white p-4"
                     >
                       <div className="flex items-start justify-between gap-4">
@@ -2821,14 +2837,14 @@ export function BusinessAdminDashboard() {
             {activeSection === "inventory" ? (
               <PanelCard title="Inventario">
                 <div className="grid gap-4 xl:grid-cols-2">
-                  {products.map((product) => {
+                  {dedupedProducts.map((product, index) => {
                     const lowStock =
                       Number(product.stock_average ?? 0) <=
                       Number(product.stock_danger ?? 0);
 
                     return (
                       <div
-                        key={product.id}
+                        key={`inventory-product-${product.id ?? product.name}-${index}`}
                         className={`rounded-2xl border p-4 ${
                           lowStock
                             ? "border-amber-200 bg-amber-50"
@@ -3730,8 +3746,11 @@ export function BusinessAdminDashboard() {
                 className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-300"
               >
                 <option value="">Selecciona un producto</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
+                {dedupedProducts.map((product, index) => (
+                  <option
+                    key={`product-option-${product.id ?? product.name}-${index}`}
+                    value={product.id}
+                  >
                     {product.name}
                   </option>
                 ))}
