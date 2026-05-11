@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Search,
   BarChart3,
   Camera,
   ClipboardList,
@@ -29,6 +30,7 @@ import {
 } from "react";
 
 import { UserAvatar } from "@/components/shared/user-avatar";
+import { AppImage } from "@/components/ui/app-image";
 
 const TOKEN_STORAGE_KEYS = [
   "token",
@@ -123,6 +125,7 @@ type ProductItem = {
   is_stock_available: boolean;
   description_short: string | null;
   thumbnail_url: string | null;
+  image_url?: string | null;
 };
 
 type TeamMember = {
@@ -194,7 +197,23 @@ type ProductForm = {
   description_short: string;
   is_stock_available: boolean;
   status_id: number;
+  thumbnail_url: string | null;
+  image_url: string | null;
 };
+
+type ProductStatusFilter =
+  | "all"
+  | "active"
+  | "inactive"
+  | "out_of_stock"
+  | "low_stock";
+
+type ProductSortOption =
+  | "name_asc"
+  | "price_asc"
+  | "price_desc"
+  | "stock_asc"
+  | "stock_desc";
 
 type SellerForm = {
   selected_user_id: string;
@@ -439,6 +458,17 @@ export function BusinessAdminDashboard() {
   const [editingProduct, setEditingProduct] = useState<ProductForm | null>(
     null,
   );
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("all");
+  const [productStatusFilter, setProductStatusFilter] =
+    useState<ProductStatusFilter>("all");
+  const [productSort, setProductSort] =
+    useState<ProductSortOption>("name_asc");
+  const [productImagePreview, setProductImagePreview] = useState<string | null>(
+    null,
+  );
+  const [productImageUploading, setProductImageUploading] = useState(false);
+  const productImageInputRef = useRef<HTMLInputElement | null>(null);
   const [showSellerModal, setShowSellerModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [showTrainingModal, setShowTrainingModal] = useState(false);
@@ -484,6 +514,84 @@ export function BusinessAdminDashboard() {
   const [initialTrainingId, setInitialTrainingId] = useState("");
   const [busyKey, setBusyKey] = useState("");
   const [salesRange, setSalesRange] = useState<SalesRange>("month");
+
+  const productCategoryOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          (products ?? [])
+            .map((product) => String(product.category_name ?? "").trim())
+            .filter(Boolean),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "es")),
+    [products],
+  );
+
+  const filteredProducts = useMemo(() => {
+    const normalizedSearch = productSearch.trim().toLowerCase();
+    const baseProducts = Array.isArray(products) ? [...products] : [];
+
+    const nextProducts = baseProducts.filter((product) => {
+      const name = String(product.name ?? "").toLowerCase();
+      const category = String(product.category_name ?? "").toLowerCase();
+      const stock = Number(product.stock_average ?? 0);
+      const minimumStock = Number(product.stock_danger ?? 0);
+      const isActive = Number(product.status_id ?? 0) === 1;
+
+      const matchesSearch =
+        !normalizedSearch ||
+        name.includes(normalizedSearch) ||
+        category.includes(normalizedSearch);
+
+      const matchesCategory =
+        productCategoryFilter === "all" ||
+        String(product.category_name ?? "").trim() === productCategoryFilter;
+
+      let matchesStatus = true;
+
+      if (productStatusFilter === "active") {
+        matchesStatus = isActive;
+      } else if (productStatusFilter === "inactive") {
+        matchesStatus = !isActive;
+      } else if (productStatusFilter === "out_of_stock") {
+        matchesStatus = stock === 0;
+      } else if (productStatusFilter === "low_stock") {
+        matchesStatus = stock <= minimumStock;
+      }
+
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+
+    nextProducts.sort((a, b) => {
+      if (productSort === "price_asc") {
+        return Number(a.price ?? 0) - Number(b.price ?? 0);
+      }
+
+      if (productSort === "price_desc") {
+        return Number(b.price ?? 0) - Number(a.price ?? 0);
+      }
+
+      if (productSort === "stock_asc") {
+        return Number(a.stock_average ?? 0) - Number(b.stock_average ?? 0);
+      }
+
+      if (productSort === "stock_desc") {
+        return Number(b.stock_average ?? 0) - Number(a.stock_average ?? 0);
+      }
+
+      return String(a.name ?? "").localeCompare(String(b.name ?? ""), "es", {
+        sensitivity: "base",
+      });
+    });
+
+    return nextProducts;
+  }, [
+    productCategoryFilter,
+    productSearch,
+    productSort,
+    productStatusFilter,
+    products,
+  ]);
 
   const loadDashboard = useCallback(async () => {
     const token = getStoredToken();
@@ -1185,6 +1293,8 @@ export function BusinessAdminDashboard() {
           description_short: editingProduct.description_short,
           is_stock_available: editingProduct.is_stock_available,
           status_id: editingProduct.status_id,
+          thumbnail_url: editingProduct.thumbnail_url,
+          image_url: editingProduct.image_url,
         }),
       });
       const data = await parseJsonResponse(response);
@@ -1197,11 +1307,132 @@ export function BusinessAdminDashboard() {
       }
 
       setEditingProduct(null);
+      setProductImagePreview(null);
       setFeedback({
         type: "success",
         message: "Producto actualizado correctamente.",
       });
       await refreshData();
+    });
+  };
+
+  const handleProductImageChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+
+    if (!file || !editingProduct) {
+      return;
+    }
+
+    const allowedTypes = new Set([
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+    ]);
+
+    if (!allowedTypes.has(file.type)) {
+      setFeedback({
+        type: "error",
+        message: "Solo se permiten imágenes JPG, JPEG, PNG o WEBP.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({
+        type: "error",
+        message: "La imagen no debe superar 5 MB.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    const token = getStoredToken();
+
+    if (!token) {
+      setFeedback({
+        type: "error",
+        message: "Tu sesión expiró. Inicia sesión nuevamente.",
+      });
+      return;
+    }
+
+    const localPreview = URL.createObjectURL(file);
+    setProductImagePreview(localPreview);
+
+    try {
+      setProductImageUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/upload/product-image", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const data = await parseJsonResponse(response);
+
+      if (!response.ok || data.success === false) {
+        throw new Error(
+          (typeof data.error === "string" && data.error) ||
+            "No se pudo subir la imagen del producto.",
+        );
+      }
+
+      const uploadedUrl = typeof data.url === "string" ? data.url : null;
+
+      if (!uploadedUrl) {
+        throw new Error("Cloudinary no devolvió una URL válida.");
+      }
+
+      setEditingProduct((prev) =>
+        prev
+          ? {
+              ...prev,
+              thumbnail_url: uploadedUrl,
+              image_url: uploadedUrl,
+            }
+          : prev,
+      );
+      setFeedback({
+        type: "success",
+        message: "Imagen del producto lista para guardar.",
+      });
+    } catch (error) {
+      console.error("Error subiendo imagen del producto:", error);
+      setProductImagePreview(null);
+      setFeedback({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo subir la imagen del producto.",
+      });
+    } finally {
+      setProductImageUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleRemoveProductImage = () => {
+    setEditingProduct((prev) =>
+      prev
+        ? {
+            ...prev,
+            thumbnail_url: null,
+            image_url: null,
+          }
+        : prev,
+    );
+    setProductImagePreview(null);
+    setFeedback({
+      type: "success",
+      message: "Imagen eliminada. Guarda el producto para aplicar el cambio.",
     });
   };
 
@@ -2341,21 +2572,137 @@ export function BusinessAdminDashboard() {
 
             {activeSection === "products" ? (
               <PanelCard title="Productos publicados">
-                <div className="mb-4 flex justify-end">
-                  <Link
-                    href={
-                      business?.id
-                        ? `/business/products/${business.id}/new`
-                        : "/business"
-                    }
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white"
-                  >
-                    <PackagePlus className="h-4 w-4" />
-                    Agregar producto
-                  </Link>
+                <div className="mb-5 space-y-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 xl:items-end">
+                      <label className="grid gap-1.5">
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-500">
+                          Buscar
+                        </span>
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="search"
+                            value={productSearch}
+                            onChange={(event) =>
+                              setProductSearch(event.target.value)
+                            }
+                            placeholder="Nombre o categoría"
+                            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition focus:border-orange-300"
+                          />
+                        </div>
+                      </label>
+
+                      <label className="grid gap-1.5">
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-500">
+                          Categoría
+                        </span>
+                        <select
+                          value={productCategoryFilter}
+                          onChange={(event) =>
+                            setProductCategoryFilter(event.target.value)
+                          }
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-orange-300"
+                        >
+                          <option value="all">Todas las categorías</option>
+                          {productCategoryOptions.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="grid gap-1.5">
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-500">
+                          Estado
+                        </span>
+                        <select
+                          value={productStatusFilter}
+                          onChange={(event) =>
+                            setProductStatusFilter(
+                              event.target.value as ProductStatusFilter,
+                            )
+                          }
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-orange-300"
+                        >
+                          <option value="all">Todos</option>
+                          <option value="active">Activos</option>
+                          <option value="inactive">Inactivos</option>
+                          <option value="out_of_stock">Sin stock</option>
+                          <option value="low_stock">Bajo stock</option>
+                        </select>
+                      </label>
+
+                      <label className="grid gap-1.5">
+                        <span className="text-xs font-black uppercase tracking-wide text-slate-500">
+                          Ordenar
+                        </span>
+                        <select
+                          value={productSort}
+                          onChange={(event) =>
+                            setProductSort(
+                              event.target.value as ProductSortOption,
+                            )
+                          }
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-700 outline-none transition focus:border-orange-300"
+                        >
+                          <option value="name_asc">Nombre A-Z</option>
+                          <option value="price_asc">
+                            Precio menor a mayor
+                          </option>
+                          <option value="price_desc">
+                            Precio mayor a menor
+                          </option>
+                          <option value="stock_asc">
+                            Stock menor a mayor
+                          </option>
+                          <option value="stock_desc">
+                            Stock mayor a menor
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <Link
+                      href={
+                        business?.id
+                          ? `/business/products/${business.id}/new`
+                          : "/business"
+                      }
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white"
+                    >
+                      <PackagePlus className="h-4 w-4" />
+                      Agregar producto
+                    </Link>
+                  </div>
+
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm font-semibold text-slate-500">
+                      Mostrando {filteredProducts.length} de {products.length}{" "}
+                      productos
+                    </p>
+                    {productSearch ||
+                    productCategoryFilter !== "all" ||
+                    productStatusFilter !== "all" ||
+                    productSort !== "name_asc" ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProductSearch("");
+                          setProductCategoryFilter("all");
+                          setProductStatusFilter("all");
+                          setProductSort("name_asc");
+                        }}
+                        className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-700"
+                      >
+                        Limpiar filtros
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
                 <div className="grid gap-4 xl:grid-cols-2">
-                  {products.map((product) => (
+                  {filteredProducts.map((product) => (
                     <div
                       key={product.id}
                       className="rounded-2xl border border-slate-200 bg-white p-4"
@@ -2410,6 +2757,11 @@ export function BusinessAdminDashboard() {
                                 product.is_stock_available,
                               ),
                               status_id: Number(product.status_id ?? 1) || 1,
+                              thumbnail_url: product.thumbnail_url ?? null,
+                              image_url:
+                                product.image_url ??
+                                product.thumbnail_url ??
+                                null,
                             })
                           }
                           className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-700"
@@ -2437,6 +2789,31 @@ export function BusinessAdminDashboard() {
                       </div>
                     </div>
                   ))}
+                  {filteredProducts.length === 0 ? (
+                    <div className="xl:col-span-2">
+                      <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
+                        <p className="text-lg font-black text-slate-900">
+                          No se encontraron productos con esos filtros
+                        </p>
+                        <p className="mt-2 text-sm font-semibold text-slate-500">
+                          Ajusta la búsqueda o limpia los filtros para volver a
+                          ver todo tu catálogo.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProductSearch("");
+                            setProductCategoryFilter("all");
+                            setProductStatusFilter("all");
+                            setProductSort("name_asc");
+                          }}
+                          className="mt-4 rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white"
+                        >
+                          Limpiar filtros
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </PanelCard>
             ) : null}
@@ -2499,6 +2876,11 @@ export function BusinessAdminDashboard() {
                                   product.is_stock_available,
                                 ),
                                 status_id: Number(product.status_id ?? 1) || 1,
+                                thumbnail_url: product.thumbnail_url ?? null,
+                                image_url:
+                                  product.image_url ??
+                                  product.thumbnail_url ??
+                                  null,
                               })
                             }
                             className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white"
@@ -3008,7 +3390,10 @@ export function BusinessAdminDashboard() {
       <AdminModal
         title="Editar producto"
         open={Boolean(editingProduct)}
-        onClose={() => setEditingProduct(null)}
+        onClose={() => {
+          setEditingProduct(null);
+          setProductImagePreview(null);
+        }}
       >
         {editingProduct ? (
           <form onSubmit={saveProduct} className="grid gap-4 md:grid-cols-2">
@@ -3079,6 +3464,66 @@ export function BusinessAdminDashboard() {
               }
               className="md:col-span-2"
             />
+            <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:col-span-2">
+              <div>
+                <p className="text-sm font-black text-slate-900">
+                  Imagen del producto
+                </p>
+                <p className="text-xs font-semibold text-slate-500">
+                  Sube una imagen JPG, JPEG, PNG o WEBP de hasta 5 MB.
+                </p>
+              </div>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+                <div className="w-full max-w-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                  <div className="relative aspect-[4/3] w-full">
+                    <AppImage
+                      src={
+                        productImagePreview ??
+                        editingProduct.image_url ??
+                        editingProduct.thumbnail_url ??
+                        undefined
+                      }
+                      alt={editingProduct.name}
+                      width={440}
+                      height={330}
+                      aspectClassName="aspect-[4/3]"
+                      className="h-full w-full"
+                      imageClassName="object-cover"
+                      fallbackLabel="Sin foto"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-1 flex-wrap gap-3">
+                  <input
+                    ref={productImageInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleProductImageChange}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => productImageInputRef.current?.click()}
+                    disabled={productImageUploading}
+                    className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-extrabold text-slate-700 disabled:opacity-60"
+                  >
+                    {productImageUploading ? "Subiendo..." : "Cambiar imagen"}
+                  </button>
+                  {(editingProduct.image_url ||
+                    editingProduct.thumbnail_url ||
+                    productImagePreview) ? (
+                    <button
+                      type="button"
+                      onClick={handleRemoveProductImage}
+                      disabled={productImageUploading}
+                      className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-extrabold text-rose-700 disabled:opacity-60"
+                    >
+                      Eliminar imagen
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
             <div className="flex justify-end md:col-span-2">
               <button
                 type="submit"
