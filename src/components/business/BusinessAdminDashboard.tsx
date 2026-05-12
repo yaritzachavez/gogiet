@@ -2035,7 +2035,7 @@ export function BusinessAdminDashboard() {
       console.log("Archivo seleccionado:", file);
       const formData = new FormData();
       formData.append("file", file);
-      formData.append("business_id", String(business.id));
+      formData.append("businessId", String(business.id));
       console.log("businessId enviado a save-db-url:", business.id);
 
       const uploadResponse = await fetch("/api/business/photo", {
@@ -2052,7 +2052,9 @@ export function BusinessAdminDashboard() {
 
       if (!uploadResponse.ok || uploadPayload?.success === false) {
         throw new Error(
-          (typeof uploadPayload?.error === "string" && uploadPayload.error) ||
+          (typeof uploadPayload?.details === "string" &&
+            uploadPayload.details) ||
+            (typeof uploadPayload?.error === "string" && uploadPayload.error) ||
             "No se pudo subir la imagen a Cloudinary.",
         );
       }
@@ -2088,6 +2090,7 @@ export function BusinessAdminDashboard() {
       });
     } catch (error) {
       console.error("Error cambiando foto del negocio:", error);
+      setAvatarPreview(null);
       setFeedback({
         type: "error",
         message:
@@ -2120,7 +2123,7 @@ export function BusinessAdminDashboard() {
     try {
       setAvatarUploading(true);
       const formData = new FormData();
-      formData.append("business_id", String(business.id));
+      formData.append("businessId", String(business.id));
       formData.append("remove", "1");
       console.log("businessId enviado a save-db-url:", business.id);
 
@@ -2138,7 +2141,8 @@ export function BusinessAdminDashboard() {
 
       if (!response.ok || payload?.success === false) {
         throw new Error(
-          (typeof payload?.error === "string" && payload.error) ||
+          (typeof payload?.details === "string" && payload.details) ||
+            (typeof payload?.error === "string" && payload.error) ||
             "No se pudo eliminar la imagen del negocio.",
         );
       }
@@ -2151,6 +2155,7 @@ export function BusinessAdminDashboard() {
       });
     } catch (error) {
       console.error("Error eliminando foto del negocio:", error);
+      setAvatarPreview(null);
       setFeedback({
         type: "error",
         message:

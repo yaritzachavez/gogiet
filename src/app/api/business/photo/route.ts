@@ -73,7 +73,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: `Falta configuración de Cloudinary: ${cloudinaryConfig.missing.join(", ")}`,
+          error: "Faltan variables de Cloudinary",
+          details: cloudinaryConfig.missing.join(", "),
         },
         { status: 500 },
       );
@@ -81,7 +82,8 @@ export async function POST(req: NextRequest) {
 
     step = "read-form-data";
     const formData = await req.formData();
-    const requestedBusinessIdRaw = formData.get("business_id");
+    const requestedBusinessIdRaw =
+      formData.get("businessId") ?? formData.get("business_id");
     const requestedBusinessId = Number(requestedBusinessIdRaw);
     const remove = String(formData.get("remove") ?? "0") === "1";
     const userId = authUser.user.id;
@@ -106,6 +108,10 @@ export async function POST(req: NextRequest) {
       "business_id recibido:",
       Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
     );
+
+    if (!body.businessId) {
+      return buildImageErrorResponse("businessId inválido", 400);
+    }
 
     step = "find-user-business-owners";
     const ownerRelations = await prisma.business_owners.findMany({
@@ -268,10 +274,11 @@ export async function POST(req: NextRequest) {
     console.log("imageUrl:", body.imageUrl);
     console.log("Respuesta Cloudinary:", uploadResult);
 
-    if (
-      !uploadResult.secure_url ||
-      uploadResult.secure_url.startsWith("blob:")
-    ) {
+    if (!uploadResult.secure_url) {
+      return buildImageErrorResponse("Cloudinary no devolvió URL segura", 500);
+    }
+
+    if (uploadResult.secure_url.startsWith("blob:")) {
       return buildImageErrorResponse(
         "La imagen debe subirse primero a Cloudinary",
         400,
@@ -321,16 +328,20 @@ export async function POST(req: NextRequest) {
       updatedBusiness,
     });
   } catch (error) {
-    console.error("[business-photo] Error subiendo foto del negocio", {
+    console.error("ERROR business/photo:", {
       step,
       error,
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    return buildImageErrorResponse(
-      "No se pudo guardar la imagen del negocio",
-      500,
+    return NextResponse.json(
+      {
+        success: false,
+        error: "No se pudo guardar la imagen del negocio",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
     );
   }
 }
