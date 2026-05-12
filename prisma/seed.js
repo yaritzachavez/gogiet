@@ -6,13 +6,179 @@ const prisma = new PrismaClient();
 
 const ROLE_SEEDS = [
   {
+    id: 1,
     name: "admin_general",
     description: "Administrador general de la plataforma",
   },
-  { name: "repartidor", description: "Usuario repartidor" },
-  { name: "business_admin", description: "Administrador o dueno de tienda" },
-  { name: "business_staff", description: "Vendedor o personal del negocio" },
-  { name: "cliente", description: "Cliente de la plataforma" },
+  {
+    id: 2,
+    name: "cliente",
+    description: "Usuario cliente que realiza pedidos",
+  },
+  {
+    id: 3,
+    name: "negocio",
+    description: "Administrador de negocio",
+  },
+  {
+    id: 4,
+    name: "vendedor",
+    description: "Vendedor del negocio",
+  },
+  {
+    id: 5,
+    name: "repartidor",
+    description: "Usuario repartidor",
+  },
+  {
+    id: 6,
+    name: "business_admin",
+    description: "Administrador o dueno de tienda",
+  },
+  {
+    id: 7,
+    name: "business_staff",
+    description: "Vendedor o personal del negocio",
+  },
+];
+
+const STATUS_SEEDS = [
+  { id: 1, name: "active", description: "Activo" },
+  { id: 2, name: "inactive", description: "Inactivo" },
+  { id: 3, name: "pending", description: "Pendiente" },
+];
+
+const DELIVERY_STATUS_SEEDS = [
+  {
+    name: "pending",
+    description: "Entrega pendiente de asignacion",
+    sort_order: 1,
+    is_final: false,
+  },
+  {
+    name: "assigned",
+    description: "Entrega asignada a repartidor",
+    sort_order: 2,
+    is_final: false,
+  },
+  {
+    name: "picked_up",
+    description: "Pedido recogido por el repartidor",
+    sort_order: 3,
+    is_final: false,
+  },
+  {
+    name: "delivered",
+    description: "Pedido entregado",
+    sort_order: 4,
+    is_final: true,
+  },
+  {
+    name: "cancelled",
+    description: "Entrega cancelada",
+    sort_order: 5,
+    is_final: true,
+  },
+];
+
+const ORDER_STATUS_SEEDS = [
+  {
+    name: "pending",
+    description: "Pedido pendiente",
+    sort_order: 1,
+    is_final: false,
+  },
+  {
+    name: "confirmed",
+    description: "Pedido confirmado",
+    sort_order: 2,
+    is_final: false,
+  },
+  {
+    name: "preparing",
+    description: "Pedido en preparacion",
+    sort_order: 3,
+    is_final: false,
+  },
+  {
+    name: "on_the_way",
+    description: "Pedido en camino",
+    sort_order: 4,
+    is_final: false,
+  },
+  {
+    name: "delivered",
+    description: "Pedido entregado",
+    sort_order: 5,
+    is_final: true,
+  },
+  {
+    name: "cancelled",
+    description: "Pedido cancelado",
+    sort_order: 6,
+    is_final: true,
+  },
+];
+
+const PAYMENT_METHOD_SEEDS = [
+  {
+    name: "cash",
+    description: "Pago en efectivo",
+    requires_verification: false,
+    is_active: true,
+  },
+  {
+    name: "card",
+    description: "Pago con tarjeta",
+    requires_verification: false,
+    is_active: true,
+  },
+  {
+    name: "transfer",
+    description: "Transferencia bancaria",
+    requires_verification: true,
+    is_active: true,
+  },
+];
+
+const VEHICLE_TYPE_SEEDS = [
+  {
+    id: 1,
+    name: "motocicleta",
+    description: "Motocicleta para reparto",
+    max_load_kg: 25,
+    is_active: true,
+  },
+  {
+    id: 2,
+    name: "bicicleta",
+    description: "Bicicleta para reparto",
+    max_load_kg: 12,
+    is_active: true,
+  },
+  {
+    id: 3,
+    name: "automovil",
+    description: "Automovil para reparto",
+    max_load_kg: 80,
+    is_active: true,
+  },
+  {
+    id: 4,
+    name: "camioneta",
+    description: "Camioneta para reparto",
+    max_load_kg: 250,
+    is_active: true,
+  },
+];
+
+const CATALOG_TABLES = [
+  "status_catalog",
+  "roles",
+  "vehicle_types",
+  "delivery_status_catalog",
+  "order_status_catalog",
+  "payment_methods",
 ];
 
 const BUSINESS_CATEGORY_SEEDS = [
@@ -337,19 +503,48 @@ const DEMO_BUSINESS_SEEDS = [
   },
 ];
 
-async function ensureRole(role) {
-  return prisma.roles.upsert({
-    where: { name: role.name },
-    update: { description: role.description, updated_at: new Date() },
-    create: role,
-  });
+async function getCatalogCounts() {
+  const counts = {};
+
+  for (const tableName of CATALOG_TABLES) {
+    const rows = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*) AS total FROM ${tableName}`,
+    );
+    counts[tableName] = Number(rows[0]?.total ?? 0);
+  }
+
+  return counts;
 }
 
-const STATUS_SEEDS = [
-  { id: 1, name: "active", description: "Activo" },
-  { id: 2, name: "inactive", description: "Inactivo" },
-  { id: 3, name: "pending", description: "Pendiente" },
-];
+function getEmptyCatalogTables(counts) {
+  return Object.entries(counts)
+    .filter(([, total]) => Number(total) === 0)
+    .map(([tableName]) => tableName);
+}
+
+async function ensureRoles() {
+  for (const role of ROLE_SEEDS) {
+    await prisma.$executeRawUnsafe(
+      `
+        INSERT INTO roles (
+          id,
+          name,
+          description,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          description = VALUES(description),
+          updated_at = NOW()
+      `,
+      role.id,
+      role.name,
+      role.description,
+    );
+  }
+}
 
 async function ensureBaseStatuses() {
   for (const status of STATUS_SEEDS) {
@@ -378,6 +573,81 @@ async function ensureBaseStatuses() {
     where: { id: 1 },
     select: { id: true, name: true },
   });
+}
+
+async function ensureVehicleTypes() {
+  for (const vehicleType of VEHICLE_TYPE_SEEDS) {
+    await prisma.$executeRawUnsafe(
+      `
+        INSERT INTO vehicle_types (
+          id,
+          name,
+          description,
+          max_load_kg,
+          is_active,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          description = VALUES(description),
+          max_load_kg = VALUES(max_load_kg),
+          is_active = VALUES(is_active),
+          updated_at = NOW()
+      `,
+      vehicleType.id,
+      vehicleType.name,
+      vehicleType.description,
+      vehicleType.max_load_kg,
+      vehicleType.is_active,
+    );
+  }
+}
+
+async function ensureDeliveryStatuses() {
+  for (const status of DELIVERY_STATUS_SEEDS) {
+    await prisma.delivery_status_catalog.upsert({
+      where: { name: status.name },
+      update: {
+        description: status.description,
+        sort_order: status.sort_order,
+        is_final: status.is_final,
+        updated_at: new Date(),
+      },
+      create: status,
+    });
+  }
+}
+
+async function ensureOrderStatuses() {
+  for (const status of ORDER_STATUS_SEEDS) {
+    await prisma.order_status_catalog.upsert({
+      where: { name: status.name },
+      update: {
+        description: status.description,
+        sort_order: status.sort_order,
+        is_final: status.is_final,
+        updated_at: new Date(),
+      },
+      create: status,
+    });
+  }
+}
+
+async function ensurePaymentMethods() {
+  for (const method of PAYMENT_METHOD_SEEDS) {
+    await prisma.payment_methods.upsert({
+      where: { name: method.name },
+      update: {
+        description: method.description,
+        requires_verification: method.requires_verification,
+        is_active: method.is_active,
+        updated_at: new Date(),
+      },
+      create: method,
+    });
+  }
 }
 
 async function ensureDemoBusinesses(activeStatusId) {
@@ -542,84 +812,32 @@ async function ensureDemoBusinesses(activeStatusId) {
 }
 
 async function main() {
-  for (const role of ROLE_SEEDS) {
-    await ensureRole(role);
+  const catalogCountsBefore = await getCatalogCounts();
+  const emptyCatalogTables = getEmptyCatalogTables(catalogCountsBefore);
+  const seedDemoData = process.env.SEED_DEMO_DATA === "true";
+
+  if (emptyCatalogTables.length > 0) {
+    console.log("Tablas catalogo vacias detectadas:", emptyCatalogTables);
+  } else {
+    console.log("No se detectaron tablas catalogo vacias.");
   }
 
-  await prisma.business_categories.createMany({
-    data: BUSINESS_CATEGORY_SEEDS,
-    skipDuplicates: true,
-  });
+  await ensureRoles();
 
   const activeStatus = await ensureBaseStatuses();
 
   if (!activeStatus) {
     throw new Error("No se pudo crear el estado base activo con id = 1.");
   }
-  const adminRole = await prisma.roles.findUnique({
-    where: { name: "admin_general" },
-    select: { id: true },
-  });
 
-  if (!adminRole) {
-    throw new Error("No se pudo crear el rol admin_general.");
-  }
+  await ensureVehicleTypes();
+  await ensureDeliveryStatuses();
+  await ensureOrderStatuses();
+  await ensurePaymentMethods();
 
-  const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@gogieats.local")
-    .trim()
-    .toLowerCase();
-  const adminPassword = process.env.ADMIN_INITIAL_PASSWORD || "Admin12345!";
-  const adminFirstName = process.env.ADMIN_INITIAL_FIRST_NAME || "Admin";
-  const adminLastName = process.env.ADMIN_INITIAL_LAST_NAME || "General";
-  const adminPhone = process.env.ADMIN_INITIAL_PHONE || null;
-
-  const pepper = process.env.PASSWORD_PEPPER || "";
-  const saltRounds = Number(process.env.SALT_ROUNDS || 12);
-  const passwordHash = await bcrypt.hash(adminPassword + pepper, saltRounds);
-
-  const existingAdmin = await prisma.user.findUnique({
-    where: { email: adminEmail },
-    select: { id: true },
-  });
-
-  const adminUser = existingAdmin
-    ? await prisma.user.update({
-        where: { id: existingAdmin.id },
-        data: {
-          firstName: adminFirstName,
-          lastName: adminLastName,
-          phone: adminPhone,
-          passwordHash,
-          statusId: activeStatus.id,
-        },
-        select: { id: true, email: true },
-      })
-    : await prisma.user.create({
-        data: {
-          firstName: adminFirstName,
-          lastName: adminLastName,
-          email: adminEmail,
-          phone: adminPhone,
-          passwordHash,
-          statusId: activeStatus.id,
-        },
-        select: { id: true, email: true },
-      });
-
-  await prisma.user_roles.upsert({
-    where: {
-      user_id_role_id: {
-        user_id: adminUser.id,
-        role_id: adminRole.id,
-      },
-    },
-    update: {
-      assigned_at: new Date(),
-    },
-    create: {
-      user_id: adminUser.id,
-      role_id: adminRole.id,
-    },
+  await prisma.business_categories.createMany({
+    data: BUSINESS_CATEGORY_SEEDS,
+    skipDuplicates: true,
   });
 
   await prisma.product_categories.createMany({
@@ -675,6 +893,86 @@ async function main() {
       { name: "verduras", description: "Verduras frescas y de temporada" },
     ],
     skipDuplicates: true,
+  });
+
+  const catalogCountsAfter = await getCatalogCounts();
+
+  console.log("Resumen de catalogos base:", {
+    before: catalogCountsBefore,
+    after: catalogCountsAfter,
+  });
+
+  if (!seedDemoData) {
+    console.log(
+      "Seed seguro completado. No se crearon usuarios, negocios ni productos demo.",
+    );
+    return;
+  }
+
+  const adminRole = await prisma.roles.findUnique({
+    where: { name: "admin_general" },
+    select: { id: true },
+  });
+
+  if (!adminRole) {
+    throw new Error("No se pudo crear el rol admin_general.");
+  }
+
+  const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@gogieats.local")
+    .trim()
+    .toLowerCase();
+  const adminPassword = process.env.ADMIN_INITIAL_PASSWORD || "Admin12345!";
+  const adminFirstName = process.env.ADMIN_INITIAL_FIRST_NAME || "Admin";
+  const adminLastName = process.env.ADMIN_INITIAL_LAST_NAME || "General";
+  const adminPhone = process.env.ADMIN_INITIAL_PHONE || null;
+
+  const pepper = process.env.PASSWORD_PEPPER || "";
+  const saltRounds = Number(process.env.SALT_ROUNDS || 12);
+  const passwordHash = await bcrypt.hash(adminPassword + pepper, saltRounds);
+
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: adminEmail },
+    select: { id: true },
+  });
+
+  const adminUser = existingAdmin
+    ? await prisma.user.update({
+        where: { id: existingAdmin.id },
+        data: {
+          firstName: adminFirstName,
+          lastName: adminLastName,
+          phone: adminPhone,
+          password: passwordHash,
+          statusId: activeStatus.id,
+        },
+        select: { id: true, email: true },
+      })
+    : await prisma.user.create({
+        data: {
+          firstName: adminFirstName,
+          lastName: adminLastName,
+          email: adminEmail,
+          phone: adminPhone,
+          password: passwordHash,
+          statusId: activeStatus.id,
+        },
+        select: { id: true, email: true },
+      });
+
+  await prisma.user_roles.upsert({
+    where: {
+      user_id_role_id: {
+        user_id: adminUser.id,
+        role_id: adminRole.id,
+      },
+    },
+    update: {
+      assigned_at: new Date(),
+    },
+    create: {
+      user_id: adminUser.id,
+      role_id: adminRole.id,
+    },
   });
 
   await ensureDemoBusinesses(activeStatus.id);

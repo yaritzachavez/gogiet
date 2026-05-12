@@ -8,42 +8,42 @@ datasource db {
 }
 
 model User {
-  id                   Int                    @id @default(autoincrement())
-  firstName            String                 @map("first_name") @db.VarChar(80)
-  lastName             String?                @map("last_name") @db.VarChar(80)
-  email                String                 @unique(map: "uk_users_email") @db.VarChar(120)
-  phone                String?                @unique(map: "uk_users_phone") @db.VarChar(20)
-  password             String                 @map("password_hash") @db.VarChar(255)
-  birthDate            DateTime?              @map("birth_date") @db.Date
-  profile_image_url    String?                @db.VarChar(255)
-  avatar_url           String?                @db.VarChar(255)
-  zone                 String?                @map("delivery_zone") @db.VarChar(120)
-  vehicle              String?                @map("vehicle_type") @db.VarChar(40)
-  plates               String?                @map("vehicle_plate") @db.VarChar(40)
-  notes                String?                @map("delivery_notes") @db.Text
-  is_available         Boolean                @default(true)
-  statusId             Int                    @map("status_id")
-  lastLogin            DateTime?              @map("last_login") @db.DateTime(0)
-  createdAt            DateTime               @default(now()) @map("created_at") @db.DateTime(0)
-  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
-  addresses            addresses[]
-  business_managers    business_managers[]
-  business_owners      business_owners[]
-  cart                 cart[]
-  delivery             delivery[]
-  delivery_payments    delivery_payments[]
-  delivery_settlements delivery_settlements[]
-  delivery_tips        delivery_tips[]
-  favorites            favorites[]
-  admin_messages       admin_messages[]
-  order_notes          order_notes[]
-  orders               orders[]
-  reviews              reviews[]
-  support_assigned_conversations support_conversations[] @relation("support_assigned_admin")
+  id                              Int                     @id @default(autoincrement())
+  firstName                       String                  @map("first_name") @db.VarChar(80)
+  lastName                        String?                 @map("last_name") @db.VarChar(80)
+  email                           String                  @unique(map: "uk_users_email") @db.VarChar(120)
+  phone                           String?                 @unique(map: "uk_users_phone") @db.VarChar(20)
+  password                        String                  @map("password_hash") @db.VarChar(255)
+  birthDate                       DateTime?               @map("birth_date") @db.Date
+  profile_image_url               String?                 @db.VarChar(255)
+  avatar_url                      String?                 @db.VarChar(255)
+  zone                            String?                 @map("delivery_zone") @db.VarChar(120)
+  vehicle                         String?                 @map("vehicle_type") @db.VarChar(40)
+  plates                          String?                 @map("vehicle_plate") @db.VarChar(40)
+  notes                           String?                 @map("delivery_notes") @db.Text
+  is_available                    Boolean                 @default(true)
+  statusId                        Int                     @map("status_id")
+  lastLogin                       DateTime?               @map("last_login") @db.DateTime(0)
+  createdAt                       DateTime                @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt                       DateTime                @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  addresses                       addresses[]
+  admin_messages                  admin_messages[]
+  business_managers               business_managers[]
+  business_owners                 business_owners[]
+  cart                            cart[]
+  delivery                        delivery[]
+  delivery_payments               delivery_payments[]
+  delivery_settlements            delivery_settlements[]
+  delivery_tips                   delivery_tips[]
+  favorites                       favorites[]
+  order_notes                     order_notes[]
+  orders                          orders[]
+  reviews                         reviews[]
+  support_assigned_conversations  support_conversations[] @relation("support_assigned_admin")
   support_requested_conversations support_conversations[] @relation("support_requester")
-  support_sent_messages support_messages[] @relation("support_message_sender")
-  user_roles           user_roles[]
-  status_catalog       status_catalog         @relation(fields: [statusId], references: [id], map: "fk_users_status")
+  support_sent_messages           support_messages[]      @relation("support_message_sender")
+  user_roles                      user_roles[]
+  status_catalog                  status_catalog          @relation(fields: [statusId], references: [id], map: "fk_users_status")
 
   @@index([statusId], map: "fk_users_status")
   @@map("users")
@@ -77,37 +77,30 @@ model addresses {
   @@index([user_id], map: "fk_addresses_user")
 }
 
-model business {
-  id                         Int                     @id @default(autoincrement())
-  name                       String                  @db.VarChar(120)
-  legal_name                 String?                 @db.VarChar(150)
-  tax_id                     String?                 @db.VarChar(30)
-  city                       String                  @db.VarChar(100)
-  district                   String?                 @db.VarChar(100)
-  address                    String                  @db.VarChar(180)
-  address_notes              String?                 @db.VarChar(255)
-  phone                      String?                 @db.VarChar(20)
-  email                      String?                 @db.VarChar(120)
-  logo_url                   String?                 @db.VarChar(255)
-  cover_image_url            String?                 @db.VarChar(255)
-  min_order_amount           Decimal?                @db.Decimal(10, 2)
+model Business {
+  id                         Int            @id @default(autoincrement())
+  name                       String         @db.VarChar(120)
+  legal_name                 String?        @db.VarChar(150)
+  tax_id                     String?        @db.VarChar(30)
+  city                       String         @db.VarChar(100)
+  district                   String?        @db.VarChar(100)
+  address                    String         @db.VarChar(180)
+  address_notes              String?        @db.VarChar(255)
+  phone                      String?        @db.VarChar(20)
+  email                      String?        @db.VarChar(120)
+  logo_url                   String?        @db.VarChar(255)
+  cover_image_url            String?        @db.VarChar(255)
+  min_order_amount           Decimal?       @db.Decimal(10, 2)
   estimated_delivery_minutes Int?
-  rating_average             Decimal                 @default(0.00) @db.Decimal(3, 2)
-  is_open                    Boolean                 @default(true)
+  rating_average             Decimal        @default(0.00) @db.Decimal(3, 2)
+  is_open                    Boolean        @default(true)
   status_id                  Int
-  created_at                 DateTime                @default(now()) @db.DateTime(0)
-  updated_at                 DateTime                @default(now()) @db.DateTime(0)
-  status_catalog             status_catalog          @relation(fields: [status_id], references: [id], map: "fk_business_status")
-  business_category_map      business_category_map[]
-  business_details           business_details?
-  business_hours             business_hours[]
-  business_images            business_images[]
-  business_managers          business_managers[]
-  business_owners            business_owners[]
-  orders                     orders[]
-  products                   products[]
+  created_at                 DateTime       @default(now()) @db.DateTime(0)
+  updated_at                 DateTime       @default(now()) @db.DateTime(0)
+  status_catalog             status_catalog @relation(fields: [status_id], references: [id], map: "fk_business_status")
 
   @@index([status_id], map: "fk_business_status")
+  @@map("businesses")
 }
 
 model business_categories {
@@ -124,7 +117,6 @@ model business_category_map {
   business_id         Int
   category_id         Int
   assigned_at         DateTime            @default(now()) @db.DateTime(0)
-  business            business            @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_category_map_business")
   business_categories business_categories @relation(fields: [category_id], references: [id], map: "fk_business_category_map_category")
 
   @@id([business_id, category_id])
@@ -147,7 +139,6 @@ model business_details {
   website_url      String?  @db.VarChar(255)
   created_at       DateTime @default(now()) @db.DateTime(0)
   updated_at       DateTime @default(now()) @db.DateTime(0)
-  business         business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_details_business")
 }
 
 model business_hours {
@@ -159,7 +150,6 @@ model business_hours {
   is_closed   Boolean   @default(false)
   created_at  DateTime  @default(now()) @db.DateTime(0)
   updated_at  DateTime  @default(now()) @db.DateTime(0)
-  business    business  @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_hours_business")
 
   @@unique([business_id, day_of_week], map: "uk_business_hours_day")
 }
@@ -173,7 +163,6 @@ model business_images {
   is_cover    Boolean  @default(false)
   created_at  DateTime @default(now()) @db.DateTime(0)
   updated_at  DateTime @default(now()) @db.DateTime(0)
-  business    business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_images_business")
 
   @@index([business_id], map: "fk_business_images_business")
 }
@@ -184,7 +173,6 @@ model business_managers {
   position    String?  @db.VarChar(100)
   assigned_at DateTime @default(now()) @db.DateTime(0)
   is_active   Boolean  @default(true)
-  business    business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_managers_business")
   users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_business_managers_user")
 
   @@id([business_id, user_id])
@@ -196,7 +184,6 @@ model business_owners {
   user_id     Int
   assigned_at DateTime @default(now()) @db.DateTime(0)
   notes       String?  @db.VarChar(255)
-  business    business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_owners_business")
   users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_business_owners_user")
 
   @@id([business_id, user_id])
@@ -429,13 +416,12 @@ model orders {
   cancelled_at         DateTime?            @db.DateTime(0)
   created_at           DateTime             @default(now()) @db.DateTime(0)
   updated_at           DateTime             @default(now()) @db.DateTime(0)
+  admin_messages       admin_messages[]
   delivery             delivery?
   delivery_tips        delivery_tips[]
-  admin_messages       admin_messages[]
   order_items          order_items[]
   order_notes          order_notes[]
   addresses            addresses            @relation(fields: [address_id], references: [id], map: "fk_orders_address")
-  business             business             @relation(fields: [business_id], references: [id], map: "fk_orders_business")
   cart                 cart?                @relation(fields: [cart_id], references: [id], map: "fk_orders_cart")
   order_status_catalog order_status_catalog @relation(fields: [order_status_id], references: [id], map: "fk_orders_order_status")
   payment_methods      payment_methods      @relation(fields: [payment_method_id], references: [id], map: "fk_orders_payment_method")
@@ -561,7 +547,6 @@ model products {
   order_items          order_items[]
   product_category_map product_category_map[]
   product_images       product_images[]
-  business             business               @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_products_business")
   promotions           promotions?            @relation(fields: [promotion_id], references: [id], map: "fk_products_promotion")
   status_catalog       status_catalog         @relation(fields: [status_id], references: [id], map: "fk_products_status")
   products_cart        products_cart[]
@@ -636,22 +621,22 @@ model status_catalog {
   created_at  DateTime    @default(now()) @db.DateTime(0)
   updated_at  DateTime    @default(now()) @db.DateTime(0)
   addresses   addresses[]
-  business    business[]
+  business    Business[]
   products    products[]
   users       User[]
 }
 
 model support_conversations {
-  id                Int               @id @default(autoincrement())
+  id                Int                @id @default(autoincrement())
   requester_user_id Int
-  requester_role    String            @db.VarChar(30)
+  requester_role    String             @db.VarChar(30)
   assigned_admin_id Int?
-  status            String            @default("open") @db.VarChar(20)
-  subject           String?           @db.VarChar(255)
-  created_at        DateTime          @default(now()) @db.DateTime(0)
-  updated_at        DateTime          @default(now()) @db.DateTime(0)
-  requester         User              @relation("support_requester", fields: [requester_user_id], references: [id], onDelete: Cascade)
-  assigned_admin    User?             @relation("support_assigned_admin", fields: [assigned_admin_id], references: [id])
+  status            String             @default("open") @db.VarChar(20)
+  subject           String?            @db.VarChar(255)
+  created_at        DateTime           @default(now()) @db.DateTime(0)
+  updated_at        DateTime           @default(now()) @db.DateTime(0)
+  assigned_admin    User?              @relation("support_assigned_admin", fields: [assigned_admin_id], references: [id])
+  requester         User               @relation("support_requester", fields: [requester_user_id], references: [id], onDelete: Cascade)
   messages          support_messages[]
 
   @@index([requester_user_id, requester_role], map: "idx_support_conversations_requester")
@@ -660,16 +645,16 @@ model support_conversations {
 }
 
 model support_messages {
-  id             Int                    @id @default(autoincrement())
+  id              Int                    @id @default(autoincrement())
   conversation_id Int?
-  sender_user_id Int?
-  sender_role    String?                @db.VarChar(30)
-  message        String                 @db.Text
-  attachment_url String?                @db.MediumText
-  is_read        Boolean                @default(false)
-  created_at     DateTime               @default(now()) @db.DateTime(0)
-  conversations  support_conversations? @relation(fields: [conversation_id], references: [id])
-  sender         User?                  @relation("support_message_sender", fields: [sender_user_id], references: [id], onDelete: Cascade)
+  sender_user_id  Int?
+  sender_role     String?                @db.VarChar(30)
+  message         String                 @db.Text
+  attachment_url  String?                @db.MediumText
+  is_read         Boolean                @default(false)
+  created_at      DateTime               @default(now()) @db.DateTime(0)
+  conversations   support_conversations? @relation(fields: [conversation_id], references: [id])
+  sender          User?                  @relation("support_message_sender", fields: [sender_user_id], references: [id], onDelete: Cascade)
 
   @@index([conversation_id], map: "idx_support_messages_conversation")
   @@index([sender_user_id], map: "idx_support_messages_sender_user")
@@ -696,4 +681,25 @@ model vehicle_types {
   created_at  DateTime   @default(now()) @db.DateTime(0)
   updated_at  DateTime   @default(now()) @db.DateTime(0)
   delivery    delivery[]
+}
+
+model notifications {
+  id          Int      @id @default(autoincrement())
+  user_id     Int?
+  business_id Int?
+  role        String?  @db.VarChar(80)
+  type        String   @db.VarChar(50)
+  title       String   @db.VarChar(160)
+  message     String   @db.Text
+  related_id  Int?
+  is_read     Boolean  @default(false)
+  data_json   Json?
+  created_at  DateTime @default(now()) @db.DateTime(0)
+  updated_at  DateTime @default(now()) @db.DateTime(0)
+
+  @@index([business_id], map: "idx_notifications_business_id")
+  @@index([created_at], map: "idx_notifications_created_at")
+  @@index([is_read], map: "idx_notifications_is_read")
+  @@index([role], map: "idx_notifications_role")
+  @@index([user_id], map: "idx_notifications_user_id")
 }
