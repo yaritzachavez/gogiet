@@ -1,9 +1,8 @@
 import Image from "next/image";
-import Link from "next/link";
 import { HeroActions } from "@/components/home/HeroActions";
+import { PremiumFooter } from "@/components/home/PremiumFooter";
 import { ReviewRotator } from "@/components/home/ReviewRotator";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
@@ -126,26 +125,9 @@ export default function Home() {
           </div>
         </section>
 
-        {/* CALL TO ACTION */}
-        <section className="container mx-auto px-4 py-20 text-center">
-          <div className="mx-auto max-w-3xl rounded-[36px] border border-[#E2D9D0] bg-[#F8F5F0] px-6 py-12 shadow-[0_25px_55px_rgba(0,0,0,0.1)]">
-            <h2 className="font-serif text-4xl text-[#3E2F28]">
-              ¿Listo para apoyar a los aliados locales?
-            </h2>
-
-            <p className="mt-3 text-lg text-[#5F5148]">
-              Únete a la comunidad Gogi Eats y descubre el sabor artesanal que
-              tenemos cerca de casa.
-            </p>
-
-            <Link href="/auth?mode=register">
-              <Button className="mt-8 rounded-full bg-orange-600 px-10 py-3 text-base text-white hover:bg-orange-700">
-                Comenzar ahora
-              </Button>
-            </Link>
-          </div>
-        </section>
       </main>
+
+      <PremiumFooter />
     </div>
   );
 }
