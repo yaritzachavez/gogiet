@@ -345,14 +345,38 @@ async function ensureRole(role) {
   });
 }
 
-async function ensureActiveStatus() {
-  return prisma.status_catalog.upsert({
-    where: { name: "activo" },
-    update: { description: "Registro activo", updated_at: new Date() },
-    create: {
-      name: "activo",
-      description: "Registro activo",
-    },
+const STATUS_SEEDS = [
+  { id: 1, name: "active", description: "Activo" },
+  { id: 2, name: "inactive", description: "Inactivo" },
+  { id: 3, name: "pending", description: "Pendiente" },
+];
+
+async function ensureBaseStatuses() {
+  for (const status of STATUS_SEEDS) {
+    await prisma.$executeRawUnsafe(
+      `
+        INSERT INTO status_catalog (
+          id,
+          name,
+          description,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          description = VALUES(description),
+          updated_at = NOW()
+      `,
+      status.id,
+      status.name,
+      status.description,
+    );
+  }
+
+  return prisma.status_catalog.findUnique({
+    where: { id: 1 },
+    select: { id: true, name: true },
   });
 }
 
@@ -527,7 +551,11 @@ async function main() {
     skipDuplicates: true,
   });
 
-  const activeStatus = await ensureActiveStatus();
+  const activeStatus = await ensureBaseStatuses();
+
+  if (!activeStatus) {
+    throw new Error("No se pudo crear el estado base activo con id = 1.");
+  }
   const adminRole = await prisma.roles.findUnique({
     where: { name: "admin_general" },
     select: { id: true },

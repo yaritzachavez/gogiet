@@ -26,6 +26,32 @@ type StatusCatalogRow = RowDataPacket & {
   name: string;
 };
 
+type BaseStatusDefinition = {
+  id: number;
+  name: string;
+  description: string;
+};
+
+const BASE_AUTH_STATUSES: BaseStatusDefinition[] = [
+  {
+    id: 1,
+    name: "active",
+    description: "Activo",
+  },
+  {
+    id: 2,
+    name: "inactive",
+    description: "Inactivo",
+  },
+  {
+    id: 3,
+    name: "pending",
+    description: "Pendiente",
+  },
+];
+
+const ACTIVE_STATUS_NAMES = ["active", "activo"];
+
 let cachedUsersColumns: Set<string> | null = null;
 let cachedPasswordColumn: UserPasswordColumn | null = null;
 let cachedActiveStatusId: number | null = null;
@@ -135,18 +161,43 @@ export async function findUserIdByPhone(phone: string) {
   return Number(rows[0]?.id ?? 0);
 }
 
+export async function ensureBaseAuthStatuses() {
+  for (const status of BASE_AUTH_STATUSES) {
+    await pool.query<ResultSetHeader>(
+      `
+        INSERT INTO status_catalog (
+          id,
+          name,
+          description,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          name = VALUES(name),
+          description = VALUES(description),
+          updated_at = NOW()
+      `,
+      [status.id, status.name, status.description],
+    );
+  }
+}
+
 export async function getActiveAuthStatusId() {
   if (cachedActiveStatusId && cachedActiveStatusId > 0) {
     return cachedActiveStatusId;
   }
 
+  await ensureBaseAuthStatuses();
+
   const [rows] = await pool.query<StatusCatalogRow[]>(
     `
       SELECT id, name
       FROM status_catalog
-      WHERE LOWER(TRIM(name)) IN ('activo', 'active')
+      WHERE LOWER(TRIM(name)) IN (?, ?)
       ORDER BY id ASC
     `,
+    ACTIVE_STATUS_NAMES,
   );
 
   const activeStatusId = Number(rows[0]?.id ?? 0);
@@ -157,7 +208,7 @@ export async function getActiveAuthStatusId() {
   }
 
   throw new Error(
-    "No se encontró un estado activo en status_catalog para registrar usuarios.",
+    "No se encontró ni se pudo crear un estado activo en status_catalog para registrar usuarios.",
   );
 }
 

@@ -2,16 +2,17 @@ import bcrypt from "bcrypt";
 import jwt, { type SignOptions } from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
-import { normalizeEmail } from "@/lib/auth-account";
 import {
   createUserSession,
   getDeviceName,
   getLocationLabel,
 } from "@/lib/admin-security";
+import { normalizeEmail } from "@/lib/auth-account";
 import {
   findAuthUserByEmail,
   findAuthUserById,
   findNormalizedEmailMatchId,
+  getActiveAuthStatusId,
   updateAuthUserLastLogin,
 } from "@/lib/auth-users";
 import { getDbRuntimeConfig, logDbUsage } from "@/lib/db";
@@ -41,9 +42,10 @@ export async function POST(req: Request) {
     const json = (body: unknown, init?: ResponseInit) =>
       withCors(req, NextResponse.json(body, init));
 
-    const body = (await req.json().catch(() => null)) as
-      | { email?: string; password?: string }
-      | null;
+    const body = (await req.json().catch(() => null)) as {
+      email?: string;
+      password?: string;
+    } | null;
     const { email, password } = body ?? {};
     const normalizedEmail = normalizeEmail(email ?? "");
     loginEmailForLog = normalizedEmail;
@@ -110,7 +112,9 @@ export async function POST(req: Request) {
 
     const rawEmail = String(email ?? "").trim();
 
-    let user = (await findAuthUserByEmail(normalizedEmail)) as AuthUserRecord | null;
+    let user = (await findAuthUserByEmail(
+      normalizedEmail,
+    )) as AuthUserRecord | null;
 
     console.log("EMAIL BUSCADO:", normalizedEmail);
     console.log("EMAIL ORIGINAL:", rawEmail);
@@ -129,7 +133,9 @@ export async function POST(req: Request) {
     console.log("USER FOUND:", Boolean(user));
 
     if (!user && rawEmail && rawEmail !== normalizedEmail) {
-      const fallbackUser = (await findAuthUserByEmail(rawEmail)) as AuthUserRecord | null;
+      const fallbackUser = (await findAuthUserByEmail(
+        rawEmail,
+      )) as AuthUserRecord | null;
 
       console.log(
         "USUARIO ENCONTRADO FALLBACK RAW EMAIL:",
@@ -138,7 +144,9 @@ export async function POST(req: Request) {
               id: fallbackUser.id,
               email: fallbackUser.email,
               statusId: fallbackUser.statusId,
-              fields: Object.keys(fallbackUser).filter((field) => field !== "password"),
+              fields: Object.keys(fallbackUser).filter(
+                (field) => field !== "password",
+              ),
             }
           : null,
       );
@@ -158,7 +166,8 @@ export async function POST(req: Request) {
     }
 
     if (!user) {
-      const normalizedMatchId = await findNormalizedEmailMatchId(normalizedEmail);
+      const normalizedMatchId =
+        await findNormalizedEmailMatchId(normalizedEmail);
 
       console.log("LOGIN FALLBACK LOWER(TRIM(email)) MATCH:", {
         found: normalizedMatchId > 0,
@@ -166,7 +175,9 @@ export async function POST(req: Request) {
       });
 
       if (normalizedMatchId > 0) {
-        user = (await findAuthUserById(normalizedMatchId)) as AuthUserRecord | null;
+        user = (await findAuthUserById(
+          normalizedMatchId,
+        )) as AuthUserRecord | null;
 
         console.log(
           "USUARIO ENCONTRADO POR FALLBACK NORMALIZED EMAIL:",
@@ -175,7 +186,9 @@ export async function POST(req: Request) {
                 id: user.id,
                 email: user.email,
                 statusId: user.statusId,
-                fields: Object.keys(user).filter((field) => field !== "password"),
+                fields: Object.keys(user).filter(
+                  (field) => field !== "password",
+                ),
               }
             : null,
         );
@@ -194,7 +207,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (Number(user.statusId ?? 0) !== 1) {
+    const activeStatusId = await getActiveAuthStatusId();
+
+    if (Number(user.statusId ?? 0) !== activeStatusId) {
       return json(
         {
           success: false,

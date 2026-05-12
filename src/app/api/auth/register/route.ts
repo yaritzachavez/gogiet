@@ -285,6 +285,22 @@ export async function POST(req: Request) {
       error,
     });
 
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ER_NO_REFERENCED_ROW_2"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "No se pudo asignar el estado inicial del usuario. Verifica el catálogo de estados.",
+        },
+        { status: 500 },
+      );
+    }
+
     return json(
       {
         success: false,
