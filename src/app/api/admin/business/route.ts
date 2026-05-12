@@ -44,7 +44,7 @@ async function getBusinessRowById(businessId: number) {
         bo.user_id AS owner_id,
         b.created_at,
         b.updated_at
-      FROM business b
+      FROM businesses b
       LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
       LEFT JOIN business_categories bc ON bc.id = bcm.category_id
       LEFT JOIN business_owners bo ON bo.business_id = b.id
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
           bo.user_id AS owner_id,
           b.created_at,
           b.updated_at
-        FROM business b
+        FROM businesses b
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         LEFT JOIN business_owners bo ON bo.business_id = b.id
@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
 
     const [insertResult] = await connection.query<ResultSetHeader>(
       `
-        INSERT INTO business (
+        INSERT INTO businesses (
           name,
           legal_name,
           tax_id,

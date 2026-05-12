@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
             SELECT COALESCE(b.city, a.city, 'Sin zona registrada')
             FROM delivery d3
             INNER JOIN orders o3 ON o3.id = d3.order_id
-            LEFT JOIN business b ON b.id = o3.business_id
+            LEFT JOIN businesses b ON b.id = o3.business_id
             LEFT JOIN addresses a ON a.id = o3.address_id
             WHERE d3.driver_user_id = u.id
             ORDER BY d3.id DESC

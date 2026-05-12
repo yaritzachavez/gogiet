@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
           b.id AS business_id,
           COALESCE(SUM(CASE WHEN DATE(o.created_at) = CURDATE() THEN 1 ELSE 0 END), 0) AS today_orders,
           COALESCE(SUM(o.total_amount), 0) AS total_sales
-        FROM business b
+        FROM businesses b
         LEFT JOIN orders o ON o.business_id = b.id
         GROUP BY b.id
       `,

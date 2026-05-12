@@ -44,7 +44,7 @@ async function getBusinessById(id: number) {
         bo.user_id AS owner_id,
         b.created_at,
         b.updated_at
-      FROM business b
+      FROM businesses b
       LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
       LEFT JOIN business_categories bc ON bc.id = bcm.category_id
       LEFT JOIN business_owners bo ON bo.business_id = b.id
@@ -162,7 +162,7 @@ export async function PATCH(
 
     await connection.query<ResultSetHeader>(
       `
-        UPDATE business
+        UPDATE businesses
         SET
           name = ?,
           legal_name = ?,

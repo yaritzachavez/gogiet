@@ -19,7 +19,7 @@ export async function ensureBusinessLogoColumn() {
       SELECT column_name
       FROM information_schema.columns
       WHERE table_schema = DATABASE()
-        AND table_name = 'business'
+        AND table_name = 'businesses'
         AND column_name IN ('logo_url', 'avatar_url', 'image_url', 'photo_url', 'logo')
     `,
   );
@@ -31,7 +31,7 @@ export async function ensureBusinessLogoColumn() {
   if (!availableColumns.has("logo_url")) {
     try {
       await pool.query(`
-        ALTER TABLE business
+        ALTER TABLE businesses
         ADD COLUMN logo_url VARCHAR(255) NULL
       `);
 
@@ -65,7 +65,7 @@ export async function ensureBusinessLogoColumn() {
 
   if (sourceColumns.length > 0) {
     await pool.query(`
-      UPDATE business
+      UPDATE businesses
       SET logo_url = COALESCE(
         logo_url,
         ${sourceColumns.map((column) => `NULLIF(${column}, '')`).join(", ")}

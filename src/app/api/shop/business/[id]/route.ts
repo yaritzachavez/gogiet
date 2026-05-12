@@ -111,7 +111,7 @@ export async function GET(
           bd.accepts_pickup,
           bd.accepts_delivery,
           bd.whatsapp_phone
-        FROM business b
+        FROM businesses b
         LEFT JOIN status_catalog sc ON sc.id = b.status_id
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id

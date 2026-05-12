@@ -118,7 +118,7 @@ export async function PATCH(
           osc.name AS current_status,
           d.driver_user_id
         FROM orders o
-        INNER JOIN business b ON b.id = o.business_id
+        INNER JOIN businesses b ON b.id = o.business_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         LEFT JOIN delivery d ON d.order_id = o.id
         WHERE o.id = ?

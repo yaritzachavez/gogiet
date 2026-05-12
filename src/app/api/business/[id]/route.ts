@@ -70,7 +70,7 @@ export async function GET(
           bd.facebook_url,
           bd.whatsapp_phone,
           bd.website_url
-        FROM business b
+        FROM businesses b
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         LEFT JOIN business_owners bo ON bo.business_id = b.id
@@ -184,7 +184,7 @@ export async function PUT(
 
     await connection.query(
       `
-        UPDATE business SET
+        UPDATE businesses SET
           name = ?,
           legal_name = ?,
           tax_id = ?,
@@ -247,7 +247,7 @@ export async function PUT(
           b.*,
           bcm.category_id AS business_category_id,
           bc.name AS category_name
-        FROM business b
+        FROM businesses b
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         WHERE b.id = ?
@@ -318,7 +318,7 @@ export async function PATCH(
 
     await pool.query(
       `
-        UPDATE business
+        UPDATE businesses
         SET logo_url = ?, updated_at = NOW()
         WHERE id = ?
       `,
@@ -328,7 +328,7 @@ export async function PATCH(
     const [rows]: any = await pool.query(
       `
         SELECT id, logo_url, updated_at
-        FROM business
+        FROM businesses
         WHERE id = ?
         LIMIT 1
       `,
@@ -373,7 +373,7 @@ export async function DELETE(
       [id],
     );
     await pool.query("DELETE FROM business_owners WHERE business_id = ?", [id]);
-    await pool.query("DELETE FROM business WHERE id = ?", [id]);
+    await pool.query("DELETE FROM businesses WHERE id = ?", [id]);
 
     return NextResponse.json({ message: "Negocio eliminado" }, { status: 200 });
   } catch (error) {

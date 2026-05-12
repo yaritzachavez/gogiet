@@ -357,7 +357,7 @@ async function getOrderById(orderId: number): Promise<any | null> {
         dsc.name AS delivery_status
       FROM orders o
       LEFT JOIN users u ON u.id = o.user_id
-      LEFT JOIN business b ON b.id = o.business_id
+      LEFT JOIN businesses b ON b.id = o.business_id
       LEFT JOIN addresses a ON a.id = o.address_id
       LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
       LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id

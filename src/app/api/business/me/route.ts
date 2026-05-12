@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
       `
         SELECT b.id, b.name, b.city, 'owner' AS source
         FROM business_owners bo
-        INNER JOIN business b ON b.id = bo.business_id
+        INNER JOIN businesses b ON b.id = bo.business_id
         WHERE bo.user_id = ?
         ORDER BY b.name ASC
       `,
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
       `
         SELECT b.id, b.name, b.city, 'manager' AS source
         FROM business_managers bm
-        INNER JOIN business b ON b.id = bm.business_id
+        INNER JOIN businesses b ON b.id = bm.business_id
         WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
         ORDER BY b.name ASC
       `,
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
       const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
         `
           SELECT b.id, b.name, b.city, 'admin_general' AS source
-          FROM business b
+          FROM businesses b
           WHERE COALESCE(b.status_id, 1) = 1
           ORDER BY b.name ASC
         `,
@@ -213,7 +213,7 @@ export async function GET(req: NextRequest) {
     const [rawBusinessRows] = await pool.query<RowDataPacket[]>(
       `
         SELECT *
-        FROM business
+        FROM businesses
         WHERE id = ?
       `,
       [businessId],
@@ -246,7 +246,7 @@ export async function GET(req: NextRequest) {
           b.status_id,
           b.is_open AS is_open_now,
           bo.user_id AS owner_id
-        FROM business b
+        FROM businesses b
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         LEFT JOIN business_owners bo ON bo.business_id = b.id

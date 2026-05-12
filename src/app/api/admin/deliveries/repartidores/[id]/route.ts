@@ -181,7 +181,7 @@ async function getCourierBase(courierId: number) {
           SELECT COALESCE(b.city, a.city, 'Sin zona registrada')
           FROM delivery d3
           INNER JOIN orders o3 ON o3.id = d3.order_id
-          LEFT JOIN business b ON b.id = o3.business_id
+          LEFT JOIN businesses b ON b.id = o3.business_id
           LEFT JOIN addresses a ON a.id = o3.address_id
           WHERE d3.driver_user_id = u.id
           ORDER BY d3.id DESC
@@ -304,7 +304,7 @@ export async function GET(
         SELECT DISTINCT b.id, b.name
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
-        INNER JOIN business b ON b.id = o.business_id
+        INNER JOIN businesses b ON b.id = o.business_id
         WHERE d.driver_user_id = ?
         ORDER BY b.name ASC
       `,
@@ -347,7 +347,7 @@ export async function GET(
           ) AS delivery_address
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
-        LEFT JOIN business b ON b.id = o.business_id
+        LEFT JOIN businesses b ON b.id = o.business_id
         LEFT JOIN addresses a ON a.id = o.address_id
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id

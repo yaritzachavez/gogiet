@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
           ${shippingFeeExpression} AS shipping_fee_amount
         FROM orders o
         INNER JOIN delivery d ON d.order_id = o.id
-        INNER JOIN business b ON b.id = o.business_id
+        INNER JOIN businesses b ON b.id = o.business_id
         WHERE o.id = ?
         LIMIT 1
       `,

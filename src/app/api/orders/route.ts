@@ -409,7 +409,7 @@ async function getOrderById(
         COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id
       FROM orders o
       LEFT JOIN users u ON u.id = o.user_id
-      LEFT JOIN business b ON b.id = o.business_id
+      LEFT JOIN businesses b ON b.id = o.business_id
       LEFT JOIN addresses a ON a.id = o.address_id
       LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
       LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
@@ -556,7 +556,7 @@ export async function GET(req: NextRequest) {
           COUNT(oi.id) AS items_count
         FROM orders o
         LEFT JOIN users u ON u.id = o.user_id
-        LEFT JOIN business b ON b.id = o.business_id
+        LEFT JOIN businesses b ON b.id = o.business_id
         LEFT JOIN addresses a ON a.id = o.address_id
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
@@ -850,7 +850,7 @@ export async function POST(req: NextRequest) {
     const [businessRows] = await conn.query<BusinessRow[]>(
       `
         SELECT id, status_id, is_open
-        FROM business
+        FROM businesses
         WHERE id = ?
         LIMIT 1
       `,

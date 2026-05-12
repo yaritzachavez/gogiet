@@ -139,7 +139,7 @@ export async function resolveBusinessAccess(
     `
       SELECT b.id, b.name, b.city, 'owner' AS source
       FROM business_owners bo
-      INNER JOIN business b ON b.id = bo.business_id
+      INNER JOIN businesses b ON b.id = bo.business_id
       WHERE bo.user_id = ?
       ORDER BY b.name ASC
     `,
@@ -150,7 +150,7 @@ export async function resolveBusinessAccess(
     `
       SELECT b.id, b.name, b.city, 'manager' AS source
       FROM business_managers bm
-      INNER JOIN business b ON b.id = bm.business_id
+      INNER JOIN businesses b ON b.id = bm.business_id
       WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
       ORDER BY b.name ASC
     `,
@@ -170,7 +170,7 @@ export async function resolveBusinessAccess(
     const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'admin_general' AS source
-        FROM business b
+        FROM businesses b
         WHERE COALESCE(b.status_id, 1) = 1
         ORDER BY b.name ASC
       `,

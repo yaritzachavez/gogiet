@@ -67,7 +67,7 @@ export async function PATCH(
           o.user_id AS customer_user_id,
           b.name AS business_name
         FROM orders o
-        INNER JOIN business b ON b.id = o.business_id
+        INNER JOIN businesses b ON b.id = o.business_id
         WHERE o.id = ?
         LIMIT 1
       `,

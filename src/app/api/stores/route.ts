@@ -69,7 +69,7 @@ export async function GET(req: Request) {
         GROUP_CONCAT(DISTINCT bc.name ORDER BY bc.name SEPARATOR ', ') AS categories,
         GROUP_CONCAT(DISTINCT p.name ORDER BY p.name SEPARATOR ', ') AS product_names,
         GROUP_CONCAT(DISTINCT pc.name ORDER BY pc.name SEPARATOR ', ') AS product_categories
-      FROM business b
+      FROM businesses b
       LEFT JOIN status_catalog sc ON sc.id = b.status_id
       LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
       LEFT JOIN business_categories bc ON bc.id = bcm.category_id

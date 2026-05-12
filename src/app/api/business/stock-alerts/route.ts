@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       `
         SELECT b.id
         FROM business_owners bo
-        INNER JOIN business b ON b.id = bo.business_id
+        INNER JOIN businesses b ON b.id = bo.business_id
         WHERE bo.user_id = ?
         ORDER BY b.id ASC
       `,
