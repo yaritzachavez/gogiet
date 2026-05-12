@@ -172,6 +172,22 @@ export async function PUT(
       logo_url,
       status_id = 1,
     } = body;
+    const parsedBusinessId = Number(businessId);
+    const parsedOwnerId = Number(owner_id);
+
+    if (
+      !Number.isFinite(parsedBusinessId) ||
+      parsedBusinessId <= 0 ||
+      !Number.isFinite(parsedOwnerId) ||
+      parsedOwnerId <= 0
+    ) {
+      return NextResponse.json(
+        {
+          error: "owner_id o business_id inválido",
+        },
+        { status: 400 },
+      );
+    }
 
     if (!owner_id || !name || !business_category_id || !city || !address) {
       return NextResponse.json(
@@ -214,24 +230,28 @@ export async function PUT(
         email ?? null,
         logo_url ?? null,
         status_id,
-        businessId,
+        parsedBusinessId,
       ],
     );
 
     await connection.query(
       "DELETE FROM business_category_map WHERE business_id = ?",
-      [businessId],
+      [parsedBusinessId],
     );
     await connection.query(
       "INSERT INTO business_category_map (business_id, category_id) VALUES (?, ?)",
-      [businessId, business_category_id],
+      [parsedBusinessId, business_category_id],
     );
 
     await connection.query(
       "DELETE FROM business_owners WHERE business_id = ?",
-      [businessId],
+      [parsedBusinessId],
     );
-    await assignBusinessOwnerSafely(connection, businessId, owner_id);
+    await assignBusinessOwnerSafely(
+      connection,
+      parsedBusinessId,
+      parsedOwnerId,
+    );
 
     await connection.query(
       `
@@ -253,7 +273,7 @@ export async function PUT(
         WHERE b.id = ?
         LIMIT 1
       `,
-      [businessId],
+      [parsedBusinessId],
     );
 
     await connection.commit();
