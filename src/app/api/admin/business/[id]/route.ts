@@ -211,7 +211,7 @@ export async function PATCH(
       );
       await connection.query(
         `
-          INSERT INTO business_owners (business_id, user_id)
+          INSERT IGNORE INTO business_owners (business_id, user_id)
           VALUES (?, ?)
         `,
         [businessId, ownerId],

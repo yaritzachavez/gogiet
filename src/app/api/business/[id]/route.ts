@@ -229,7 +229,7 @@ export async function PUT(
       [businessId],
     );
     await connection.query(
-      "INSERT INTO business_owners (business_id, user_id) VALUES (?, ?)",
+      "INSERT IGNORE INTO business_owners (business_id, user_id) VALUES (?, ?)",
       [businessId, owner_id],
     );
 

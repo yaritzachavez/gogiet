@@ -130,13 +130,15 @@ export async function POST(req: NextRequest) {
       [businessId, business_category_id],
     );
 
-    await connection.query(
+    const [ownerInsertResult] = await connection.query<ResultSetHeader>(
       `
-        INSERT INTO business_owners (business_id, user_id)
+        INSERT IGNORE INTO business_owners (business_id, user_id)
         VALUES (?, ?)
       `,
       [businessId, owner_id],
     );
+
+    const ownerAlreadyAssigned = ownerInsertResult.affectedRows === 0;
 
     await connection.query(
       `
@@ -168,7 +170,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        message: "Negocio creado correctamente",
+        message: ownerAlreadyAssigned
+          ? "Negocio creado correctamente. El dueño ya estaba asignado a este negocio."
+          : "Negocio creado correctamente",
+        owner_assignment_message: ownerAlreadyAssigned
+          ? "El negocio ya tiene ese dueño asignado"
+          : "Dueño asignado correctamente",
         business: rows[0],
       },
       { status: 201 },
