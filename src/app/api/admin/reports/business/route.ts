@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
     const [businesses] = await pool.query<BusinessRow[]>(
       `
         SELECT id, name
-        FROM business
+        FROM businesses
         ORDER BY name ASC
       `,
     );
