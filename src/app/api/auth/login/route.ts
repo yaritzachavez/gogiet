@@ -27,6 +27,9 @@ export function OPTIONS(req: Request) {
 }
 
 export async function POST(req: Request) {
+  let loginEmailForLog = "";
+  let userFoundForLog = false;
+
   try {
     const json = (body: unknown, init?: ResponseInit) =>
       withCors(req, NextResponse.json(body, init));
@@ -36,12 +39,15 @@ export async function POST(req: Request) {
       | null;
     const { email, password } = body ?? {};
     const normalizedEmail = normalizeEmail(email ?? "");
+    loginEmailForLog = normalizedEmail;
 
     console.log("POST /api/auth/login email recibido:", normalizedEmail);
+    console.log("LOGIN EMAIL:", normalizedEmail);
     logDbUsage("/api/auth/login", {
       email: normalizedEmail,
     });
     console.log("POST /api/auth/login db runtime:", getDbRuntimeConfig());
+    console.log("JWT_SECRET EXISTS:", Boolean(process.env.JWT_SECRET));
     console.log("POST /api/auth/login env status:", {
       hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
       hasDbHost: Boolean(process.env.DB_HOST),
@@ -120,6 +126,8 @@ export async function POST(req: Request) {
           }
         : null,
     );
+    userFoundForLog = Boolean(user);
+    console.log("USER FOUND:", Boolean(user));
 
     if (!user && rawEmail && rawEmail !== normalizedEmail) {
       const fallbackUser = (await prisma.user.findFirst({
@@ -147,6 +155,8 @@ export async function POST(req: Request) {
             }
           : null,
       );
+      userFoundForLog = Boolean(fallbackUser);
+      console.log("USER FOUND:", Boolean(fallbackUser));
 
       if (fallbackUser) {
         return json(
@@ -202,6 +212,8 @@ export async function POST(req: Request) {
               }
             : null,
         );
+        userFoundForLog = Boolean(user);
+        console.log("USER FOUND:", Boolean(user));
       }
     }
 
@@ -237,10 +249,17 @@ export async function POST(req: Request) {
     }
 
     const pepper = process.env.PASSWORD_PEPPER ?? "";
-    const passwordMatch = await bcrypt.compare(
-      password + pepper,
-      user.password,
-    );
+    let passwordMatch = false;
+
+    try {
+      passwordMatch = await bcrypt.compare(password + pepper, user.password);
+    } catch (bcryptError) {
+      console.error(
+        "POST /api/auth/login bcrypt.compare falló, se tratará como contraseña incorrecta:",
+        bcryptError,
+      );
+      passwordMatch = false;
+    }
 
     console.log("POST /api/auth/login password valida:", passwordMatch);
     console.log("bcrypt ok:", passwordMatch);
@@ -398,6 +417,10 @@ export async function POST(req: Request) {
 
     return withCors(req, response);
   } catch (error) {
+    console.error("LOGIN ERROR FULL:", error);
+    console.log("LOGIN EMAIL:", loginEmailForLog);
+    console.log("USER FOUND:", userFoundForLog);
+    console.log("JWT_SECRET EXISTS:", Boolean(process.env.JWT_SECRET));
     console.error("LOGIN ERROR:", error);
     console.error("POST /api/auth/login error exacto:", error);
 
