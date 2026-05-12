@@ -8,7 +8,7 @@ import {
   getDeviceName,
   getLocationLabel,
 } from "@/lib/admin-security";
-import pool, { getDbRuntimeConfig, logDbUsage } from "@/lib/db";
+import { getDbRuntimeConfig, logDbUsage } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
@@ -123,17 +123,14 @@ export async function POST(req: Request) {
     }
 
     if (!user) {
-      const [normalizedRows] = await pool.query(
-        `
+      const normalizedMatches = (await prisma.$queryRaw<
+        Array<{ id?: number }>
+      >`
         SELECT id
         FROM users
-        WHERE LOWER(TRIM(email)) = ?
+        WHERE LOWER(TRIM(email)) = ${normalizedEmail}
         LIMIT 1
-        `,
-        [normalizedEmail],
-      );
-
-      const normalizedMatches = normalizedRows as Array<{ id?: number }>;
+      `) as Array<{ id?: number }>;
       const normalizedMatchId = Number(normalizedMatches[0]?.id ?? 0);
 
       console.log("LOGIN FALLBACK LOWER(TRIM(email)) MATCH:", {
@@ -226,17 +223,21 @@ export async function POST(req: Request) {
     let primaryRole: string | null = null;
 
     try {
-      const [roleRows] = await pool.query(
-        `
-        SELECT r.id, r.name
-        FROM user_roles ur
-        INNER JOIN roles r ON r.id = ur.role_id
-        WHERE ur.user_id = ?
-        `,
-        [user.id],
-      );
+      const roleRows = await prisma.user_roles.findMany({
+        where: {
+          user_id: user.id,
+        },
+        select: {
+          roles: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
 
-      roles = roleRows as { id: number; name: string }[];
+      roles = roleRows.map((row) => row.roles);
       dbRoles = roles.map((role) => role.name);
       publicRoles = mapDbRolesToPublicRoles(dbRoles);
       primaryRole = publicRoles[0] ?? null;
@@ -319,14 +320,21 @@ export async function POST(req: Request) {
       );
     }
 
-    await pool.query(
-      `
-      UPDATE users
-      SET last_login = NOW(), updated_at = NOW()
-      WHERE id = ?
-      `,
-      [user.id],
-    );
+    try {
+      await prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          lastLogin: new Date(),
+        },
+      });
+    } catch (lastLoginError) {
+      console.warn(
+        "POST /api/auth/login no pudo actualizar last_login, pero el login seguirá:",
+        lastLoginError,
+      );
+    }
 
     const response = NextResponse.json({
       success: true,
