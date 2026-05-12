@@ -15,6 +15,16 @@ function isHttpUrl(value: string) {
   }
 }
 
+function buildImageErrorResponse(message: string, status = 400) {
+  return NextResponse.json(
+    {
+      success: false,
+      error: message,
+    },
+    { status },
+  );
+}
+
 function uploadToCloudinary(buffer: Buffer, businessId: number) {
   return new Promise<{
     secure_url: string;
@@ -81,6 +91,7 @@ export async function POST(req: NextRequest) {
         : null,
       remove,
       hasFile: formData.get("file") instanceof File,
+      imageUrl: null,
     };
 
     console.log("save-db-url userId:", userId);
@@ -160,12 +171,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (!validBusinessId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No tienes un negocio válido asignado",
-        },
-        { status: 404 },
+      return buildImageErrorResponse(
+        "No tienes un negocio válido asignado",
+        404,
       );
     }
 
@@ -182,13 +190,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!business) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Negocio no encontrado o no asignado correctamente",
-        },
-        { status: 404 },
-      );
+      return buildImageErrorResponse("Negocio no encontrado", 404);
     }
 
     if (remove) {
@@ -199,14 +201,16 @@ export async function POST(req: NextRequest) {
       });
 
       if (updateResult.count === 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `No se encontró el negocio con id ${business.id}`,
-          },
-          { status: 404 },
+        return buildImageErrorResponse(
+          `No se encontró el negocio con id ${business.id}`,
+          404,
         );
       }
+
+      const updatedBusiness = await prisma.business.findUnique({
+        where: { id: business.id },
+        select: { logo_url: true },
+      });
 
       return NextResponse.json({
         success: true,
@@ -214,6 +218,7 @@ export async function POST(req: NextRequest) {
         imageUrl: null,
         logo_url: null,
         avatar_url: null,
+        updatedBusiness,
       });
     }
 
@@ -221,10 +226,7 @@ export async function POST(req: NextRequest) {
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
-      return NextResponse.json(
-        { success: false, error: "No se recibió imagen en el campo 'file'" },
-        { status: 400 },
-      );
+      return buildImageErrorResponse("No llegó archivo", 400);
     }
 
     const allowedTypes = new Set([
@@ -254,28 +256,25 @@ export async function POST(req: NextRequest) {
 
     step = "cloudinary-upload";
     const uploadResult = await uploadToCloudinary(buffer, business.id);
+    body.imageUrl = uploadResult.secure_url ?? null;
+
+    console.log("BODY recibido imagen negocio:", body);
+    console.log("businessId:", business.id);
+    console.log("imageUrl:", body.imageUrl);
+    console.log("Respuesta Cloudinary:", uploadResult);
 
     if (
       !uploadResult.secure_url ||
       uploadResult.secure_url.startsWith("blob:")
     ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "La imagen debe subirse primero a Cloudinary",
-        },
-        { status: 400 },
+      return buildImageErrorResponse(
+        "La imagen debe subirse primero a Cloudinary",
+        400,
       );
     }
 
     if (!isHttpUrl(uploadResult.secure_url)) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No se pudo guardar la imagen del negocio",
-        },
-        { status: 400 },
-      );
+      return buildImageErrorResponse("URL de imagen inválida", 400);
     }
 
     step = "save-db-url";
@@ -289,22 +288,32 @@ export async function POST(req: NextRequest) {
     });
 
     if (updateResult.count === 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `No se encontró el negocio con id ${business.id}`,
-        },
-        { status: 404 },
+      return buildImageErrorResponse(
+        `No se encontró el negocio con id ${business.id}`,
+        404,
+      );
+    }
+
+    const updatedBusiness = await prisma.business.findUnique({
+      where: { id: business.id },
+      select: { logo_url: true },
+    });
+
+    if (!updatedBusiness) {
+      return buildImageErrorResponse(
+        "Campo de imagen no existe en Business",
+        500,
       );
     }
 
     return NextResponse.json({
       success: true,
       url: uploadResult.secure_url,
-      imageUrl: uploadResult.secure_url,
+      imageUrl: updatedBusiness.logo_url,
       publicId: uploadResult.public_id,
-      logo_url: uploadResult.secure_url,
-      avatar_url: uploadResult.secure_url,
+      logo_url: updatedBusiness.logo_url,
+      avatar_url: updatedBusiness.logo_url,
+      updatedBusiness,
     });
   } catch (error) {
     console.error("[business-photo] Error subiendo foto del negocio", {
@@ -314,12 +323,9 @@ export async function POST(req: NextRequest) {
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo guardar la URL del negocio",
-      },
-      { status: 500 },
+    return buildImageErrorResponse(
+      "No se pudo guardar la imagen del negocio",
+      500,
     );
   }
 }

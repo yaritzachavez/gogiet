@@ -2032,6 +2032,7 @@ export function BusinessAdminDashboard() {
 
     try {
       setAvatarUploading(true);
+      console.log("Archivo seleccionado:", file);
       const formData = new FormData();
       formData.append("file", file);
       formData.append("business_id", String(business.id));
@@ -2047,6 +2048,7 @@ export function BusinessAdminDashboard() {
       const uploadPayload = (await uploadResponse
         .json()
         .catch(() => null)) as Record<string, unknown> | null;
+      console.log("Respuesta Cloudinary:", uploadPayload);
 
       if (!uploadResponse.ok || uploadPayload?.success === false) {
         throw new Error(
@@ -2056,10 +2058,15 @@ export function BusinessAdminDashboard() {
       }
 
       const uploadedUrl =
-        typeof uploadPayload?.url === "string" ? uploadPayload.url : null;
+        typeof uploadPayload?.imageUrl === "string"
+          ? uploadPayload.imageUrl
+          : typeof uploadPayload?.url === "string"
+            ? uploadPayload.url
+            : null;
+      console.log("URL final enviada:", uploadedUrl);
 
       if (!uploadedUrl) {
-        throw new Error("Cloudinary no devolvió una URL válida.");
+        throw new Error("Cloudinary no devolvió secure_url");
       }
 
       if (uploadedUrl.startsWith("blob:")) {
@@ -2083,7 +2090,10 @@ export function BusinessAdminDashboard() {
       console.error("Error cambiando foto del negocio:", error);
       setFeedback({
         type: "error",
-        message: "No se pudo guardar la imagen del negocio",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo guardar la imagen del negocio",
       });
     } finally {
       URL.revokeObjectURL(localPreview);
