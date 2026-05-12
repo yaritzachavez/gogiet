@@ -1,5 +1,7 @@
 import { getEmailFromAddress, getResendClient, hasResendApiKey } from "@/lib/resend";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   if (!hasResendApiKey()) {
     console.error("/api/test-email: falta RESEND_API_KEY");
