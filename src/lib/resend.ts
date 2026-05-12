@@ -4,6 +4,10 @@ export function getEmailFromAddress() {
   return process.env.EMAIL_FROM || "Gogi Eats <onboarding@resend.dev>";
 }
 
+export function hasResendApiKey() {
+  return Boolean(process.env.RESEND_API_KEY);
+}
+
 export function getEmailDiagnostics() {
   return {
     emailVerificationEnabled:

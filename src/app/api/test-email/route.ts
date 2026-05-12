@@ -1,11 +1,23 @@
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { getEmailFromAddress, getResendClient, hasResendApiKey } from "@/lib/resend";
 
 export async function GET() {
+  if (!hasResendApiKey()) {
+    console.error("/api/test-email: falta RESEND_API_KEY");
+
+    return Response.json(
+      {
+        success: false,
+        error: "Falta configurar RESEND_API_KEY",
+      },
+      { status: 500 },
+    );
+  }
+
   try {
+    const resend = getResendClient();
+
     const data = await resend.emails.send({
-      from: process.env.EMAIL_FROM!,
+      from: getEmailFromAddress(),
       to: "yaritzachavezc@gmail.com",
       subject: "Gogi Eats funcionando 🚀",
       html: `
@@ -19,9 +31,17 @@ export async function GET() {
       data,
     });
   } catch (error) {
-    return Response.json({
-      success: false,
-      error,
-    });
+    console.error("/api/test-email error:", error);
+
+    return Response.json(
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo enviar el correo de prueba",
+      },
+      { status: 500 },
+    );
   }
 }
