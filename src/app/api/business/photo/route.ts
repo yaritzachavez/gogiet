@@ -2,7 +2,6 @@ import { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { resolveBusinessAccess } from "@/lib/business-panel";
 import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import { prisma } from "@/lib/prisma";
 
@@ -67,43 +66,87 @@ export async function POST(req: NextRequest) {
     const requestedBusinessIdRaw = formData.get("business_id");
     const requestedBusinessId = Number(requestedBusinessIdRaw);
     const remove = String(formData.get("remove") ?? "0") === "1";
+    const userId = authUser.user.id;
 
-    step = "resolve-business-access";
-    const access = await resolveBusinessAccess(
-      authUser.user.id,
+    console.log("save-db-url userId:", userId);
+    console.log(
+      "business_id recibido:",
       Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
     );
 
-    console.info("[business-photo] request context", {
-      userId: authUser.user.id,
-      requestedBusinessIdRaw:
-        typeof requestedBusinessIdRaw === "string"
-          ? requestedBusinessIdRaw
-          : null,
-      requestedBusinessId: Number.isFinite(requestedBusinessId)
-        ? requestedBusinessId
-        : null,
-      resolvedBusinessId: access.businessId,
-      availableBusinessIds: access.businessIds,
-      remove,
+    step = "find-user-business-owners";
+    const ownerRelations = await prisma.business_owners.findMany({
+      where: {
+        user_id: userId,
+      },
+      select: {
+        business_id: true,
+      },
+      orderBy: {
+        assigned_at: "asc",
+      },
     });
 
-    if (!access.businessId) {
-      return NextResponse.json(
-        { success: false, error: "No tienes un negocio asignado" },
-        { status: 403 },
+    const uniqueBusinessIds = Array.from(
+      new Set(
+        ownerRelations
+          .map((relation) => Number(relation.business_id))
+          .filter(
+            (businessId) => Number.isFinite(businessId) && businessId > 0,
+          ),
+      ),
+    );
+
+    step = "find-valid-businesses";
+    const validBusinesses = uniqueBusinessIds.length
+      ? await prisma.business.findMany({
+          where: {
+            id: {
+              in: uniqueBusinessIds,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            logo_url: true,
+          },
+          orderBy: {
+            id: "asc",
+          },
+        })
+      : [];
+
+    const validBusinessIds = validBusinesses.map((business) =>
+      Number(business.id),
+    );
+    const validBusinessId =
+      Number.isFinite(requestedBusinessId) &&
+      requestedBusinessId > 0 &&
+      validBusinessIds.includes(requestedBusinessId)
+        ? requestedBusinessId
+        : (validBusinessIds[0] ?? null);
+
+    console.log("business válido encontrado:", validBusinessId);
+
+    const orphanedBusinessIds = uniqueBusinessIds.filter(
+      (businessId) => !validBusinessIds.includes(businessId),
+    );
+
+    if (orphanedBusinessIds.length > 0) {
+      console.warn(
+        "[business-photo] Ignorando relaciones rotas en business_owners",
+        {
+          userId,
+          orphanedBusinessIds,
+        },
       );
     }
 
-    if (
-      Number.isFinite(requestedBusinessId) &&
-      requestedBusinessId > 0 &&
-      !access.businessIds.includes(requestedBusinessId)
-    ) {
+    if (!validBusinessId) {
       return NextResponse.json(
         {
           success: false,
-          error: "Negocio no encontrado",
+          error: "No tienes un negocio válido asignado",
         },
         { status: 404 },
       );
@@ -111,12 +154,12 @@ export async function POST(req: NextRequest) {
 
     step = "find-business-before-update";
     const business = await prisma.business.findUnique({
-      where: { id: access.businessId },
+      where: { id: validBusinessId },
       select: { id: true, name: true, logo_url: true },
     });
 
     console.info("[business-photo] business lookup", {
-      businessId: access.businessId,
+      businessId: validBusinessId,
       exists: Boolean(business),
       businessName: business?.name ?? null,
     });
@@ -125,7 +168,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Negocio no encontrado",
+          error: "Negocio no encontrado o no asignado correctamente",
         },
         { status: 404 },
       );
@@ -134,7 +177,7 @@ export async function POST(req: NextRequest) {
     if (remove) {
       step = "remove-photo-db-update";
       await prisma.business.update({
-        where: { id: access.businessId },
+        where: { id: business.id },
         data: { logo_url: null },
       });
 
@@ -183,15 +226,15 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     step = "cloudinary-upload";
-    const result = await uploadToCloudinary(buffer, access.businessId);
+    const result = await uploadToCloudinary(buffer, business.id);
 
     step = "save-db-url";
     console.info("[business-photo] saving business logo", {
-      businessId: access.businessId,
+      businessId: business.id,
       businessName: business.name,
     });
     await prisma.business.update({
-      where: { id: access.businessId },
+      where: { id: business.id },
       data: { logo_url: result.secure_url },
     });
 
@@ -217,7 +260,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Negocio no encontrado",
+          error: "Negocio no encontrado o no asignado correctamente",
         },
         { status: 404 },
       );
@@ -230,15 +273,10 @@ export async function POST(req: NextRequest) {
       stack: error instanceof Error ? error.stack : undefined,
     });
 
-    const detailedMessage =
-      error instanceof Error
-        ? error.message
-        : "Error subiendo foto del negocio";
-
     return NextResponse.json(
       {
         success: false,
-        error: `Error en ${step}: ${detailedMessage}`,
+        error: "No se pudo guardar la URL del negocio",
       },
       { status: 500 },
     );
