@@ -313,6 +313,22 @@ function getStoredToken() {
   return null;
 }
 
+function clearStoredBusinessSelection() {
+  if (typeof window === "undefined") return;
+
+  const keys = [
+    "businessId",
+    "selectedBusiness",
+    "currentBusiness",
+    "business",
+  ];
+
+  for (const key of keys) {
+    window.localStorage.removeItem(key);
+    window.sessionStorage.removeItem(key);
+  }
+}
+
 function formatCurrency(value: number) {
   return MXN.format(Number.isFinite(value) ? value : 0);
 }
@@ -763,6 +779,7 @@ export function BusinessAdminDashboard() {
           selectedBusinessId,
           payload: businessData,
         });
+        clearStoredBusinessSelection();
         setError(missingBusinessMessage);
         router.replace("/admin/business?missing_business=1");
         return;
@@ -2018,6 +2035,7 @@ export function BusinessAdminDashboard() {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("business_id", String(business.id));
+      console.log("businessId enviado a save-db-url:", business.id);
 
       const uploadResponse = await fetch("/api/business/photo", {
         method: "POST",
@@ -2093,6 +2111,7 @@ export function BusinessAdminDashboard() {
       const formData = new FormData();
       formData.append("business_id", String(business.id));
       formData.append("remove", "1");
+      console.log("businessId enviado a save-db-url:", business.id);
 
       const response = await fetch("/api/business/photo", {
         method: "POST",

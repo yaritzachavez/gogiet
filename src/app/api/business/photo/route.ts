@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
@@ -67,8 +66,17 @@ export async function POST(req: NextRequest) {
     const requestedBusinessId = Number(requestedBusinessIdRaw);
     const remove = String(formData.get("remove") ?? "0") === "1";
     const userId = authUser.user.id;
+    const body = {
+      businessId: Number.isFinite(requestedBusinessId)
+        ? requestedBusinessId
+        : null,
+      remove,
+      hasFile: formData.get("file") instanceof File,
+    };
 
     console.log("save-db-url userId:", userId);
+    console.log("BODY save-db-url:", body);
+    console.log("businessId recibido:", body.businessId);
     console.log(
       "business_id recibido:",
       Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
@@ -176,10 +184,20 @@ export async function POST(req: NextRequest) {
 
     if (remove) {
       step = "remove-photo-db-update";
-      await prisma.business.update({
+      const updateResult = await prisma.business.updateMany({
         where: { id: business.id },
         data: { logo_url: null },
       });
+
+      if (updateResult.count === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `No se encontró el negocio con id ${business.id}`,
+          },
+          { status: 404 },
+        );
+      }
 
       return NextResponse.json({
         success: true,
@@ -226,46 +244,37 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(bytes);
 
     step = "cloudinary-upload";
-    const result = await uploadToCloudinary(buffer, business.id);
+    const uploadResult = await uploadToCloudinary(buffer, business.id);
 
     step = "save-db-url";
     console.info("[business-photo] saving business logo", {
       businessId: business.id,
       businessName: business.name,
     });
-    await prisma.business.update({
+    const updateResult = await prisma.business.updateMany({
       where: { id: business.id },
-      data: { logo_url: result.secure_url },
+      data: { logo_url: uploadResult.secure_url },
     });
 
-    return NextResponse.json({
-      success: true,
-      url: result.secure_url,
-      imageUrl: result.secure_url,
-      publicId: result.public_id,
-      logo_url: result.secure_url,
-      avatar_url: result.secure_url,
-    });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === "P2025"
-    ) {
-      console.error("[business-photo] Business update target not found", {
-        step,
-        message: error.message,
-        code: error.code,
-      });
-
+    if (updateResult.count === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: "Negocio no encontrado o no asignado correctamente",
+          error: `No se encontró el negocio con id ${business.id}`,
         },
         { status: 404 },
       );
     }
 
+    return NextResponse.json({
+      success: true,
+      url: uploadResult.secure_url,
+      imageUrl: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+      logo_url: uploadResult.secure_url,
+      avatar_url: uploadResult.secure_url,
+    });
+  } catch (error) {
     console.error("[business-photo] Error subiendo foto del negocio", {
       step,
       error,
