@@ -7,6 +7,8 @@
     "build": "prisma generate && next build --turbopack ",
     "start": "next start",
     "seed": "node prisma/seed.js",
+    "cleanup:business-owners": "node scripts/cleanup-business-owners.js",
+    "repair:business-relations": "node scripts/repair-business-relations.js",
     "lint": "biome check",
     "format": "biome format --write"
   },

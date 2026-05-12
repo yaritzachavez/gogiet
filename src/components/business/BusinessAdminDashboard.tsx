@@ -1,13 +1,13 @@
 "use client";
 
 import {
-  Search,
   BarChart3,
   Camera,
   ClipboardList,
   Megaphone,
   PackagePlus,
   PlayCircle,
+  Search,
   Settings,
   ShieldCheck,
   ShoppingBag,
@@ -462,8 +462,7 @@ export function BusinessAdminDashboard() {
   const [productCategoryFilter, setProductCategoryFilter] = useState("all");
   const [productStatusFilter, setProductStatusFilter] =
     useState<ProductStatusFilter>("all");
-  const [productSort, setProductSort] =
-    useState<ProductSortOption>("name_asc");
+  const [productSort, setProductSort] = useState<ProductSortOption>("name_asc");
   const [productImagePreview, setProductImagePreview] = useState<string | null>(
     null,
   );
@@ -520,7 +519,8 @@ export function BusinessAdminDashboard() {
       uniqueByKey(Array.isArray(products) ? products : [], (product) => {
         const stableId =
           product.id ??
-          (product as ProductItem & { product_id?: number | string }).product_id ??
+          (product as ProductItem & { product_id?: number | string })
+            .product_id ??
           product.name;
 
         return `product-${String(stableId)}`;
@@ -755,7 +755,17 @@ export function BusinessAdminDashboard() {
           : null;
 
       if (!businessPayload) {
-        throw new Error("Este usuario no tiene un negocio asignado.");
+        const missingBusinessMessage =
+          (typeof businessData.message === "string" && businessData.message) ||
+          "No se encontro el negocio asignado. Redirigiendo a configuracion de negocios.";
+
+        console.warn("Negocio no disponible para el panel:", {
+          selectedBusinessId,
+          payload: businessData,
+        });
+        setError(missingBusinessMessage);
+        router.replace("/admin/business?missing_business=1");
+        return;
       }
 
       const businessId = Number(businessPayload.id ?? 0);
@@ -2670,9 +2680,7 @@ export function BusinessAdminDashboard() {
                           <option value="price_desc">
                             Precio mayor a menor
                           </option>
-                          <option value="stock_asc">
-                            Stock menor a mayor
-                          </option>
+                          <option value="stock_asc">Stock menor a mayor</option>
                           <option value="stock_desc">
                             Stock mayor a menor
                           </option>
@@ -3525,9 +3533,9 @@ export function BusinessAdminDashboard() {
                   >
                     {productImageUploading ? "Subiendo..." : "Cambiar imagen"}
                   </button>
-                  {(editingProduct.image_url ||
-                    editingProduct.thumbnail_url ||
-                    productImagePreview) ? (
+                  {editingProduct.image_url ||
+                  editingProduct.thumbnail_url ||
+                  productImagePreview ? (
                     <button
                       type="button"
                       onClick={handleRemoveProductImage}

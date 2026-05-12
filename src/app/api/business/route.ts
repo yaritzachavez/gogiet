@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
-import type { ResultSetHeader } from "mysql2/promise";
 import { NextResponse } from "next/server";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
+import { assignBusinessOwnerSafely } from "@/lib/business-panel";
 import pool from "@/lib/db";
 
 function validateBearer(req: Request) {
@@ -159,15 +159,8 @@ export async function POST(req: Request) {
       [businessId, business_category_id],
     );
 
-    const [ownerInsertResult] = await connection.query<ResultSetHeader>(
-      `
-        INSERT IGNORE INTO business_owners (business_id, user_id)
-        VALUES (?, ?)
-      `,
-      [businessId, owner_id],
-    );
-
-    const ownerAlreadyAssigned = ownerInsertResult.affectedRows === 0;
+    const { alreadyAssigned: ownerAlreadyAssigned } =
+      await assignBusinessOwnerSafely(connection, businessId, owner_id);
 
     await connection.query(
       `

@@ -7,6 +7,7 @@ import type {
 
 import { isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
 
 type Queryable = Pool | PoolConnection;
@@ -166,6 +167,33 @@ export async function resolveBusinessAccess(
 
   let assignedBusinesses = Array.from(assignedBusinessesMap.values());
 
+  if (assignedBusinesses.length > 0) {
+    const requestedIds = assignedBusinesses
+      .map((business) => Number(business.id))
+      .filter((businessId) => Number.isFinite(businessId) && businessId > 0);
+    const existingBusinesses = await prisma.business.findMany({
+      where: { id: { in: requestedIds } },
+      select: { id: true },
+    });
+    const existingBusinessIds = new Set(
+      existingBusinesses.map((business) => Number(business.id)),
+    );
+    const orphanedBusinessIds = requestedIds.filter(
+      (businessId) => !existingBusinessIds.has(businessId),
+    );
+
+    if (orphanedBusinessIds.length > 0) {
+      console.warn("[business-access] Ignorando relaciones rotas de negocio", {
+        userId,
+        orphanedBusinessIds,
+      });
+    }
+
+    assignedBusinesses = assignedBusinesses.filter((business) =>
+      existingBusinessIds.has(Number(business.id)),
+    );
+  }
+
   if (!assignedBusinesses.length && userIsAdminGeneral) {
     const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
       `
@@ -192,6 +220,52 @@ export async function resolveBusinessAccess(
     businessId,
     businessIds,
     isAdmin: userIsAdminGeneral,
+  };
+}
+
+export async function assignBusinessOwnerSafely(
+  executor: Queryable,
+  businessId: number,
+  userId: number,
+) {
+  const normalizedBusinessId = Number(businessId);
+  const normalizedUserId = Number(userId);
+
+  if (
+    !Number.isFinite(normalizedBusinessId) ||
+    normalizedBusinessId <= 0 ||
+    !Number.isFinite(normalizedUserId) ||
+    normalizedUserId <= 0
+  ) {
+    throw new Error(
+      "business_id y user_id deben ser validos para asignar dueño",
+    );
+  }
+
+  const [businessRows] = await executor.query<RowDataPacket[]>(
+    `
+      SELECT id
+      FROM businesses
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [normalizedBusinessId],
+  );
+
+  if (!businessRows[0]?.id) {
+    throw new Error("Negocio no encontrado");
+  }
+
+  const [result] = await executor.query<ResultSetHeader>(
+    `
+      INSERT IGNORE INTO business_owners (business_id, user_id)
+      VALUES (?, ?)
+    `,
+    [normalizedBusinessId, normalizedUserId],
+  );
+
+  return {
+    alreadyAssigned: result.affectedRows === 0,
   };
 }
 

@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
@@ -63,7 +64,8 @@ export async function POST(req: NextRequest) {
 
     step = "read-form-data";
     const formData = await req.formData();
-    const requestedBusinessId = Number(formData.get("business_id"));
+    const requestedBusinessIdRaw = formData.get("business_id");
+    const requestedBusinessId = Number(requestedBusinessIdRaw);
     const remove = String(formData.get("remove") ?? "0") === "1";
 
     step = "resolve-business-access";
@@ -72,10 +74,60 @@ export async function POST(req: NextRequest) {
       Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
     );
 
+    console.info("[business-photo] request context", {
+      userId: authUser.user.id,
+      requestedBusinessIdRaw:
+        typeof requestedBusinessIdRaw === "string"
+          ? requestedBusinessIdRaw
+          : null,
+      requestedBusinessId: Number.isFinite(requestedBusinessId)
+        ? requestedBusinessId
+        : null,
+      resolvedBusinessId: access.businessId,
+      availableBusinessIds: access.businessIds,
+      remove,
+    });
+
     if (!access.businessId) {
       return NextResponse.json(
         { success: false, error: "No tienes un negocio asignado" },
         { status: 403 },
+      );
+    }
+
+    if (
+      Number.isFinite(requestedBusinessId) &&
+      requestedBusinessId > 0 &&
+      !access.businessIds.includes(requestedBusinessId)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Negocio no encontrado",
+        },
+        { status: 404 },
+      );
+    }
+
+    step = "find-business-before-update";
+    const business = await prisma.business.findUnique({
+      where: { id: access.businessId },
+      select: { id: true, name: true, logo_url: true },
+    });
+
+    console.info("[business-photo] business lookup", {
+      businessId: access.businessId,
+      exists: Boolean(business),
+      businessName: business?.name ?? null,
+    });
+
+    if (!business) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Negocio no encontrado",
+        },
+        { status: 404 },
       );
     }
 
@@ -134,6 +186,10 @@ export async function POST(req: NextRequest) {
     const result = await uploadToCloudinary(buffer, access.businessId);
 
     step = "save-db-url";
+    console.info("[business-photo] saving business logo", {
+      businessId: access.businessId,
+      businessName: business.name,
+    });
     await prisma.business.update({
       where: { id: access.businessId },
       data: { logo_url: result.secure_url },
@@ -148,6 +204,25 @@ export async function POST(req: NextRequest) {
       avatar_url: result.secure_url,
     });
   } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      console.error("[business-photo] Business update target not found", {
+        step,
+        message: error.message,
+        code: error.code,
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Negocio no encontrado",
+        },
+        { status: 404 },
+      );
+    }
+
     console.error("[business-photo] Error subiendo foto del negocio", {
       step,
       error,

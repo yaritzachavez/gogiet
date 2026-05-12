@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { assignBusinessOwnerSafely } from "@/lib/business-panel";
 import pool from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -244,15 +245,8 @@ export async function POST(req: NextRequest) {
       [businessId, categoryId],
     );
 
-    const [ownerInsertResult] = await connection.query<ResultSetHeader>(
-      `
-        INSERT IGNORE INTO business_owners (business_id, user_id)
-        VALUES (?, ?)
-      `,
-      [businessId, ownerId],
-    );
-
-    const ownerAlreadyAssigned = ownerInsertResult.affectedRows === 0;
+    const { alreadyAssigned: ownerAlreadyAssigned } =
+      await assignBusinessOwnerSafely(connection, businessId, ownerId);
 
     await connection.query(
       `

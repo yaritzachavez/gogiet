@@ -2,7 +2,10 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
-import { ensureBusinessLogoColumn, getBusinessLogoSelect } from "@/lib/business-logo";
+import {
+  ensureBusinessLogoColumn,
+  getBusinessLogoSelect,
+} from "@/lib/business-logo";
 import pool, { logDbUsage } from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -146,6 +149,23 @@ export async function GET(req: NextRequest) {
       ownerBusinesses,
     );
 
+    const orphanedOwnerBusinessIds = rawBusinessOwners
+      .map((row) => Number(row.business_id))
+      .filter(
+        (businessId) =>
+          businessId > 0 &&
+          !ownerBusinesses.some(
+            (business) => Number(business.id) === Number(businessId),
+          ),
+      );
+
+    if (orphanedOwnerBusinessIds.length > 0) {
+      console.warn("GET /api/business/me orphaned business_owners detected:", {
+        userId: authUser.user.id,
+        orphanedBusinessIds: orphanedOwnerBusinessIds,
+      });
+    }
+
     const [managerBusinesses] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'manager' AS source
@@ -193,7 +213,12 @@ export async function GET(req: NextRequest) {
         success: true,
         business: null,
         businesses: [],
-        message: "No tienes un negocio asignado",
+        message:
+          orphanedOwnerBusinessIds.length > 0
+            ? "Tu negocio asignado ya no existe. Revisa la configuracion del panel o crea uno nuevo."
+            : "No tienes un negocio asignado",
+        orphaned_business_ids: orphanedOwnerBusinessIds,
+        repair_required: orphanedOwnerBusinessIds.length > 0,
         products_count: 0,
         active_orders_count: 0,
         completed_orders_count: 0,
@@ -209,6 +234,15 @@ export async function GET(req: NextRequest) {
       requestedBusinessId && availableBusinessIds.has(requestedBusinessId)
         ? requestedBusinessId
         : Number(assignedBusinesses[0].id);
+
+    if (requestedBusinessId && !availableBusinessIds.has(requestedBusinessId)) {
+      console.warn("GET /api/business/me requested business not available", {
+        userId: authUser.user.id,
+        requestedBusinessId,
+        availableBusinessIds: Array.from(availableBusinessIds),
+        fallbackBusinessId: businessId,
+      });
+    }
 
     const [rawBusinessRows] = await pool.query<RowDataPacket[]>(
       `
@@ -268,7 +302,10 @@ export async function GET(req: NextRequest) {
           name: assignedBusiness.name,
           city: assignedBusiness.city,
         })),
-        message: "No tienes negocio asignado",
+        message:
+          "Tu negocio asignado no fue encontrado. Redirigiendo a la configuracion de negocios.",
+        missing_business_id: businessId,
+        repair_required: true,
         products_count: 0,
         active_orders_count: 0,
         completed_orders_count: 0,

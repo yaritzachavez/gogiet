@@ -2,7 +2,10 @@ import jwt from "jsonwebtoken";
 import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
-import { resolveBusinessAccess } from "@/lib/business-panel";
+import {
+  assignBusinessOwnerSafely,
+  resolveBusinessAccess,
+} from "@/lib/business-panel";
 import pool from "@/lib/db";
 
 function validateAuth(req: NextRequest): boolean {
@@ -228,10 +231,7 @@ export async function PUT(
       "DELETE FROM business_owners WHERE business_id = ?",
       [businessId],
     );
-    await connection.query(
-      "INSERT IGNORE INTO business_owners (business_id, user_id) VALUES (?, ?)",
-      [businessId, owner_id],
-    );
+    await assignBusinessOwnerSafely(connection, businessId, owner_id);
 
     await connection.query(
       `

@@ -97,6 +97,8 @@ model Business {
   status_id                  Int
   created_at                 DateTime       @default(now()) @db.DateTime(0)
   updated_at                 DateTime       @default(now()) @db.DateTime(0)
+  business_managers          business_managers[]
+  business_owners            business_owners[]
   status_catalog             status_catalog @relation(fields: [status_id], references: [id], map: "fk_business_status")
 
   @@index([status_id], map: "fk_business_status")
@@ -173,9 +175,11 @@ model business_managers {
   position    String?  @db.VarChar(100)
   assigned_at DateTime @default(now()) @db.DateTime(0)
   is_active   Boolean  @default(true)
+  business    Business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_managers_business")
   users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_business_managers_user")
 
   @@id([business_id, user_id])
+  @@index([business_id], map: "fk_business_managers_business")
   @@index([user_id], map: "fk_business_managers_user")
 }
 
@@ -184,9 +188,11 @@ model business_owners {
   user_id     Int
   assigned_at DateTime @default(now()) @db.DateTime(0)
   notes       String?  @db.VarChar(255)
+  business    Business @relation(fields: [business_id], references: [id], onDelete: Cascade, map: "fk_business_owners_business")
   users       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, map: "fk_business_owners_user")
 
   @@id([business_id, user_id])
+  @@index([business_id], map: "fk_business_owners_business")
   @@index([user_id], map: "fk_business_owners_user")
 }
 
