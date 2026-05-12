@@ -18,6 +18,11 @@ function resolveDbConfig(): DbRuntimeConfig {
   const port = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
   const user = (process.env.DB_USER ?? "root").trim() || "root";
   const password = process.env.DB_PASSWORD ?? process.env.DB_PASS ?? "";
+  const useSsl =
+    host.includes("aivencloud.com") ||
+    Boolean(process.env.DB_SSL_CA) ||
+    Boolean(process.env.DB_CA) ||
+    process.env.DB_REQUIRE_SSL === "true";
 
   return {
     host,
@@ -25,7 +30,7 @@ function resolveDbConfig(): DbRuntimeConfig {
     user,
     password,
     database,
-    useSsl: false,
+    useSsl,
   };
 }
 
@@ -39,11 +44,12 @@ declare global {
 }
 
 if (!globalThis.__gogiDbLogged) {
-  console.log("[db] Conectando a MySQL local", {
+  console.log("[db] Conectando a MySQL", {
     DB_HOST: dbConfig.host,
     DB_NAME: dbConfig.database,
     DB_USER: dbConfig.user,
     DB_PORT: dbConfig.port,
+    DB_SSL: dbConfig.useSsl,
   });
   globalThis.__gogiDbLogged = true;
 }
@@ -61,7 +67,9 @@ const pool =
     queueLimit: 0,
     ssl: dbConfig.useSsl
       ? {
-          ca: process.env.DB_SSL_CA?.replace(/\\n/g, "\n"),
+          ca:
+            process.env.DB_SSL_CA?.replace(/\\n/g, "\n") ||
+            process.env.DB_CA?.replace(/\\n/g, "\n"),
         }
       : undefined,
   });

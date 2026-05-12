@@ -42,6 +42,44 @@ export async function POST(req: Request) {
       email: normalizedEmail,
     });
     console.log("POST /api/auth/login db runtime:", getDbRuntimeConfig());
+    console.log("POST /api/auth/login env status:", {
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+      hasDbHost: Boolean(process.env.DB_HOST),
+      hasDbUser: Boolean(process.env.DB_USER),
+      hasDbPassword: Boolean(process.env.DB_PASSWORD || process.env.DB_PASS),
+      hasDbName: Boolean(process.env.DB_NAME),
+      hasJwtSecret: Boolean(process.env.JWT_SECRET),
+      hasPasswordPepper: Boolean(process.env.PASSWORD_PEPPER),
+      hasDbSslCa: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
+    });
+
+    if (
+      !process.env.DATABASE_URL &&
+      !(process.env.DB_HOST && process.env.DB_USER && process.env.DB_NAME)
+    ) {
+      console.error(
+        "POST /api/auth/login configuración incompleta de base de datos",
+      );
+      return json(
+        {
+          success: false,
+          error:
+            "La conexión de base de datos no está configurada correctamente.",
+        },
+        { status: 500 },
+      );
+    }
+
+    if (!process.env.JWT_SECRET) {
+      console.error("POST /api/auth/login falta JWT_SECRET");
+      return json(
+        {
+          success: false,
+          error: "La autenticación no está configurada correctamente.",
+        },
+        { status: 500 },
+      );
+    }
 
     if (!normalizedEmail || !password) {
       return json(
@@ -379,6 +417,47 @@ export async function POST(req: Request) {
         meta: prismaError.meta,
         message: prismaError.message,
       });
+
+      const message = String(prismaError.message ?? "");
+      const code = String(prismaError.code ?? "");
+
+      if (
+        code === "P1001" ||
+        code === "P1002" ||
+        message.includes("Can't reach database server") ||
+        message.includes("Timed out fetching a new connection") ||
+        message.includes("Server has closed the connection")
+      ) {
+        return withCors(
+          req,
+          NextResponse.json(
+            {
+              success: false,
+              error:
+                "No se pudo conectar a la base de datos. Revisa la configuración de producción.",
+            },
+            { status: 500 },
+          ),
+        );
+      }
+
+      if (
+        code === "P1010" ||
+        message.includes("User was denied access") ||
+        message.includes("Access denied")
+      ) {
+        return withCors(
+          req,
+          NextResponse.json(
+            {
+              success: false,
+              error:
+                "La base de datos rechazó las credenciales configuradas en producción.",
+            },
+            { status: 500 },
+          ),
+        );
+      }
     }
 
     return withCors(
