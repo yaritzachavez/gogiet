@@ -85,7 +85,12 @@ export async function POST(req: NextRequest) {
     const requestedBusinessId = Number(requestedBusinessIdRaw);
     const remove = String(formData.get("remove") ?? "0") === "1";
     const userId = authUser.user.id;
-    const body = {
+    const body: {
+      businessId: number | null;
+      remove: boolean;
+      hasFile: boolean;
+      imageUrl: string | null;
+    } = {
       businessId: Number.isFinite(requestedBusinessId)
         ? requestedBusinessId
         : null,
