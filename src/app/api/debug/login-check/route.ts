@@ -3,6 +3,7 @@
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
+import { findAuthUserByEmail } from "@/lib/auth-users";
 import { prisma } from "@/lib/prisma";
 
 const DEBUG_EMAIL = "yaritzachavezc@gmail.com";
@@ -57,16 +58,7 @@ export async function GET() {
     | null = null;
 
   try {
-    user = await prisma.user.findUnique({
-      where: {
-        email: DEBUG_EMAIL,
-      },
-      select: {
-        id: true,
-        email: true,
-        password: true,
-      },
-    });
+    user = await findAuthUserByEmail(DEBUG_EMAIL);
 
     checks.userFound = Boolean(user);
     checks.userId = user?.id ?? null;

@@ -1,5 +1,7 @@
 import mysql from "mysql2/promise";
 
+import { getDbSslSummary, resolveDbSslCaContent } from "@/lib/db-ssl";
+
 type DbRuntimeConfig = {
   host: string;
   port: number;
@@ -18,10 +20,10 @@ function resolveDbConfig(): DbRuntimeConfig {
   const port = process.env.DB_PORT ? Number(process.env.DB_PORT) : 3306;
   const user = (process.env.DB_USER ?? "root").trim() || "root";
   const password = process.env.DB_PASSWORD ?? process.env.DB_PASS ?? "";
+  const caContent = resolveDbSslCaContent();
   const useSsl =
     host.includes("aivencloud.com") ||
-    Boolean(process.env.DB_SSL_CA) ||
-    Boolean(process.env.DB_CA) ||
+    Boolean(caContent) ||
     process.env.DB_REQUIRE_SSL === "true";
 
   return {
@@ -35,6 +37,18 @@ function resolveDbConfig(): DbRuntimeConfig {
 }
 
 const dbConfig = resolveDbConfig();
+const caCertificate = resolveDbSslCaContent();
+const dbSslSummary = getDbSslSummary();
+const sslConfig = caCertificate
+  ? {
+      ca: caCertificate.replace(/\\n/g, "\n"),
+      rejectUnauthorized: false,
+    }
+  : dbConfig.useSsl
+    ? {
+        rejectUnauthorized: false,
+      }
+    : undefined;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -50,6 +64,12 @@ if (!globalThis.__gogiDbLogged) {
     DB_USER: dbConfig.user,
     DB_PORT: dbConfig.port,
     DB_SSL: dbConfig.useSsl,
+    DATABASE_URL_EXISTS: Boolean(process.env.DATABASE_URL),
+    DB_SSL_CA_EXISTS: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
+    DB_SSL_CA_SOURCE: dbSslSummary.source,
+    DB_SSL_CA_LOADED: Boolean(sslConfig),
+    DB_SSL_CA_LENGTH: dbSslSummary.certificateLength,
+    NODE_ENV: process.env.NODE_ENV ?? "development",
   });
   globalThis.__gogiDbLogged = true;
 }
@@ -65,13 +85,7 @@ const pool =
     waitForConnections: true,
     connectionLimit: 5,
     queueLimit: 0,
-    ssl: dbConfig.useSsl
-      ? {
-          ca:
-            process.env.DB_SSL_CA?.replace(/\\n/g, "\n") ||
-            process.env.DB_CA?.replace(/\\n/g, "\n"),
-        }
-      : undefined,
+    ssl: dbConfig.useSsl ? sslConfig : undefined,
   });
 
 if (!globalThis.__gogiDbPool) {

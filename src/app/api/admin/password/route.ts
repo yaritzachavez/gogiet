@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { updateAuthUserPassword } from "@/lib/auth-users";
 import pool from "@/lib/db";
 
 type JwtPayload = {
@@ -75,14 +76,7 @@ export async function PATCH(req: NextRequest) {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash(newPassword + pepper, saltRounds);
 
-    await pool.query<ResultSetHeader>(
-      `
-        UPDATE users
-        SET password_hash = ?, updated_at = NOW()
-        WHERE id = ?
-      `,
-      [passwordHash, authUser.id],
-    );
+    await updateAuthUserPassword(authUser.id, passwordHash);
 
     return NextResponse.json({
       success: true,

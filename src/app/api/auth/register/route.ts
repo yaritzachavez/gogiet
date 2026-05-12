@@ -2,6 +2,11 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 
 import {
+  createAuthUser,
+  findAuthUserByEmail,
+  findUserIdByPhone,
+} from "@/lib/auth-users";
+import {
   isValidEmail,
   isValidPhone,
   normalizeEmail,
@@ -137,10 +142,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    });
+    const existingUser = await findAuthUserByEmail(email);
     console.log("USUARIO EXISTENTE:", Boolean(existingUser));
 
     if (existingUser) {
@@ -154,12 +156,9 @@ export async function POST(req: Request) {
     }
 
     if (phone) {
-      const existingPhone = await prisma.user.findFirst({
-        where: { phone },
-        select: { id: true },
-      });
+      const existingPhoneId = await findUserIdByPhone(phone);
 
-      if (existingPhone) {
+      if (existingPhoneId > 0) {
         return json(
           {
             success: false,
@@ -187,16 +186,21 @@ export async function POST(req: Request) {
       statusId: 1,
     };
 
-    const user = await prisma.user.create({
-      data: userCreateData as never,
-      select: {
-        id: true,
-        firstName: true,
-        email: true,
-        phone: true,
-        createdAt: true,
-      },
+    const user = await createAuthUser({
+      firstName: String(userCreateData.firstName),
+      lastName:
+        typeof userCreateData.lastName === "string"
+          ? userCreateData.lastName
+          : null,
+      email,
+      phone,
+      passwordHash,
+      statusId: Number(userCreateData.statusId),
     });
+
+    if (!user) {
+      throw new Error("No se pudo crear el usuario en la base de datos.");
+    }
     console.log("USUARIO CREADO ID:", user.id);
 
     try {
@@ -267,9 +271,9 @@ export async function POST(req: Request) {
       {
         success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "Error desconocido al registrar",
+          process.env.NODE_ENV === "development"
+            ? String(error)
+            : "Ocurrió un problema en el servidor. Intenta nuevamente.",
       },
       { status: 500 },
     );

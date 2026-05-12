@@ -8,6 +8,12 @@ import {
   getDeviceName,
   getLocationLabel,
 } from "@/lib/admin-security";
+import {
+  findAuthUserByEmail,
+  findAuthUserById,
+  findNormalizedEmailMatchId,
+  updateAuthUserLastLogin,
+} from "@/lib/auth-users";
 import { getDbRuntimeConfig, logDbUsage } from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
@@ -29,6 +35,7 @@ export function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   let loginEmailForLog = "";
   let userFoundForLog = false;
+  const debug = process.env.DEBUG_AUTH === "true";
 
   try {
     const json = (body: unknown, init?: ResponseInit) =>
@@ -41,6 +48,10 @@ export async function POST(req: Request) {
     const normalizedEmail = normalizeEmail(email ?? "");
     loginEmailForLog = normalizedEmail;
 
+    console.log("LOGIN START");
+    console.log("DATABASE_URL EXISTS:", Boolean(process.env.DATABASE_URL));
+    console.log("JWT_SECRET EXISTS:", Boolean(process.env.JWT_SECRET));
+    console.log("EMAIL NORMALIZADO:", normalizedEmail);
     console.log("POST /api/auth/login email recibido:", normalizedEmail);
     console.log("LOGIN EMAIL:", normalizedEmail);
     logDbUsage("/api/auth/login", {
@@ -99,19 +110,7 @@ export async function POST(req: Request) {
 
     const rawEmail = String(email ?? "").trim();
 
-    let user = (await prisma.user.findUnique({
-      where: {
-        email: normalizedEmail,
-      },
-      select: {
-        id: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-        password: true,
-        statusId: true,
-      },
-    })) as AuthUserRecord | null;
+    let user = (await findAuthUserByEmail(normalizedEmail)) as AuthUserRecord | null;
 
     console.log("EMAIL BUSCADO:", normalizedEmail);
     console.log("EMAIL ORIGINAL:", rawEmail);
@@ -130,19 +129,7 @@ export async function POST(req: Request) {
     console.log("USER FOUND:", Boolean(user));
 
     if (!user && rawEmail && rawEmail !== normalizedEmail) {
-      const fallbackUser = (await prisma.user.findFirst({
-        where: {
-          email: rawEmail,
-        },
-        select: {
-          id: true,
-          firstName: true,
-          lastName: true,
-          email: true,
-          password: true,
-          statusId: true,
-        },
-      })) as AuthUserRecord | null;
+      const fallbackUser = (await findAuthUserByEmail(rawEmail)) as AuthUserRecord | null;
 
       console.log(
         "USUARIO ENCONTRADO FALLBACK RAW EMAIL:",
@@ -171,15 +158,7 @@ export async function POST(req: Request) {
     }
 
     if (!user) {
-      const normalizedMatches = (await prisma.$queryRaw<
-        Array<{ id?: number }>
-      >`
-        SELECT id
-        FROM users
-        WHERE LOWER(TRIM(email)) = ${normalizedEmail}
-        LIMIT 1
-      `) as Array<{ id?: number }>;
-      const normalizedMatchId = Number(normalizedMatches[0]?.id ?? 0);
+      const normalizedMatchId = await findNormalizedEmailMatchId(normalizedEmail);
 
       console.log("LOGIN FALLBACK LOWER(TRIM(email)) MATCH:", {
         found: normalizedMatchId > 0,
@@ -187,19 +166,7 @@ export async function POST(req: Request) {
       });
 
       if (normalizedMatchId > 0) {
-        user = (await prisma.user.findUnique({
-          where: {
-            id: normalizedMatchId,
-          },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            password: true,
-            statusId: true,
-          },
-        })) as AuthUserRecord | null;
+        user = (await findAuthUserById(normalizedMatchId)) as AuthUserRecord | null;
 
         console.log(
           "USUARIO ENCONTRADO POR FALLBACK NORMALIZED EMAIL:",
@@ -378,14 +345,7 @@ export async function POST(req: Request) {
     }
 
     try {
-      await prisma.user.update({
-        where: {
-          id: user.id,
-        },
-        data: {
-          lastLogin: new Date(),
-        },
-      });
+      await updateAuthUserLastLogin(user.id);
     } catch (lastLoginError) {
       console.warn(
         "POST /api/auth/login no pudo actualizar last_login, pero el login seguirá:",
@@ -421,8 +381,24 @@ export async function POST(req: Request) {
     console.log("LOGIN EMAIL:", loginEmailForLog);
     console.log("USER FOUND:", userFoundForLog);
     console.log("JWT_SECRET EXISTS:", Boolean(process.env.JWT_SECRET));
+    console.log("DEBUG_AUTH ENABLED:", debug);
     console.error("LOGIN ERROR:", error);
     console.error("POST /api/auth/login error exacto:", error);
+
+    const debugPayload = debug
+      ? {
+          name: error instanceof Error ? error.name : "Unknown",
+          message: error instanceof Error ? error.message : String(error),
+          code:
+            typeof error === "object" && error !== null
+              ? (error as { code?: unknown }).code
+              : undefined,
+          meta:
+            typeof error === "object" && error !== null
+              ? (error as { meta?: unknown }).meta
+              : undefined,
+        }
+      : undefined;
 
     if (typeof error === "object" && error !== null) {
       const prismaError = error as {
@@ -458,6 +434,7 @@ export async function POST(req: Request) {
               success: false,
               error:
                 "No se pudo conectar a la base de datos. Revisa la configuración de producción.",
+              debug: debugPayload,
             },
             { status: 500 },
           ),
@@ -476,6 +453,7 @@ export async function POST(req: Request) {
               success: false,
               error:
                 "La base de datos rechazó las credenciales configuradas en producción.",
+              debug: debugPayload,
             },
             { status: 500 },
           ),
@@ -486,11 +464,15 @@ export async function POST(req: Request) {
     return withCors(
       req,
       NextResponse.json(
-      {
-        success: false,
-        error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
-      },
-      { status: 500 },
+        {
+          success: false,
+          error:
+            process.env.NODE_ENV === "development"
+              ? String(error)
+              : "Ocurrió un problema en el servidor. Intenta nuevamente.",
+          debug: debugPayload,
+        },
+        { status: 500 },
       ),
     );
   }
