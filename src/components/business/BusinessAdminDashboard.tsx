@@ -2062,6 +2062,10 @@ export function BusinessAdminDashboard() {
         throw new Error("Cloudinary no devolvió una URL válida.");
       }
 
+      if (uploadedUrl.startsWith("blob:")) {
+        throw new Error("La imagen debe subirse primero a Cloudinary");
+      }
+
       setBusiness((prev) =>
         prev
           ? {
@@ -2073,16 +2077,13 @@ export function BusinessAdminDashboard() {
       setAvatarPreview(null);
       setFeedback({
         type: "success",
-        message: "Imagen actualizada correctamente",
+        message: "Foto del negocio actualizada correctamente",
       });
     } catch (error) {
       console.error("Error cambiando foto del negocio:", error);
       setFeedback({
         type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar la imagen del negocio.",
+        message: "No se pudo guardar la imagen del negocio",
       });
     } finally {
       URL.revokeObjectURL(localPreview);

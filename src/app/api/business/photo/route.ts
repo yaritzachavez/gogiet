@@ -6,6 +6,15 @@ import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 
+function isHttpUrl(value: string) {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function uploadToCloudinary(buffer: Buffer, businessId: number) {
   return new Promise<{
     secure_url: string;
@@ -245,6 +254,29 @@ export async function POST(req: NextRequest) {
 
     step = "cloudinary-upload";
     const uploadResult = await uploadToCloudinary(buffer, business.id);
+
+    if (
+      !uploadResult.secure_url ||
+      uploadResult.secure_url.startsWith("blob:")
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "La imagen debe subirse primero a Cloudinary",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (!isHttpUrl(uploadResult.secure_url)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No se pudo guardar la imagen del negocio",
+        },
+        { status: 400 },
+      );
+    }
 
     step = "save-db-url";
     console.info("[business-photo] saving business logo", {
