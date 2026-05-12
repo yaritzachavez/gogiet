@@ -2,17 +2,17 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 
 import {
-  createAuthUser,
-  findAuthUserByEmail,
-  findUserIdByPhone,
-} from "@/lib/auth-users";
-import {
   isValidEmail,
   isValidPhone,
   normalizeEmail,
-  normalizePhone,
   validatePasswordStrength,
 } from "@/lib/auth-account";
+import {
+  createAuthUser,
+  findAuthUserByEmail,
+  findUserIdByPhone,
+  getActiveAuthStatusId,
+} from "@/lib/auth-users";
 import { prisma } from "@/lib/prisma";
 import { mapPublicRoleToDbRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
@@ -38,6 +38,22 @@ export async function POST(req: Request) {
   try {
     console.log("REGISTER START");
     const body = (await req.json()) as RegisterBody;
+    console.log("REGISTER ENV STATUS:", {
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+      hasDbSslCa: Boolean(process.env.DB_CA || process.env.DB_SSL_CA),
+      hasJwtSecret: Boolean(process.env.JWT_SECRET),
+      hasPasswordPepper: Boolean(process.env.PASSWORD_PEPPER),
+      hasSaltRounds: Boolean(process.env.SALT_ROUNDS),
+    });
+    console.log("REGISTER BODY FIELDS:", {
+      hasFirstName: Boolean(body.firstName?.trim()),
+      hasLastName: Boolean(body.lastName?.trim()),
+      hasName: Boolean(body.name?.trim()),
+      hasEmail: Boolean(body.email?.trim()),
+      hasPhone: Boolean(body.phone?.trim()),
+      hasPassword: Boolean(body.password),
+      hasConfirmPassword: Boolean(body.confirmPassword),
+    });
     const firstName = body.firstName?.trim();
     const lastName = body.lastName?.trim();
     const fallbackName = body.name?.trim();
@@ -149,7 +165,7 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "El correo ya está registrado.",
+          error: "Este correo ya está registrado",
         },
         { status: 409 },
       );
@@ -162,20 +178,31 @@ export async function POST(req: Request) {
         return json(
           {
             success: false,
-            error: "El número de teléfono ya está registrado.",
+            error: "Este número de teléfono ya está registrado",
           },
           { status: 409 },
         );
       }
     }
 
-    const saltRounds = Number(process.env.SALT_ROUNDS ?? 12);
+    const configuredSaltRounds = Number(process.env.SALT_ROUNDS ?? 12);
+    const saltRounds =
+      Number.isFinite(configuredSaltRounds) && configuredSaltRounds > 0
+        ? configuredSaltRounds
+        : 12;
     const pepper = process.env.PASSWORD_PEPPER ?? "";
     const passwordHash = await bcrypt.hash(password + pepper, saltRounds);
     console.log("PASSWORD HASH GENERADO:", Boolean(passwordHash));
+    console.log("REGISTER SECURITY CONFIG:", {
+      hasPasswordPepper: Boolean(pepper),
+      hasAppSecretHash: Boolean(process.env.APP_SECRET_HASH),
+      hasJwtSecret: Boolean(process.env.JWT_SECRET),
+      saltRounds,
+    });
     const resolvedFirstName = firstName || name.split(/\s+/)[0] || "";
     const resolvedLastName =
       lastName || name.split(/\s+/).slice(1).join(" ").trim() || null;
+    const activeStatusId = await getActiveAuthStatusId();
 
     const userCreateData: Record<string, unknown> = {
       firstName: resolvedFirstName,
@@ -183,8 +210,17 @@ export async function POST(req: Request) {
       email,
       phone,
       password: passwordHash,
-      statusId: 1,
+      statusId: activeStatusId,
     };
+
+    console.log("REGISTER USER PAYLOAD:", {
+      firstName: resolvedFirstName,
+      lastName: resolvedLastName,
+      email,
+      phone,
+      statusId: activeStatusId,
+      hasPasswordHash: Boolean(passwordHash),
+    });
 
     const user = await createAuthUser({
       firstName: String(userCreateData.firstName),
@@ -222,7 +258,13 @@ export async function POST(req: Request) {
         console.warn("REGISTER DEFAULT ROLE NO ENCONTRADO:", defaultRoleName);
       }
     } catch (roleError) {
-      console.warn("REGISTER ROLE ASSIGNMENT ERROR:", roleError);
+      console.error("ERROR EN /api/auth/register:", {
+        message:
+          roleError instanceof Error ? roleError.message : String(roleError),
+        stack: roleError instanceof Error ? roleError.stack : undefined,
+        name: roleError instanceof Error ? roleError.name : undefined,
+        error: roleError,
+      });
     }
 
     return json(
@@ -236,44 +278,17 @@ export async function POST(req: Request) {
       { status: 201 },
     );
   } catch (error: unknown) {
-    console.error("REGISTER ERROR:", error);
-    console.error("Error POST /api/auth/register:", error);
-
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "P2002"
-    ) {
-      return json(
-        {
-          success: false,
-          error: "El correo o el número de teléfono ya están registrados.",
-        },
-        { status: 409 },
-      );
-    }
-
-    if (
-      error instanceof Error &&
-      error.message.toLowerCase().includes("duplicate entry")
-    ) {
-      return json(
-        {
-          success: false,
-          error: "El correo o el número de teléfono ya están registrados.",
-        },
-        { status: 409 },
-      );
-    }
+    console.error("ERROR EN /api/auth/register:", {
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined,
+      error,
+    });
 
     return json(
       {
         success: false,
-        error:
-          process.env.NODE_ENV === "development"
-            ? String(error)
-            : "Ocurrió un problema en el servidor. Intenta nuevamente.",
+        error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
       },
       { status: 500 },
     );
