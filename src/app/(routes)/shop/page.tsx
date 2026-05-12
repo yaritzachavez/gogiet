@@ -37,9 +37,13 @@ type Business = {
   badge: string;
   discount?: string;
   mainPhoto?: string | null;
+  imageUrl?: string | null;
   avatar_url?: string | null;
   logo_url?: string | null;
+  image_url?: string | null;
   cover_image_url?: string | null;
+  profile_image_url?: string | null;
+  photo_url?: string | null;
 };
 
 type ApiBusiness = {
@@ -57,7 +61,10 @@ type ApiBusiness = {
   product_categories?: string[];
   avatar_url?: string | null;
   logo_url?: string | null;
+  image_url?: string | null;
   cover_image_url?: string | null;
+  profile_image_url?: string | null;
+  photo_url?: string | null;
 };
 
 type ActiveOrder = {
@@ -203,6 +210,24 @@ function matchesSearchTerm(
   });
 }
 
+function normalizeBusinessImageCandidate(value?: string | null) {
+  const candidate = String(value ?? "").trim();
+
+  if (!candidate) {
+    return null;
+  }
+
+  if (
+    candidate.startsWith("https://") ||
+    candidate.startsWith("http://") ||
+    candidate.startsWith("/")
+  ) {
+    return candidate;
+  }
+
+  return null;
+}
+
 function getSelectedDeliveryLocation() {
   if (typeof window === "undefined") {
     return "Mazamitla";
@@ -313,58 +338,66 @@ export default function ShopPage() {
         const data = result.data;
 
         const parsedBusinesses: Business[] = (data?.stores ?? []).map(
-          (business: ApiBusiness, index: number) => ({
-            id: business.id,
-            name: business.name ?? business.nombre ?? "Negocio local",
-            city: business.city ?? business.ciudad,
-            category:
-              business.category ??
-              business.category_name ??
-              (Array.isArray(business.categories)
-                ? business.categories[0]
-                : undefined) ??
-              business.giro ??
-              business.business_category_name ??
-              "Restaurante",
-            categories: Array.isArray(business.categories)
-              ? business.categories
-              : [],
-            productNames: Array.isArray(business.product_names)
-              ? business.product_names
-              : [],
-            productCategories: Array.isArray(business.product_categories)
-              ? business.product_categories
-              : [],
-            rating: getRating(business.id, index),
-            etaMinutes: getEta(index),
-            deliveryFee: getDeliveryFee(index),
-            priceTier: getPriceTier(index),
-            badge: getBadge(index),
-            discount: getDiscount(index),
-            mainPhoto:
-              typeof business.cover_image_url === "string" &&
-              business.cover_image_url.trim().length > 0
-                ? business.cover_image_url
-                : typeof business.logo_url === "string" &&
-                    business.logo_url.trim().length > 0
-                  ? business.logo_url
-                  : typeof business.avatar_url === "string" &&
-                      business.avatar_url.trim().length > 0
-                    ? business.avatar_url
-                    : null,
-            avatar_url:
-              typeof business.avatar_url === "string"
-                ? business.avatar_url
-                : null,
-            logo_url:
-              typeof business.logo_url === "string"
-                ? business.logo_url
-                : null,
-            cover_image_url:
-              typeof business.cover_image_url === "string"
-                ? business.cover_image_url
-                : null,
-          }),
+          (business: ApiBusiness, index: number) => {
+            const logoUrl = normalizeBusinessImageCandidate(business.logo_url);
+            const imageUrl = normalizeBusinessImageCandidate(
+              business.image_url,
+            );
+            const coverImageUrl = normalizeBusinessImageCandidate(
+              business.cover_image_url,
+            );
+            const profileImageUrl = normalizeBusinessImageCandidate(
+              business.profile_image_url,
+            );
+            const photoUrl = normalizeBusinessImageCandidate(business.photo_url);
+            const avatarUrl = normalizeBusinessImageCandidate(
+              business.avatar_url,
+            );
+
+            return {
+              id: business.id,
+              name: business.name ?? business.nombre ?? "Negocio local",
+              city: business.city ?? business.ciudad,
+              category:
+                business.category ??
+                business.category_name ??
+                (Array.isArray(business.categories)
+                  ? business.categories[0]
+                  : undefined) ??
+                business.giro ??
+                business.business_category_name ??
+                "Restaurante",
+              categories: Array.isArray(business.categories)
+                ? business.categories
+                : [],
+              productNames: Array.isArray(business.product_names)
+                ? business.product_names
+                : [],
+              productCategories: Array.isArray(business.product_categories)
+                ? business.product_categories
+                : [],
+              rating: getRating(business.id, index),
+              etaMinutes: getEta(index),
+              deliveryFee: getDeliveryFee(index),
+              priceTier: getPriceTier(index),
+              badge: getBadge(index),
+              discount: getDiscount(index),
+              mainPhoto:
+                logoUrl ??
+                imageUrl ??
+                coverImageUrl ??
+                profileImageUrl ??
+                photoUrl ??
+                avatarUrl,
+              imageUrl,
+              avatar_url: avatarUrl,
+              logo_url: logoUrl,
+              image_url: imageUrl,
+              cover_image_url: coverImageUrl,
+              profile_image_url: profileImageUrl,
+              photo_url: photoUrl,
+            };
+          },
         );
 
         setBusinesses(parsedBusinesses);
@@ -819,8 +852,12 @@ export default function ShopPage() {
                   discount={business.discount}
                   imagen={
                     business.mainPhoto ??
-                    business.cover_image_url ??
+                    business.imageUrl ??
                     business.logo_url ??
+                    business.image_url ??
+                    business.cover_image_url ??
+                    business.profile_image_url ??
+                    business.photo_url ??
                     business.avatar_url ??
                     undefined
                   }
@@ -885,8 +922,12 @@ export default function ShopPage() {
                   discount={business.discount}
                   imagen={
                     business.mainPhoto ??
-                    business.cover_image_url ??
+                    business.imageUrl ??
                     business.logo_url ??
+                    business.image_url ??
+                    business.cover_image_url ??
+                    business.profile_image_url ??
+                    business.photo_url ??
                     business.avatar_url ??
                     undefined
                   }

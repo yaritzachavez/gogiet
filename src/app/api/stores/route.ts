@@ -12,7 +12,10 @@ type StoreRow = {
   email: string | null;
   avatar_url: string | null;
   logo_url: string | null;
+  image_url: string | null;
   cover_image_url: string | null;
+  profile_image_url: string | null;
+  photo_url: string | null;
   min_order_amount: number | string | null;
   estimated_delivery_minutes: number | null;
   rating_average: number | string | null;
@@ -45,7 +48,16 @@ export async function GET(req: Request) {
         b.email,
         b.logo_url AS avatar_url,
         b.logo_url,
+        (
+          SELECT bi.image_url
+          FROM business_images bi
+          WHERE bi.business_id = b.id
+          ORDER BY bi.is_cover DESC, bi.sort_order ASC, bi.id ASC
+          LIMIT 1
+        ) AS image_url,
         b.cover_image_url,
+        NULL AS profile_image_url,
+        NULL AS photo_url,
         b.min_order_amount,
         b.estimated_delivery_minutes,
         b.rating_average,
@@ -99,7 +111,10 @@ export async function GET(req: Request) {
       email: store.email,
       avatar_url: store.logo_url,
       logo_url: store.logo_url,
+      image_url: store.image_url,
       cover_image_url: store.cover_image_url,
+      profile_image_url: store.profile_image_url,
+      photo_url: store.photo_url,
       min_order_amount: store.min_order_amount,
       estimated_delivery_minutes: store.estimated_delivery_minutes,
       rating_average: Number(store.rating_average ?? 0),
@@ -118,6 +133,19 @@ export async function GET(req: Request) {
         ? String(store.product_categories).split(", ").filter(Boolean)
         : [],
     }));
+
+    console.log(
+      "BUSINESS IMAGE DEBUG:",
+      stores.map((b) => ({
+        id: b.id,
+        name: b.name,
+        logo_url: b.logo_url,
+        image_url: b.image_url,
+        cover_image_url: b.cover_image_url,
+        profile_image_url: b.profile_image_url,
+        photo_url: b.photo_url,
+      })),
+    );
 
     return NextResponse.json(
       {
