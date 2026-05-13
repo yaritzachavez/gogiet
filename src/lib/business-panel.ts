@@ -1,9 +1,16 @@
-import type { RowDataPacket } from "mysql2/promise";
+import type {
+  Pool,
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
 
 import { isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
+
+type Queryable = Pool | PoolConnection;
 
 type UserInfoRow = RowDataPacket & {
   email: string;
