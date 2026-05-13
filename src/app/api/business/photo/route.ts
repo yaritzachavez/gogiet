@@ -113,91 +113,17 @@ export async function POST(req: NextRequest) {
       return buildImageErrorResponse("businessId inválido", 400);
     }
 
-    step = "find-user-business-owners";
-    const ownerRelations = await prisma.business_owners.findMany({
-      where: {
-        user_id: userId,
-      },
-      select: {
-        business_id: true,
-      },
-      orderBy: {
-        assigned_at: "asc",
-      },
-    });
-
-    const uniqueBusinessIds = Array.from(
-      new Set(
-        ownerRelations
-          .map((relation) => Number(relation.business_id))
-          .filter(
-            (businessId) => Number.isFinite(businessId) && businessId > 0,
-          ),
-      ),
-    );
-
-    step = "find-valid-businesses";
-    const validBusinesses = uniqueBusinessIds.length
-      ? await prisma.business.findMany({
-          where: {
-            id: {
-              in: uniqueBusinessIds,
-            },
-          },
-          select: {
-            id: true,
-            name: true,
-            logo_url: true,
-          },
-          orderBy: {
-            id: "asc",
-          },
-        })
-      : [];
-
-    const validBusinessIds = validBusinesses.map((business) =>
-      Number(business.id),
-    );
-    const validBusinessId =
-      Number.isFinite(requestedBusinessId) &&
-      requestedBusinessId > 0 &&
-      validBusinessIds.includes(requestedBusinessId)
-        ? requestedBusinessId
-        : (validBusinessIds[0] ?? null);
-
-    console.log("business válido encontrado:", validBusinessId);
-
-    const orphanedBusinessIds = uniqueBusinessIds.filter(
-      (businessId) => !validBusinessIds.includes(businessId),
-    );
-
-    if (orphanedBusinessIds.length > 0) {
-      console.warn(
-        "[business-photo] Ignorando relaciones rotas en business_owners",
-        {
-          userId,
-          orphanedBusinessIds,
-        },
-      );
-    }
-
-    if (!validBusinessId) {
-      return buildImageErrorResponse(
-        "No tienes un negocio válido asignado",
-        404,
-      );
-    }
-
     step = "find-business-before-update";
     const business = await prisma.business.findUnique({
-      where: { id: validBusinessId },
+      where: { id: body.businessId },
       select: { id: true, name: true, logo_url: true },
     });
 
     console.info("[business-photo] business lookup", {
-      businessId: validBusinessId,
+      businessId: body.businessId,
       exists: Boolean(business),
       businessName: business?.name ?? null,
+      userId,
     });
 
     if (!business) {
