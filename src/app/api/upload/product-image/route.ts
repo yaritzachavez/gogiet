@@ -18,12 +18,23 @@ async function uploadProductImage(file: File) {
   return cloudinary.uploader.upload(dataUri, {
     folder: "gogi-eats/products",
     resource_type: "image",
+    transformation: [
+      {
+        width: 1200,
+        height: 1200,
+        crop: "limit",
+        quality: "auto:good",
+        fetch_format: "auto",
+      },
+    ],
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
-    console.error("[product-image] usando endpoint Cloudinary /api/upload/product-image");
+    console.error(
+      "[product-image] usando endpoint Cloudinary /api/upload/product-image",
+    );
 
     const authUser = getAuthUser(req);
 

@@ -2,8 +2,8 @@
 
 import clsx from "clsx";
 import { Heart } from "lucide-react";
-import Image from "next/image";
-import { useState, type MouseEvent } from "react";
+import { type MouseEvent, useState } from "react";
+import { AppImage } from "@/components/ui/app-image";
 import { useScrollFadeIn } from "@/hooks/useScrollFadeIn";
 import type { SectionTheme } from "./sectionThemes";
 
@@ -31,10 +31,6 @@ export function MenuItemRow({
   const { ref, isVisible } = useScrollFadeIn<HTMLDivElement>();
   const [favorite, setFavorite] = useState(false);
 
-  const handleSelect = () => {
-    onSelect?.();
-  };
-
   const handleFavoriteToggle = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setFavorite((prev) => !prev);
@@ -48,22 +44,12 @@ export function MenuItemRow({
   return (
     <article
       ref={ref}
-      role="button"
-      tabIndex={0}
-      onClick={handleSelect}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          handleSelect();
-        }
-      }}
       className={clsx(
         "group relative flex w-full items-center justify-between gap-4 overflow-hidden rounded-3xl border px-4 py-4 text-left transition-all duration-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
         "bg-gradient-to-r from-white to-[#fff9f2] hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(0,0,0,0.08)]",
         isVisible ? "reveal-visible" : "reveal",
       )}
       style={{ borderColor: theme.border }}
-      aria-label={`Abrir detalles de ${name}`}
     >
       <div
         className="pointer-events-none absolute inset-0 opacity-40 transition group-hover:opacity-60"
@@ -128,12 +114,16 @@ export function MenuItemRow({
           </div>
         </div>
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border bg-white/80 transition group-hover:-translate-y-0.5 group-hover:brightness-105">
-          <Image
+          <AppImage
             src={imageSrc}
             alt={name}
-            fill
+            width={160}
+            height={160}
             sizes="80px"
-            className="object-cover transition duration-500 group-hover:scale-[1.03]"
+            aspectClassName="aspect-square"
+            className="h-full w-full"
+            imageClassName="transition duration-500 group-hover:scale-[1.03]"
+            fallbackLabel="Platillo"
           />
           <div className="pointer-events-none absolute inset-0 bg-black/10 opacity-0 transition group-hover:opacity-100" />
         </div>

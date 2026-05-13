@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { AppImage } from "@/components/ui/app-image";
+import { compressImageFile } from "@/lib/client-image";
 
 export default function NewProductClient({
   businessId,
@@ -156,7 +157,7 @@ export default function NewProductClient({
     setImageError("");
   }
 
-  function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
+  async function handleImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;
 
     if (!file) {
@@ -186,10 +187,27 @@ export default function NewProductClient({
       URL.revokeObjectURL(imagePreview);
     }
 
-    setImageFile(file);
-    setImageFileName(file.name);
-    setImagePreview(URL.createObjectURL(file));
-    setImageError("");
+    try {
+      const processedFile = await compressImageFile(file, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.82,
+        outputType: "image/jpeg",
+      });
+
+      setImageFile(processedFile);
+      setImageFileName(file.name);
+      setImagePreview(URL.createObjectURL(processedFile));
+      setImageError("");
+    } catch (error) {
+      setImageFile(null);
+      setImagePreview(null);
+      setImageError(
+        error instanceof Error
+          ? error.message
+          : "No se pudo procesar la imagen seleccionada.",
+      );
+    }
   }
 
   // ============================
@@ -503,7 +521,9 @@ export default function NewProductClient({
                         id="category"
                         value={categoryId ?? ""}
                         onChange={(e) => setCategoryId(Number(e.target.value))}
-                        disabled={isLoadingCategories || categories.length === 0}
+                        disabled={
+                          isLoadingCategories || categories.length === 0
+                        }
                         className={inputClass}
                         required
                       >
@@ -872,6 +892,7 @@ export default function NewProductClient({
                           aspectClassName="aspect-[4/3]"
                           className="h-64 w-full"
                           imageClassName="object-cover"
+                          allowObjectUrl
                           optimize={false}
                           fallbackLabel="Vista previa"
                         />

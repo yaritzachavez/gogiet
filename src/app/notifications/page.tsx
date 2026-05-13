@@ -184,8 +184,12 @@ export default function NotificationsPage() {
           ) : notifications.length === 0 ? (
             <EmptyState
               icon={Inbox}
-              title="Aún no tienes notificaciones"
-              description="Cuando haya novedades de pedidos, pagos o soporte, las verás aquí."
+              title="Aún no tienes notificaciones 🔔"
+              description="Cuando haya novedades de pedidos, pagos o soporte, las verás aquí para que no se te pase nada importante."
+              actionLabel="Explorar negocios"
+              onAction={() => {
+                router.push("/shop");
+              }}
               className="border-none px-0 py-6 shadow-none"
             />
           ) : (

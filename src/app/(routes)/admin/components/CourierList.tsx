@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { AppImage } from "@/components/ui/app-image";
 
 type CourierStatus = "Activo" | "En descanso" | "Suspendido";
 type EstadoFiltro = "Todos" | CourierStatus;
@@ -221,12 +221,15 @@ export function CourierList() {
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       {courier.profile_image_url ? (
-                        <Image
+                        <AppImage
                           src={courier.profile_image_url}
                           alt={courier.name}
                           width={40}
                           height={40}
-                          className="h-10 w-10 rounded-full object-cover ring-2 ring-red-100"
+                          aspectClassName="aspect-square"
+                          className="h-10 w-10 rounded-full ring-2 ring-red-100"
+                          imageClassName="rounded-full"
+                          fallbackLabel="Perfil"
                         />
                       ) : (
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-sm font-semibold text-red-600 ring-2 ring-red-100">

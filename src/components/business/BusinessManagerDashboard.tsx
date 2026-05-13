@@ -26,6 +26,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const DEFAULT_BUSINESS = {
   id: null,
@@ -1167,9 +1168,14 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                       {ordersError}
                     </div>
                   ) : activeOrders.length === 0 ? (
-                    <div className="mt-6 rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500">
-                      No tienes pedidos activos en este momento.
-                    </div>
+                    <EmptyState
+                      icon={ClipboardList}
+                      title="Aún no tienes pedidos activos 🍔"
+                      description="Cuando entre un nuevo pedido, aquí podrás verlo, prepararlo y mandarlo a entrega sin perder el ritmo."
+                      actionLabel="Ver historial"
+                      onAction={() => setActiveSection("orders")}
+                      className="mt-6"
+                    />
                   ) : (
                     <ul className="mt-6 grid gap-3 text-sm">
                       {activeOrders.map((order) => {
@@ -1622,9 +1628,14 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                   Cargando historial...
                 </div>
               ) : historyOrders.length === 0 ? (
-                <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
-                  Aun no tienes pedidos entregados en el historial.
-                </div>
+                <EmptyState
+                  icon={Store}
+                  title="Todavía no hay pedidos en tu historial"
+                  description="Cuando completes tus primeras entregas, aquí aparecerá el resumen para seguir el avance del negocio."
+                  actionLabel="Volver a pedidos activos"
+                  onAction={() => setActiveSection("dashboard")}
+                  className="mt-5"
+                />
               ) : (
                 <ul className="mt-5 grid gap-2.5">
                   {historyOrders.map((order) => (

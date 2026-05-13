@@ -49,6 +49,7 @@ export function UserAvatar({
           className="h-full w-full rounded-full"
           imageClassName="rounded-full object-cover"
           sizes={`${size}px`}
+          allowObjectUrl
           fallbackNode={
             <span
               className={`font-extrabold uppercase tracking-wide ${textClassName}`.trim()}

@@ -31,6 +31,7 @@ import {
 
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { AppImage } from "@/components/ui/app-image";
+import { compressImageFile } from "@/lib/client-image";
 
 const TOKEN_STORAGE_KEYS = [
   "token",
@@ -1411,13 +1412,19 @@ export function BusinessAdminDashboard() {
       return;
     }
 
-    const localPreview = URL.createObjectURL(file);
+    const processedFile = await compressImageFile(file, {
+      maxWidth: 1200,
+      maxHeight: 1200,
+      quality: 0.82,
+      outputType: "image/jpeg",
+    });
+    const localPreview = URL.createObjectURL(processedFile);
     setProductImagePreview(localPreview);
 
     try {
       setProductImageUploading(true);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", processedFile);
 
       const response = await fetch("/api/upload/product-image", {
         method: "POST",
@@ -2038,14 +2045,20 @@ export function BusinessAdminDashboard() {
       return;
     }
 
-    const localPreview = URL.createObjectURL(file);
+    const processedFile = await compressImageFile(file, {
+      maxWidth: 800,
+      maxHeight: 800,
+      quality: 0.8,
+      outputType: "image/jpeg",
+    });
+    const localPreview = URL.createObjectURL(processedFile);
     setAvatarPreview(localPreview);
 
     try {
       setAvatarUploading(true);
-      console.log("Archivo seleccionado:", file);
+      console.log("Archivo seleccionado:", processedFile);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", processedFile);
       formData.append("businessId", String(business.id));
       console.log("businessId enviado a save-db-url:", business.id);
 
@@ -3559,6 +3572,7 @@ export function BusinessAdminDashboard() {
                       aspectClassName="aspect-[4/3]"
                       className="h-full w-full"
                       imageClassName="object-cover"
+                      allowObjectUrl
                       fallbackLabel="Sin foto"
                     />
                   </div>
@@ -4303,8 +4317,15 @@ function PanelCard({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-sm font-semibold text-slate-500">
-      {text}
+    <div className="rounded-[26px] border border-dashed border-orange-200 bg-[linear-gradient(180deg,_rgba(255,247,237,0.85),_rgba(255,255,255,1))] p-6 text-center shadow-sm">
+      <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+        🍔
+      </div>
+      <p className="mt-4 text-lg font-black text-slate-950">{text}</p>
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+        En cuanto haya movimiento en esta sección, aquí verás actividad clara y
+        lista para gestionar.
+      </p>
     </div>
   );
 }

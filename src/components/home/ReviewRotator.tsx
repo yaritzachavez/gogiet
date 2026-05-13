@@ -67,7 +67,7 @@ export function ReviewRotator() {
   const allies: Ally[] = businesses.slice(0, 5).map((b) => ({
     name: toCapitalCase(b.name),
     category: toCapitalCase(b.category ?? "General"),
-    city: toCapitalCase(b.city ?? "—"),
+    city: toCapitalCase(b.city ?? "Mazamitla"),
   }));
 
   // Rotator animation
@@ -96,7 +96,7 @@ export function ReviewRotator() {
   return (
     <div className="mx-auto mt-10 max-w-2xl rounded-[28px] border border-[#E2D9D0] bg-white/90 px-6 py-5 text-center text-[#3E2F28] shadow-[0_15px_45px_rgba(0,0,0,0.12)]">
       <p className="text-sm uppercase tracking-[0.5em] text-[#8C766B]">
-        Partner Businesses
+        Negocios de la comunidad
       </p>
 
       <p

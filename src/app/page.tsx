@@ -1,7 +1,12 @@
 import Image from "next/image";
+import { FeaturedBusinesses } from "@/components/home/FeaturedBusinesses";
 import { HeroActions } from "@/components/home/HeroActions";
+import { HowItWorks } from "@/components/home/HowItWorks";
+import { PopularProducts } from "@/components/home/PopularProducts";
 import { PremiumFooter } from "@/components/home/PremiumFooter";
+import { RecentActivity } from "@/components/home/RecentActivity";
 import { ReviewRotator } from "@/components/home/ReviewRotator";
+import { Testimonials } from "@/components/home/Testimonials";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -33,9 +38,9 @@ export default function Home() {
               </h1>
 
               <p className="mt-7 max-w-2xl text-xl leading-9 text-slate-600 md:text-2xl">
-                Apoyando a los primeros aliados de zonas rurales y rancherías
-                cercanas, sabores hechos en casa, entregados con calidez de
-                comunidad y puntualidad moderna.
+                Desde Mazamitla para sus alrededores: sabores hechos en casa,
+                negocios con identidad local y entregas que se sienten cercanas
+                desde el primer clic.
               </p>
 
               <HeroActions />
@@ -125,6 +130,11 @@ export default function Home() {
           </div>
         </section>
 
+        <FeaturedBusinesses />
+        <PopularProducts />
+        <RecentActivity />
+        <Testimonials />
+        <HowItWorks />
       </main>
 
       <PremiumFooter />

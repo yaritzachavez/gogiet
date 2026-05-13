@@ -34,6 +34,15 @@ function uploadToCloudinary(buffer: Buffer, businessId: number) {
       {
         folder: `gogi-eats/business/${businessId}`,
         resource_type: "image",
+        transformation: [
+          {
+            width: 800,
+            height: 800,
+            crop: "limit",
+            quality: "auto:good",
+            fetch_format: "auto",
+          },
+        ],
       },
       (error, result) => {
         if (error || !result) {
