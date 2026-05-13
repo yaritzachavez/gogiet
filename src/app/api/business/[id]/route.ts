@@ -2,10 +2,8 @@ import jwt from "jsonwebtoken";
 import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
-import {
-  assignBusinessOwnerSafely,
-  resolveBusinessAccess,
-} from "@/lib/business-panel";
+import { syncBusinessOwnerSafely } from "@/lib/business-owners";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
 
 function validateAuth(req: NextRequest): boolean {
@@ -243,15 +241,7 @@ export async function PUT(
       [parsedBusinessId, business_category_id],
     );
 
-    await connection.query(
-      "DELETE FROM business_owners WHERE business_id = ?",
-      [parsedBusinessId],
-    );
-    await assignBusinessOwnerSafely(
-      connection,
-      parsedBusinessId,
-      parsedOwnerId,
-    );
+    await syncBusinessOwnerSafely(connection, parsedBusinessId, parsedOwnerId);
 
     await connection.query(
       `

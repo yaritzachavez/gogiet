@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
-import { assignBusinessOwnerSafely } from "@/lib/business-panel";
+import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 
 function validateBearer(req: Request) {
@@ -160,7 +160,7 @@ export async function POST(req: Request) {
     );
 
     const { alreadyAssigned: ownerAlreadyAssigned } =
-      await assignBusinessOwnerSafely(connection, businessId, owner_id);
+      await syncBusinessOwnerSafely(connection, businessId, owner_id);
 
     await connection.query(
       `

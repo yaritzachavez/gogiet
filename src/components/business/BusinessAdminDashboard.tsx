@@ -758,9 +758,18 @@ export function BusinessAdminDashboard() {
           status: businessResponse.status,
           statusText: businessResponse.statusText,
           payload: businessData,
+          details:
+            typeof businessData.details === "string"
+              ? businessData.details
+              : null,
+          debug:
+            businessData.debug && typeof businessData.debug === "object"
+              ? businessData.debug
+              : null,
         });
         throw new Error(
-          (typeof businessData.error === "string" && businessData.error) ||
+          (typeof businessData.details === "string" && businessData.details) ||
+            (typeof businessData.error === "string" && businessData.error) ||
             "No se pudo cargar el negocio.",
         );
       }
@@ -772,6 +781,8 @@ export function BusinessAdminDashboard() {
 
       if (!businessPayload) {
         const missingBusinessMessage =
+          (typeof businessData.details === "string" && businessData.details) ||
+          (typeof businessData.error === "string" && businessData.error) ||
           (typeof businessData.message === "string" && businessData.message) ||
           "No se encontro el negocio asignado. Redirigiendo a configuracion de negocios.";
 

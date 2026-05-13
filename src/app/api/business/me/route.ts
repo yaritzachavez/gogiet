@@ -6,6 +6,7 @@ import {
   ensureBusinessLogoColumn,
   getBusinessLogoSelect,
 } from "@/lib/business-logo";
+import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool, { logDbUsage } from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -62,12 +63,168 @@ type UserInfoRow = RowDataPacket & {
   email: string;
 };
 
+type ColumnExistsRow = RowDataPacket & {
+  column_name: string;
+};
+
+type BusinessMeDebug = {
+  userId: number | null;
+  email: string | null;
+  requestedBusinessId: number | null;
+  availableBusinessColumns: string[];
+  businessOwnersQuery: string | null;
+  businessOwnersResult: Array<{
+    business_id: number;
+    user_id: number;
+  }>;
+  ownerBusinessesQuery: string | null;
+  ownerBusinessesResult: Array<{
+    id: number;
+    name: string;
+    source: string;
+  }>;
+  repairSources: string[];
+  businessQuery: string | null;
+  businessResult: {
+    id: number | null;
+    name: string | null;
+  } | null;
+};
+
+async function countSafely(
+  query: string,
+  params: Array<number | string | null>,
+  label: string,
+) {
+  try {
+    const [rows] = await pool.query<CountRow[]>(query, params);
+    return Number(rows[0]?.total ?? 0);
+  } catch (error) {
+    console.warn(`GET /api/business/me ${label} failed:`, {
+      message: error instanceof Error ? error.message : String(error),
+    });
+    return 0;
+  }
+}
+
 function toPositiveNumber(value: string | null) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+async function tryRepairBusinessOwnerRelation(params: {
+  userId: number;
+  email: string | null;
+  debug: BusinessMeDebug;
+}) {
+  const [businessColumns] = await pool.query<ColumnExistsRow[]>(
+    `
+      SELECT COLUMN_NAME AS column_name
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'businesses'
+        AND COLUMN_NAME IN ('owner_id', 'owner_user_id', 'email')
+    `,
+  );
+
+  const availableColumns = new Set(
+    businessColumns.map((row) => String(row.column_name).toLowerCase()),
+  );
+  params.debug.availableBusinessColumns = Array.from(availableColumns);
+  const candidateBusinesses = new Map<number, AssignedBusinessRow>();
+
+  if (availableColumns.has("owner_id")) {
+    const [ownerIdCandidates] = await pool.query<AssignedBusinessRow[]>(
+      `
+        SELECT b.id, b.name, b.city, 'owner_id_repair' AS source
+        FROM businesses b
+        WHERE b.owner_id = ?
+        ORDER BY b.updated_at DESC, b.id DESC
+      `,
+      [params.userId],
+    );
+
+    for (const business of ownerIdCandidates) {
+      candidateBusinesses.set(Number(business.id), business);
+    }
+  }
+
+  if (availableColumns.has("owner_user_id")) {
+    const [ownerUserIdCandidates] = await pool.query<AssignedBusinessRow[]>(
+      `
+        SELECT b.id, b.name, b.city, 'owner_user_id_repair' AS source
+        FROM businesses b
+        WHERE b.owner_user_id = ?
+        ORDER BY b.updated_at DESC, b.id DESC
+      `,
+      [params.userId],
+    );
+
+    for (const business of ownerUserIdCandidates) {
+      if (!candidateBusinesses.has(Number(business.id))) {
+        candidateBusinesses.set(Number(business.id), business);
+      }
+    }
+  }
+
+  if (params.email && availableColumns.has("email")) {
+    const [emailCandidates] = await pool.query<AssignedBusinessRow[]>(
+      `
+        SELECT b.id, b.name, b.city, 'email_repair' AS source
+        FROM businesses b
+        WHERE LOWER(TRIM(COALESCE(b.email, ''))) = LOWER(TRIM(?))
+        ORDER BY b.updated_at DESC, b.id DESC
+      `,
+      [params.email],
+    );
+
+    for (const business of emailCandidates) {
+      if (!candidateBusinesses.has(Number(business.id))) {
+        candidateBusinesses.set(Number(business.id), business);
+      }
+    }
+  }
+
+  const repairedBusinesses = Array.from(candidateBusinesses.values());
+
+  if (!repairedBusinesses.length) {
+    return {
+      repaired: false,
+      source: null,
+      businesses: [] as AssignedBusinessRow[],
+    };
+  }
+
+  for (const business of repairedBusinesses) {
+    await syncBusinessOwnerSafely(pool, Number(business.id), params.userId);
+  }
+
+  params.debug.repairSources = repairedBusinesses.map((business) =>
+    String(business.source),
+  );
+
+  return {
+    repaired: true,
+    source: repairedBusinesses.map((business) => business.source).join(","),
+    businesses: repairedBusinesses,
+  };
+}
+
 export async function GET(req: NextRequest) {
+  const debug: BusinessMeDebug = {
+    userId: null,
+    email: null,
+    requestedBusinessId: null,
+    availableBusinessColumns: [],
+    businessOwnersQuery: null,
+    businessOwnersResult: [],
+    ownerBusinessesQuery: null,
+    ownerBusinessesResult: [],
+    repairSources: [],
+    businessQuery: null,
+    businessResult: null,
+  };
+
   try {
     await ensureBusinessLogoColumn();
 
@@ -75,14 +232,24 @@ export async function GET(req: NextRequest) {
 
     if (!authUser?.token) {
       return NextResponse.json(
-        { success: false, error: "Token faltante" },
+        {
+          success: false,
+          error: "Token faltante",
+          details: "No se encontró token en Authorization ni en cookies.",
+          debug,
+        },
         { status: 401 },
       );
     }
 
     if (!authUser?.user) {
       return NextResponse.json(
-        { success: false, error: "Token inválido" },
+        {
+          success: false,
+          error: "Token inválido",
+          details: "No se pudo validar el JWT del usuario.",
+          debug,
+        },
         { status: 401 },
       );
     }
@@ -90,6 +257,7 @@ export async function GET(req: NextRequest) {
     const requestedBusinessId = toPositiveNumber(
       req.nextUrl.searchParams.get("business_id"),
     );
+    debug.requestedBusinessId = requestedBusinessId;
     const [userInfoRows] = await pool.query<UserInfoRow[]>(
       `
         SELECT email
@@ -99,6 +267,8 @@ export async function GET(req: NextRequest) {
       `,
       [authUser.user.id],
     );
+    debug.userId = authUser.user.id;
+    debug.email = userInfoRows[0]?.email ?? null;
     console.info("GET /api/business/me user_id:", authUser.user.id);
 
     const [roleRows] = await pool.query<UserRoleRow[]>(
@@ -121,33 +291,77 @@ export async function GET(req: NextRequest) {
       role: roleRows.map((row) => row.role_name),
     });
 
-    const [rawBusinessOwners] = await pool.query<RawBusinessOwnerRow[]>(
-      `
+    debug.businessOwnersQuery = `
         SELECT *
         FROM business_owners
         WHERE user_id = ?
-      `,
+      `.trim();
+    const [rawBusinessOwners] = await pool.query<RawBusinessOwnerRow[]>(
+      debug.businessOwnersQuery,
       [authUser.user.id],
     );
+    debug.businessOwnersResult = rawBusinessOwners.map((row) => ({
+      business_id: Number(row.business_id),
+      user_id: Number(row.user_id),
+    }));
     console.info(
       "GET /api/business/me raw business_owners query result:",
       rawBusinessOwners,
     );
 
-    const [ownerBusinesses] = await pool.query<AssignedBusinessRow[]>(
-      `
+    debug.ownerBusinessesQuery = `
         SELECT b.id, b.name, b.city, 'owner' AS source
         FROM business_owners bo
         INNER JOIN businesses b ON b.id = bo.business_id
         WHERE bo.user_id = ?
         ORDER BY b.name ASC
-      `,
+      `.trim();
+    let [ownerBusinesses] = await pool.query<AssignedBusinessRow[]>(
+      debug.ownerBusinessesQuery,
       [authUser.user.id],
     );
+    debug.ownerBusinessesResult = ownerBusinesses.map((business) => ({
+      id: Number(business.id),
+      name: String(business.name),
+      source: String(business.source),
+    }));
     console.info(
       "GET /api/business/me business_owners result:",
       ownerBusinesses,
     );
+
+    if (!ownerBusinesses.length) {
+      const repairResult = await tryRepairBusinessOwnerRelation({
+        userId: authUser.user.id,
+        email: userInfoRows[0]?.email ?? null,
+        debug,
+      });
+
+      if (repairResult.repaired) {
+        console.info("GET /api/business/me business_owner autoreparado:", {
+          userId: authUser.user.id,
+          email: userInfoRows[0]?.email ?? null,
+          source: repairResult.source,
+          businesses: repairResult.businesses,
+        });
+
+        ownerBusinesses = repairResult.businesses.map((business) => ({
+          ...business,
+          source: "owner_repaired",
+        }));
+        debug.ownerBusinessesResult = ownerBusinesses.map((business) => ({
+          id: Number(business.id),
+          name: String(business.name),
+          source: String(business.source),
+        }));
+      }
+    }
+
+    console.info("GET /api/business/me business_owner encontrado:", {
+      userId: authUser.user.id,
+      ownerBusinessCount: ownerBusinesses.length,
+      firstOwnerBusinessId: ownerBusinesses[0]?.id ?? null,
+    });
 
     const orphanedOwnerBusinessIds = rawBusinessOwners
       .map((row) => Number(row.business_id))
@@ -210,13 +424,17 @@ export async function GET(req: NextRequest) {
 
     if (!assignedBusinesses.length) {
       return NextResponse.json({
-        success: true,
+        success: false,
+        error:
+          orphanedOwnerBusinessIds.length > 0
+            ? "Tu negocio asignado ya no existe"
+            : "No tienes un negocio asignado",
+        details:
+          orphanedOwnerBusinessIds.length > 0
+            ? "Se detectaron relaciones huérfanas en business_owners. Revisa la asignación del negocio."
+            : "No se encontró relación del usuario autenticado en business_owners ni coincidencia reparable por owner_id, owner_user_id o email.",
         business: null,
         businesses: [],
-        message:
-          orphanedOwnerBusinessIds.length > 0
-            ? "Tu negocio asignado ya no existe. Revisa la configuracion del panel o crea uno nuevo."
-            : "No tienes un negocio asignado",
         orphaned_business_ids: orphanedOwnerBusinessIds,
         repair_required: orphanedOwnerBusinessIds.length > 0,
         products_count: 0,
@@ -224,6 +442,7 @@ export async function GET(req: NextRequest) {
         completed_orders_count: 0,
         critical_inventory_count: 0,
         hours: [],
+        debug,
       });
     }
 
@@ -244,12 +463,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const [rawBusinessRows] = await pool.query<RowDataPacket[]>(
-      `
+    debug.businessQuery = `
         SELECT *
         FROM businesses
         WHERE id = ?
-      `,
+      `.trim();
+    const [rawBusinessRows] = await pool.query<RowDataPacket[]>(
+      debug.businessQuery,
       [businessId],
     );
     console.info(
@@ -292,18 +512,29 @@ export async function GET(req: NextRequest) {
     console.info("GET /api/business/me business result:", rows);
 
     const business = rows[0];
+    debug.businessResult = {
+      id: business ? Number(business.id) : null,
+      name: business?.name ?? null,
+    };
+    console.info("GET /api/business/me business encontrado:", {
+      requestedBusinessId,
+      selectedBusinessId: businessId,
+      foundBusinessId: business?.id ?? null,
+      foundBusinessName: business?.name ?? null,
+    });
 
     if (!business) {
       return NextResponse.json({
-        success: true,
+        success: false,
+        error: "Negocio no encontrado",
+        details:
+          "La relación del usuario existe, pero el negocio asignado ya no está disponible en la tabla businesses.",
         business: null,
         businesses: assignedBusinesses.map((assignedBusiness) => ({
           id: Number(assignedBusiness.id),
           name: assignedBusiness.name,
           city: assignedBusiness.city,
         })),
-        message:
-          "Tu negocio asignado no fue encontrado. Redirigiendo a la configuracion de negocios.",
         missing_business_id: businessId,
         repair_required: true,
         products_count: 0,
@@ -311,29 +542,39 @@ export async function GET(req: NextRequest) {
         completed_orders_count: 0,
         critical_inventory_count: 0,
         hours: [],
+        debug,
       });
     }
 
-    const [hoursRows] = await pool.query<HourRow[]>(
-      `
-        SELECT day_of_week, open_time, close_time, is_closed
-        FROM business_hours
-        WHERE business_id = ?
-        ORDER BY day_of_week ASC
-      `,
-      [businessId],
-    );
+    let hoursRows: HourRow[] = [];
+    try {
+      const [resolvedHoursRows] = await pool.query<HourRow[]>(
+        `
+          SELECT day_of_week, open_time, close_time, is_closed
+          FROM business_hours
+          WHERE business_id = ?
+          ORDER BY day_of_week ASC
+        `,
+        [businessId],
+      );
+      hoursRows = resolvedHoursRows;
+    } catch (error) {
+      console.warn("GET /api/business/me hours query failed:", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
 
-    const [productsCountRows] = await pool.query<CountRow[]>(
+    const productsCount = await countSafely(
       `
         SELECT COUNT(*) AS total
         FROM products
         WHERE business_id = ? AND status_id = 1
       `,
       [businessId],
+      "products_count",
     );
 
-    const [activeOrdersRows] = await pool.query<CountRow[]>(
+    const activeOrdersCount = await countSafely(
       `
         SELECT COUNT(*) AS total
         FROM orders o
@@ -342,9 +583,10 @@ export async function GET(req: NextRequest) {
           AND LOWER(TRIM(COALESCE(osc.name, ''))) NOT IN ('entregado', 'cancelado', 'pago_rechazado')
       `,
       [businessId],
+      "active_orders_count",
     );
 
-    const [completedOrdersRows] = await pool.query<CountRow[]>(
+    const completedOrdersCount = await countSafely(
       `
         SELECT COUNT(*) AS total
         FROM orders o
@@ -353,9 +595,10 @@ export async function GET(req: NextRequest) {
           AND LOWER(TRIM(COALESCE(osc.name, ''))) = 'entregado'
       `,
       [businessId],
+      "completed_orders_count",
     );
 
-    const [criticalInventoryRows] = await pool.query<CountRow[]>(
+    const criticalInventoryCount = await countSafely(
       `
         SELECT COUNT(*) AS total
         FROM products
@@ -364,6 +607,7 @@ export async function GET(req: NextRequest) {
           AND COALESCE(stock_average, 0) <= COALESCE(NULLIF(stock_danger, 0), 10)
       `,
       [businessId],
+      "critical_inventory_count",
     );
 
     return NextResponse.json({
@@ -393,10 +637,11 @@ export async function GET(req: NextRequest) {
         name: assignedBusiness.name,
         city: assignedBusiness.city,
       })),
-      products_count: Number(productsCountRows[0]?.total ?? 0),
-      active_orders_count: Number(activeOrdersRows[0]?.total ?? 0),
-      completed_orders_count: Number(completedOrdersRows[0]?.total ?? 0),
-      critical_inventory_count: Number(criticalInventoryRows[0]?.total ?? 0),
+      products_count: productsCount,
+      active_orders_count: activeOrdersCount,
+      completed_orders_count: completedOrdersCount,
+      critical_inventory_count: criticalInventoryCount,
+      debug,
       hours: hoursRows.map((hour) => ({
         day_of_week: Number(hour.day_of_week),
         day_name:
@@ -415,15 +660,25 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
     console.error("Error GET /api/business/me:", {
-      message: error instanceof Error ? error.message : String(error),
+      userId: debug.userId,
+      email: debug.email,
+      queryUsed: debug.businessQuery,
+      businessOwnersQuery: debug.businessOwnersQuery,
+      businessOwnersResult: debug.businessOwnersResult,
+      ownerBusinessesResult: debug.ownerBusinessesResult,
+      businessResult: debug.businessResult,
+      message,
       stack: error instanceof Error ? error.stack : undefined,
     });
     return NextResponse.json(
       {
         success: false,
         error: "No se pudo cargar el negocio del usuario.",
-        details: error instanceof Error ? error.message : String(error),
+        details: message,
+        debug,
       },
       { status: 500 },
     );

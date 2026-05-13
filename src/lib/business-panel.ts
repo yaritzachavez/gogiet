@@ -1,16 +1,9 @@
-import type {
-  Pool,
-  PoolConnection,
-  ResultSetHeader,
-  RowDataPacket,
-} from "mysql2/promise";
+import type { RowDataPacket } from "mysql2/promise";
 
 import { isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
 import { prisma } from "@/lib/prisma";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
-
-type Queryable = Pool | PoolConnection;
 
 type UserInfoRow = RowDataPacket & {
   email: string;
@@ -220,52 +213,6 @@ export async function resolveBusinessAccess(
     businessId,
     businessIds,
     isAdmin: userIsAdminGeneral,
-  };
-}
-
-export async function assignBusinessOwnerSafely(
-  executor: Queryable,
-  businessId: number,
-  userId: number,
-) {
-  const normalizedBusinessId = Number(businessId);
-  const normalizedUserId = Number(userId);
-
-  if (
-    !Number.isFinite(normalizedBusinessId) ||
-    normalizedBusinessId <= 0 ||
-    !Number.isFinite(normalizedUserId) ||
-    normalizedUserId <= 0
-  ) {
-    throw new Error(
-      "business_id y user_id deben ser validos para asignar dueño",
-    );
-  }
-
-  const [businessRows] = await executor.query<RowDataPacket[]>(
-    `
-      SELECT id
-      FROM businesses
-      WHERE id = ?
-      LIMIT 1
-    `,
-    [normalizedBusinessId],
-  );
-
-  if (!businessRows[0]?.id) {
-    throw new Error("Negocio no encontrado");
-  }
-
-  const [result] = await executor.query<ResultSetHeader>(
-    `
-      INSERT IGNORE INTO business_owners (business_id, user_id)
-      VALUES (?, ?)
-    `,
-    [normalizedBusinessId, normalizedUserId],
-  );
-
-  return {
-    alreadyAssigned: result.affectedRows === 0,
   };
 }
 

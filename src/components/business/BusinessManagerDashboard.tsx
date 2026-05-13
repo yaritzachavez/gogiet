@@ -361,10 +361,14 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
           statusText: response.statusText,
           responseText,
           data,
+          details: typeof data.details === "string" ? data.details : null,
+          debug:
+            data.debug && typeof data.debug === "object" ? data.debug : null,
         });
         setBusiness(DEFAULT_BUSINESS);
         setBusinessError(
-          (typeof data.error === "string" && data.error) ||
+          (typeof data.details === "string" && data.details) ||
+            (typeof data.error === "string" && data.error) ||
             (typeof data.message === "string" && data.message) ||
             "No se pudo cargar la informacion del negocio.",
         );

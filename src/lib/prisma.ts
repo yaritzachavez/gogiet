@@ -10,6 +10,26 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+function getMaskedDatabaseUrl(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value);
+    const database = parsed.pathname.replace(/^\//, "");
+    const username = parsed.username
+      ? `${decodeURIComponent(parsed.username).slice(0, 2)}***`
+      : "";
+
+    return `${parsed.protocol}//${username}:***@${parsed.hostname}${
+      parsed.port ? `:${parsed.port}` : ""
+    }/${database}${parsed.search}`;
+  } catch {
+    return "[invalid DATABASE_URL]";
+  }
+}
+
 function resolvePrismaDatabaseUrl() {
   const host = process.env.DB_HOST?.trim();
   const needsSsl =
@@ -23,6 +43,7 @@ function resolvePrismaDatabaseUrl() {
 
   console.info("[prisma] SSL env status", {
     databaseUrlExists: Boolean(existingUrl),
+    databaseUrlMasked: getMaskedDatabaseUrl(existingUrl),
     dbSslCaExists: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
     dbSslCaSource: sslSummary.source,
     dbSslCaLoaded: sslSummary.hasCertificate,
@@ -69,6 +90,10 @@ function resolvePrismaDatabaseUrl() {
     process.env.DATABASE_URL = needsSsl
       ? applyMysqlSslParams(existingUrl)
       : existingUrl;
+
+    console.info("[prisma] DATABASE_URL final", {
+      databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
+    });
     return process.env.DATABASE_URL;
   }
 
@@ -96,6 +121,7 @@ function resolvePrismaDatabaseUrl() {
     port: port ?? "(default)",
     needsSsl,
     hasRuntimeCaFile: Boolean(caPath),
+    databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
   });
 
   return process.env.DATABASE_URL;

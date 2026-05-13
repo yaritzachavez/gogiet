@@ -254,12 +254,44 @@ export async function POST(req: NextRequest) {
       updatedBusiness,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
     console.error("ERROR business/photo:", {
       step,
       error,
-      message: error instanceof Error ? error.message : String(error),
+      message: errorMessage,
       stack: error instanceof Error ? error.stack : undefined,
     });
+
+    if (
+      errorMessage.includes("logo_url") &&
+      (errorMessage.includes("does not exist") ||
+        errorMessage.includes("Unknown column"))
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "La columna logo_url no existe en la base activa",
+          details: errorMessage,
+        },
+        { status: 500 },
+      );
+    }
+
+    if (
+      errorMessage.includes("Table") &&
+      errorMessage.includes("businesses") &&
+      errorMessage.includes("doesn't exist")
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "La tabla businesses no existe en la base activa",
+          details: errorMessage,
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json(
       {

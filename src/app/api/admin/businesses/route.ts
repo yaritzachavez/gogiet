@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { assignBusinessOwnerSafely } from "@/lib/business-panel";
+import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 
 type JwtPayload = {
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
     );
 
     const { alreadyAssigned: ownerAlreadyAssigned } =
-      await assignBusinessOwnerSafely(connection, businessId, owner_id);
+      await syncBusinessOwnerSafely(connection, businessId, owner_id);
 
     await connection.query(
       `

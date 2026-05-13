@@ -2,7 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
-import { assignBusinessOwnerSafely } from "@/lib/business-panel";
+import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
     );
 
     const { alreadyAssigned: ownerAlreadyAssigned } =
-      await assignBusinessOwnerSafely(connection, businessId, ownerId);
+      await syncBusinessOwnerSafely(connection, businessId, ownerId);
 
     await connection.query(
       `
