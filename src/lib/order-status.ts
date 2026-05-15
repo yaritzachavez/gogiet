@@ -1,8 +1,18 @@
 export const ORDER_STATUS_DEFINITIONS = [
   {
+    code: "pending_payment",
+    label: "Pendiente de pago",
+    aliases: ["pending_payment", "pendiente_de_pago"],
+  },
+  {
     code: "pending",
     label: "Pendiente",
     aliases: ["pending", "pendiente", "pedido_recibido"],
+  },
+  {
+    code: "paid",
+    label: "Pagado",
+    aliases: ["paid", "pagado"],
   },
   {
     code: "payment_review",
@@ -12,7 +22,13 @@ export const ORDER_STATUS_DEFINITIONS = [
   {
     code: "accepted",
     label: "Aceptado",
-    aliases: ["accepted", "aceptado", "pago_validado"],
+    aliases: [
+      "accepted",
+      "aceptado",
+      "pago_validado",
+      "accepted_by_business",
+      "aceptado_por_negocio",
+    ],
   },
   {
     code: "preparing",
@@ -41,15 +57,23 @@ export const ORDER_STATUS_DEFINITIONS = [
     label: "Repartidor asignado",
     aliases: [
       "driver_assigned",
+      "assigned_to_driver",
+      "asignado_a_repartidor",
       "repartidor_asignado",
       "aceptado_repartidor",
-      "recogido",
     ],
   },
   {
     code: "on_the_way",
     label: "En camino",
-    aliases: ["on_the_way", "en_camino", "en_ruta", "saliendo"],
+    aliases: [
+      "on_the_way",
+      "picked_up",
+      "recogido",
+      "en_camino",
+      "en_ruta",
+      "saliendo",
+    ],
   },
   {
     code: "delivered",
@@ -60,6 +84,11 @@ export const ORDER_STATUS_DEFINITIONS = [
     code: "cancelled",
     label: "Cancelado",
     aliases: ["cancelled", "cancelado"],
+  },
+  {
+    code: "payment_failed",
+    label: "Pago no completado",
+    aliases: ["payment_failed", "pago_fallido", "pago_no_completado"],
   },
 ] as const;
 

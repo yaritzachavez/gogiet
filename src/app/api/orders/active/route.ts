@@ -7,7 +7,9 @@ import pool, { logDbUsage } from "@/lib/db";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
 
 const ACTIVE_STATUS_NAMES = [
+  "pending_payment",
   "pending",
+  "paid",
   "payment_review",
   "accepted",
   "preparing",

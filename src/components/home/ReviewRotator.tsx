@@ -94,33 +94,33 @@ export function ReviewRotator() {
   const ally = allies[active];
 
   return (
-    <div className="mx-auto mt-10 max-w-2xl rounded-[28px] border border-[#E2D9D0] bg-white/90 px-6 py-5 text-center text-[#3E2F28] shadow-[0_15px_45px_rgba(0,0,0,0.12)]">
-      <p className="text-sm uppercase tracking-[0.5em] text-[#8C766B]">
+    <div className="mx-auto max-w-xl rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(32,32,32,0.96)_0%,rgba(18,18,18,0.96)_100%)] px-5 py-4 text-center text-[#f5f5f5] shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-6 sm:py-4">
+      <p className="text-sm uppercase tracking-[0.5em] text-[#b3b3b3]">
         Negocios de la comunidad
       </p>
 
       <p
-        className={`mt-3 text-lg font-serif italic text-[#3E2F28]/80 transition-opacity duration-500 ${
+        className={`mt-2 text-base font-serif italic text-[#f5f5f5]/86 transition-opacity duration-500 sm:text-lg ${
           isFading ? "opacity-0" : "opacity-100"
         }`}
       >
         {ally.name}
       </p>
 
-      <p className="mt-2 text-sm font-semibold text-[#6D4C41]">
+      <p className="mt-1.5 text-sm font-semibold text-orange-300">
         {ally.category}
       </p>
 
-      <p className="text-xs uppercase tracking-[0.4em] text-[#8C766B]">
+      <p className="mt-0.5 text-[11px] uppercase tracking-[0.35em] text-[#8f8f8f]">
         {ally.city}
       </p>
 
-      <div className="mt-4 flex items-center justify-center gap-1">
+      <div className="mt-3 flex items-center justify-center gap-1">
         {allies.map((item, index) => (
           <span
             key={`${item.name}-${item.category}-${item.city}`}
             className={`h-1.5 w-6 rounded-full transition-all ${
-              index === active ? "bg-[#6D8B74]" : "bg-[#E2D9D0]"
+              index === active ? "bg-[#ff6b00]" : "bg-white/12"
             }`}
           />
         ))}

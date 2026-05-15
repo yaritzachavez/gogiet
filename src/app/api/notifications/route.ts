@@ -1,19 +1,13 @@
-import type { RowDataPacket } from "mysql2";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
-import pool, { logDbUsage } from "@/lib/db";
+import { logDbUsage } from "@/lib/db";
 import {
   createNotification,
   ensureNotificationsTable,
   getNotificationsForActor,
 } from "@/lib/notifications";
-
-type UserInfoRow = {
-  email: string;
-  role_name: string | null;
-};
 
 function expandNotificationRoles(roles: string[]) {
   const normalizedRoles = new Set(
@@ -48,39 +42,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const [userInfoRows] = await pool.query<Array<UserInfoRow & RowDataPacket>>(
-      `
-        SELECT u.email, r.name AS role_name
-        FROM users u
-        LEFT JOIN user_roles ur ON ur.user_id = u.id
-        LEFT JOIN roles r ON r.id = ur.role_id
-        WHERE u.id = ?
-      `,
-      [authUser.user.id],
-    );
+    const access = await resolveBusinessAccess(authUser.user.id);
 
     console.log("GET /api/notifications endpoint:", "/api/notifications");
     console.log("GET /api/notifications userId:", authUser.user.id);
-    console.log(
-      "GET /api/notifications email:",
-      userInfoRows[0]?.email ?? null,
-    );
-    console.log(
-      "GET /api/notifications role:",
-      userInfoRows
-        .map((row) => row.role_name)
-        .filter((role): role is string => Boolean(role)),
-    );
+    console.log("GET /api/notifications email:", access.email);
+    console.log("GET /api/notifications role:", access.roles);
     logDbUsage("/api/notifications", {
       userId: authUser.user.id,
-      email: userInfoRows[0]?.email ?? null,
-      role: userInfoRows
-        .map((row) => row.role_name)
-        .filter((role): role is string => Boolean(role)),
+      email: access.email,
+      role: access.roles,
     });
 
     await ensureNotificationsTable();
-    const access = await resolveBusinessAccess(authUser.user.id);
     const actorRoles = expandNotificationRoles(access.roles);
     const notifications = await getNotificationsForActor({
       userId: authUser.user.id,

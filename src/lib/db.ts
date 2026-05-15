@@ -46,22 +46,23 @@ function resolveDbConfig(): DbRuntimeConfig {
   }
 
   const host =
-    process.env.DB_HOST?.trim() || parsedUrl?.hostname?.trim() || null;
+    parsedUrl?.hostname?.trim() || process.env.DB_HOST?.trim() || null;
   const database =
-    process.env.DB_NAME?.trim() ||
     parsedUrl?.pathname.replace(/^\//, "").trim() ||
+    process.env.DB_NAME?.trim() ||
     null;
   const portCandidate =
-    process.env.DB_PORT?.trim() || parsedUrl?.port?.trim() || "3306";
+    parsedUrl?.port?.trim() || process.env.DB_PORT?.trim() || "3306";
   const port = Number(portCandidate);
   const user =
-    process.env.DB_USER?.trim() ||
     (parsedUrl?.username ? decodeURIComponent(parsedUrl.username) : "") ||
+    process.env.DB_USER?.trim() ||
     null;
   const password =
-    process.env.DB_PASSWORD ??
+    ((parsedUrl?.password ? decodeURIComponent(parsedUrl.password) : "") ||
+      process.env.DB_PASSWORD) ??
     process.env.DB_PASS ??
-    (parsedUrl?.password ? decodeURIComponent(parsedUrl.password) : "");
+    "";
 
   if (!host || !database || !user) {
     throw new Error(
@@ -74,6 +75,35 @@ function resolveDbConfig(): DbRuntimeConfig {
     host.includes("aivencloud.com") ||
     Boolean(caContent) ||
     process.env.DB_REQUIRE_SSL === "true";
+
+  if (parsedUrl) {
+    const envHost = process.env.DB_HOST?.trim() ?? null;
+    const envDatabase = process.env.DB_NAME?.trim() ?? null;
+    const envPort = process.env.DB_PORT?.trim() ?? null;
+    const envUser = process.env.DB_USER?.trim() ?? null;
+
+    if (
+      (envHost && envHost !== host) ||
+      (envDatabase && envDatabase !== database) ||
+      (envPort && envPort !== String(port)) ||
+      (envUser && envUser !== user)
+    ) {
+      console.warn(
+        "[db] DATABASE_URL y DB_* no coinciden; mysql2 usará DATABASE_URL",
+        {
+          databaseUrlMasked: getMaskedDatabaseUrl(existingUrl),
+          dbHost: envHost,
+          dbName: envDatabase,
+          dbPort: envPort,
+          dbUser: envUser ? `${envUser.slice(0, 2)}***` : null,
+          resolvedHost: host,
+          resolvedDatabase: database,
+          resolvedPort: port,
+          resolvedUser: `${user.slice(0, 2)}***`,
+        },
+      );
+    }
+  }
 
   return {
     host,
@@ -92,7 +122,7 @@ const maskedDatabaseUrl = getMaskedDatabaseUrl(process.env.DATABASE_URL);
 const sslConfig = caCertificate
   ? {
       ca: caCertificate.replace(/\\n/g, "\n"),
-      rejectUnauthorized: false,
+      rejectUnauthorized: true,
     }
   : dbConfig.useSsl
     ? {
@@ -120,6 +150,7 @@ if (!globalThis.__gogiDbLogged) {
     DB_SSL_CA_SOURCE: dbSslSummary.source,
     DB_SSL_CA_LOADED: Boolean(sslConfig),
     DB_SSL_CA_LENGTH: dbSslSummary.certificateLength,
+    DB_SSL_IGNORED_SOURCES: dbSslSummary.ignoredSources,
     DB_NAME_IS_EXPECTED: dbConfig.database === "gogiEats",
     DB_NAME_LOOKS_SUSPICIOUS: ["gogi", "defaultdb"].includes(dbConfig.database),
     NODE_ENV: process.env.NODE_ENV ?? "development",

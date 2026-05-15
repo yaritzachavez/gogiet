@@ -44,11 +44,11 @@ export default function FormClient({ businessId }: { businessId: number }) {
   }
 
   const inputClass =
-    "w-full rounded-2xl border border-[#d6e3d0] bg-white/95 px-4 py-3 text-sm shadow-sm transition focus:border-[#4c956c] focus:outline-none focus:ring-2 focus:ring-[#c5ead1]";
+    "w-full rounded-2xl border border-white/10 bg-black/60 px-4 py-3 text-sm text-white shadow-sm transition focus:border-[#4c956c] focus:outline-none focus:ring-2 focus:ring-[#c5ead1]";
 
   return (
-    <main className="min-h-screen bg-fixed bg-cover bg-center [background-image:url('/portada.jpg')]">
-      <div className="min-h-screen bg-[linear-gradient(180deg,rgba(35,55,40,0.15)_0%,rgba(214,205,168,0.65)_25%,rgba(228,235,220,0.85)_55%,rgba(244,239,222,0.9)_100%)]">
+    <main className="min-h-screen bg-fixed bg-cover bg-center [background-image:url('/fondo.png')]">
+      <div className="min-h-screen bg-[linear-gradient(180deg,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.72)_45%,rgba(0,0,0,0.9)_100%)]">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
 
           {/* ENCABEZADO */}
@@ -77,7 +77,7 @@ export default function FormClient({ businessId }: { businessId: number }) {
           {/* FORMULARIO */}
           <form
             onSubmit={handleSubmit}
-            className="mt-10 space-y-6 rounded-[32px] bg-[#f7f6ef] p-6 shadow-xl ring-1 ring-[#d6e3d0]"
+            className="mt-10 space-y-6 rounded-[32px] bg-black/70 p-6 shadow-xl ring-1 ring-white/10"
           >
             <div className="space-y-2">
               <label

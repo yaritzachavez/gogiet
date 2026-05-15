@@ -637,7 +637,7 @@ export default function ShopPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f7f8fa] text-slate-950">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_22%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)] text-slate-950">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:px-6">
         <header className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -648,10 +648,10 @@ export default function ShopPage() {
               <button
                 type="button"
                 onClick={() => setLocationMenuOpen((current) => !current)}
-                className="rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white"
+                className="rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white/6"
               >
-                <p className="text-xs font-black text-slate-400">Entregar en</p>
-                <span className="inline-flex items-center gap-1.5 text-lg font-black">
+                <p className="text-xs font-black text-white/45">Entregar en</p>
+                <span className="inline-flex items-center gap-1.5 text-lg font-black text-white">
                   {selectedLocation}
                   <ChevronRight
                     className={`h-4 w-4 rotate-90 transition ${
@@ -662,7 +662,7 @@ export default function ShopPage() {
               </button>
 
               {locationMenuOpen ? (
-                <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
+                <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-white/10 bg-[#181818]/96 shadow-2xl shadow-black/40 backdrop-blur-xl">
                   <div className="max-h-72 overflow-y-auto p-2">
                     {DELIVERY_LOCATIONS.map((location) => (
                       <button
@@ -671,8 +671,8 @@ export default function ShopPage() {
                         onClick={() => handleSelectLocation(location)}
                         className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-semibold transition ${
                           selectedLocation === location
-                            ? "bg-orange-50 text-orange-600"
-                            : "text-slate-700 hover:bg-slate-50"
+                            ? "bg-orange-500/14 text-orange-300"
+                            : "text-[#d7d7d7] hover:bg-white/6"
                         }`}
                       >
                         <span>{location}</span>
@@ -693,7 +693,7 @@ export default function ShopPage() {
           title="Descubre negocios que sí antojan"
           description="Explora aliados cercanos con entregas rápidas, promociones del día y favoritos listos para volver a pedir."
           actions={
-            <div className="rounded-2xl border border-orange-100 bg-orange-50 px-4 py-3 text-sm font-bold text-orange-700 shadow-sm">
+            <div className="rounded-2xl border border-[#efcfaf] bg-[linear-gradient(180deg,#fff7ee_0%,#f8ecdf_100%)] px-4 py-3 text-sm font-bold text-[#c7641a] shadow-[0_12px_28px_rgba(255,107,0,0.10)]">
               {filteredBusinesses.length} aliados disponibles
             </div>
           }
@@ -701,18 +701,19 @@ export default function ShopPage() {
 
         <section>
           <label className="relative block">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[#a18d7b]" />
             <input
               type="search"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Buscar restaurantes, comidas..."
-              className="h-12 w-full rounded-xl border border-slate-200 bg-white pl-12 pr-4 text-base font-semibold text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
+              className="h-12 w-full rounded-xl border border-[#e7dac8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] pl-12 pr-4 text-base font-semibold text-[#2a1d14] shadow-[0_14px_32px_rgba(0,0,0,0.18)] outline-none transition placeholder:text-[#aa9788] focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
             />
           </label>
         </section>
 
-        <section className="flex gap-6 overflow-x-auto border-b border-slate-200 pb-5">
+        <section className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(22,22,22,0.92)_0%,rgba(15,15,15,0.94)_100%)] px-4 py-5 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl">
+          <div className="flex gap-6 overflow-x-auto pb-1">
           {categoryFilters.slice(0, 9).map((item) => {
             const isActive = selectedFilter === item;
             const staticFilter = STATIC_FILTERS.find(
@@ -737,7 +738,7 @@ export default function ShopPage() {
                 </span>
                 <span
                   className={`text-sm font-black ${
-                    isActive ? "text-slate-950" : "text-slate-500"
+                    isActive ? "text-white" : "text-white/58"
                   }`}
                 >
                   {item}
@@ -745,15 +746,16 @@ export default function ShopPage() {
               </button>
             );
           })}
+          </div>
         </section>
 
         {!activeOrdersLoading && activeOrders.length > 0 ? (
           <section className="space-y-4">
             <div>
-              <h2 className="text-2xl font-black tracking-tight text-slate-950">
+              <h2 className="text-2xl font-black tracking-tight text-white">
                 Pedidos activos
               </h2>
-              <p className="text-sm font-semibold text-slate-500">
+              <p className="text-sm font-semibold text-white/62">
                 Sigue el estado de tus pedidos en curso.
               </p>
             </div>
@@ -762,7 +764,7 @@ export default function ShopPage() {
               {activeOrders.map((order) => (
                 <article
                   key={order.id}
-                  className="min-w-[280px] shrink-0 rounded-[18px] border border-slate-200 bg-white p-4 shadow-sm"
+                  className="min-w-[280px] shrink-0 rounded-[18px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -795,7 +797,7 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-[18px] bg-gradient-to-r from-orange-600 to-red-500 px-6 py-5 text-white shadow-lg shadow-orange-900/10">
+        <section className="overflow-hidden rounded-[18px] bg-gradient-to-r from-orange-600 to-red-500 px-6 py-5 text-white shadow-[0_20px_44px_rgba(255,107,0,0.18)] ring-1 ring-white/10">
           <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
             <Sparkles className="h-4 w-4" />
             Oferta especial
@@ -819,10 +821,10 @@ export default function ShopPage() {
           <section className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+              <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
                 Tus favoritos
               </h1>
-              <p className="mt-1 text-sm font-semibold text-slate-500">
+              <p className="mt-1 text-sm font-semibold text-white/62">
                 Regresa rápido a los negocios que más te gustan.
               </p>
             </div>
@@ -873,10 +875,10 @@ export default function ShopPage() {
         <section className="space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-slate-950 sm:text-3xl">
+              <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
                 Más populares
               </h1>
-              <p className="mt-1 text-sm font-semibold text-slate-500">
+              <p className="mt-1 text-sm font-semibold text-white/62">
                 Tiendas destacadas por velocidad, variedad y favoritos del día.
               </p>
             </div>
@@ -894,7 +896,7 @@ export default function ShopPage() {
               {PLACEHOLDER_IDS.map((placeholder) => (
                 <div
                   key={placeholder}
-                  className="h-48 rounded-[18px] bg-white shadow-sm"
+                  className="h-48 rounded-[18px] bg-white/10 shadow-sm"
                 />
               ))}
             </div>

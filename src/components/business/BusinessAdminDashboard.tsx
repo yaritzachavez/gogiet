@@ -32,6 +32,7 @@ import {
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { AppImage } from "@/components/ui/app-image";
 import { compressImageFile } from "@/lib/client-image";
+import { uploadImageAsset } from "@/lib/client-upload";
 
 const TOKEN_STORAGE_KEYS = [
   "token",
@@ -1423,37 +1424,18 @@ export function BusinessAdminDashboard() {
 
     try {
       setProductImageUploading(true);
-      const formData = new FormData();
-      formData.append("file", processedFile);
-
-      const response = await fetch("/api/upload/product-image", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
+      const { imageUrl } = await uploadImageAsset({
+        file: processedFile,
+        kind: "product",
+        token,
       });
-      const data = await parseJsonResponse(response);
-
-      if (!response.ok || data.success === false) {
-        throw new Error(
-          (typeof data.error === "string" && data.error) ||
-            "No se pudo subir la imagen del producto.",
-        );
-      }
-
-      const uploadedUrl = typeof data.url === "string" ? data.url : null;
-
-      if (!uploadedUrl) {
-        throw new Error("Cloudinary no devolvió una URL válida.");
-      }
 
       setEditingProduct((prev) =>
         prev
           ? {
               ...prev,
-              thumbnail_url: uploadedUrl,
-              image_url: uploadedUrl,
+              thumbnail_url: imageUrl,
+              image_url: imageUrl,
             }
           : prev,
       );
@@ -1463,7 +1445,6 @@ export function BusinessAdminDashboard() {
       });
     } catch (error) {
       console.error("Error subiendo imagen del producto:", error);
-      setProductImagePreview(null);
       setFeedback({
         type: "error",
         message:
@@ -2053,57 +2034,58 @@ export function BusinessAdminDashboard() {
     });
     const localPreview = URL.createObjectURL(processedFile);
     setAvatarPreview(localPreview);
+    let shouldRevokeLocalPreview = true;
 
     try {
       setAvatarUploading(true);
       console.log("Archivo seleccionado:", processedFile);
-      const formData = new FormData();
-      formData.append("file", processedFile);
-      formData.append("businessId", String(business.id));
-      console.log("businessId enviado a save-db-url:", business.id);
+      const { imageUrl } = await uploadImageAsset({
+        businessId: business.id,
+        file: processedFile,
+        kind: "business",
+        token,
+      });
+      console.log("URL final enviada:", imageUrl);
 
-      const uploadResponse = await fetch("/api/business/photo", {
+      if (imageUrl.startsWith("blob:")) {
+        throw new Error("La imagen debe subirse primero a Cloudinary");
+      }
+
+      if (shouldRevokeLocalPreview) {
+        URL.revokeObjectURL(localPreview);
+        shouldRevokeLocalPreview = false;
+      }
+      setAvatarPreview(imageUrl);
+
+      const saveResponse = await fetch("/api/business/photo", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: formData,
+        body: JSON.stringify({
+          businessId: business.id,
+          imageUrl,
+        }),
       });
-      const uploadPayload = (await uploadResponse
+      const savePayload = (await saveResponse
         .json()
         .catch(() => null)) as Record<string, unknown> | null;
-      console.log("Respuesta Cloudinary:", uploadPayload);
+      console.log("Respuesta save-db-url:", savePayload);
 
-      if (!uploadResponse.ok || uploadPayload?.success === false) {
+      if (!saveResponse.ok || savePayload?.success === false) {
         throw new Error(
-          (typeof uploadPayload?.details === "string" &&
-            uploadPayload.details) ||
-            (typeof uploadPayload?.error === "string" && uploadPayload.error) ||
-            "No se pudo subir la imagen a Cloudinary.",
+          (typeof savePayload?.details === "string" && savePayload.details) ||
+            (typeof savePayload?.error === "string" && savePayload.error) ||
+            "No se pudo guardar la imagen del negocio",
         );
-      }
-
-      const uploadedUrl =
-        typeof uploadPayload?.imageUrl === "string"
-          ? uploadPayload.imageUrl
-          : typeof uploadPayload?.url === "string"
-            ? uploadPayload.url
-            : null;
-      console.log("URL final enviada:", uploadedUrl);
-
-      if (!uploadedUrl) {
-        throw new Error("Cloudinary no devolvió secure_url");
-      }
-
-      if (uploadedUrl.startsWith("blob:")) {
-        throw new Error("La imagen debe subirse primero a Cloudinary");
       }
 
       setBusiness((prev) =>
         prev
           ? {
               ...prev,
-              logo_url: uploadedUrl,
+              logo_url: imageUrl,
             }
           : prev,
       );
@@ -2114,7 +2096,6 @@ export function BusinessAdminDashboard() {
       });
     } catch (error) {
       console.error("Error cambiando foto del negocio:", error);
-      setAvatarPreview(null);
       setFeedback({
         type: "error",
         message:
@@ -2123,7 +2104,9 @@ export function BusinessAdminDashboard() {
             : "No se pudo guardar la imagen del negocio",
       });
     } finally {
-      URL.revokeObjectURL(localPreview);
+      if (shouldRevokeLocalPreview) {
+        URL.revokeObjectURL(localPreview);
+      }
       setAvatarUploading(false);
       event.target.value = "";
     }

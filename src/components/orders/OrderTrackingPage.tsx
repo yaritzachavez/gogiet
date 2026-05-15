@@ -99,7 +99,13 @@ function normalizeStatus(value: string) {
 function getStepKey(statusName: string) {
   const normalizedStatus = resolveCanonicalOrderStatus(statusName);
 
-  if (normalizedStatus === "pending" || normalizedStatus === "payment_review") {
+  if (
+    normalizedStatus === "pending" ||
+    normalizedStatus === "pending_payment" ||
+    normalizedStatus === "payment_review" ||
+    normalizedStatus === "paid" ||
+    normalizedStatus === "payment_failed"
+  ) {
     return "pedido_recibido";
   }
   if (normalizedStatus === "accepted" || normalizedStatus === "preparing") {

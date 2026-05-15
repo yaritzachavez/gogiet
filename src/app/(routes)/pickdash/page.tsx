@@ -199,8 +199,8 @@ export default function RoleMenu() {
   }
 
   return (
-    <main className="min-h-screen bg-center bg-cover bg-fixed" style={{ backgroundImage: "url('/portada.jpg')" }}>
-      <div className="min-h-screen bg-[linear-gradient(180deg,rgba(16,24,19,0.78)_0%,rgba(235,240,231,0.94)_40%,rgba(248,246,238,0.98)_100%)]">
+    <main className="min-h-screen bg-center bg-cover bg-fixed" style={{ backgroundImage: "url('/fondo.png')" }}>
+      <div className="min-h-screen bg-[linear-gradient(180deg,rgba(0,0,0,0.86)_0%,rgba(0,0,0,0.74)_45%,rgba(0,0,0,0.92)_100%)]">
         <section className="flex flex-col justify-center gap-8 px-4 py-10 mx-auto min-h-screen max-w-7xl sm:gap-10 sm:px-6 lg:px-10">
           {/* Header y Grid de Cards... */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">

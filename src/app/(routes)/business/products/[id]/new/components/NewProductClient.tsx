@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AppImage } from "@/components/ui/app-image";
 import { compressImageFile } from "@/lib/client-image";
+import { uploadImageAsset } from "@/lib/client-upload";
 
 export default function NewProductClient({
   businessId,
@@ -68,6 +69,7 @@ export default function NewProductClient({
 
   // Imagen
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [imageError, setImageError] = useState("");
@@ -84,7 +86,7 @@ export default function NewProductClient({
   // ============================
 
   const inputClass =
-    "w-full rounded-lg border border-[#d6e3d0] bg-white/95 px-3 py-2.5 text-sm shadow-sm transition focus:border-[#4c956c] focus:outline-none focus:ring-2 focus:ring-[#c5ead1] sm:rounded-xl sm:px-4 sm:py-3";
+    "w-full rounded-lg border border-white/10 bg-black/60 px-3 py-2.5 text-sm text-white shadow-sm transition focus:border-[#4c956c] focus:outline-none focus:ring-2 focus:ring-[#c5ead1] sm:rounded-xl sm:px-4 sm:py-3";
 
   // ============================
   // 📌 Cargar categorías dinámicas
@@ -147,11 +149,12 @@ export default function NewProductClient({
   // ============================
 
   function clearSelectedImage() {
-    if (imagePreview) {
+    if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
 
     setImageFile(null);
+    setImageUrl(null);
     setImagePreview(null);
     setImageFileName(null);
     setImageError("");
@@ -183,7 +186,7 @@ export default function NewProductClient({
       return;
     }
 
-    if (imagePreview) {
+    if (imagePreview?.startsWith("blob:")) {
       URL.revokeObjectURL(imagePreview);
     }
 
@@ -194,20 +197,42 @@ export default function NewProductClient({
         quality: 0.82,
         outputType: "image/jpeg",
       });
+      const token =
+        typeof window !== "undefined" ? localStorage.getItem("token") : null;
 
+      if (!token) {
+        throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
+      }
+
+      const localPreview = URL.createObjectURL(processedFile);
+      setImageUrl(null);
+      setUploadingImage(true);
+      setImagePreview(localPreview);
       setImageFile(processedFile);
       setImageFileName(file.name);
-      setImagePreview(URL.createObjectURL(processedFile));
+
+      const uploadedImage = await uploadImageAsset({
+        file: processedFile,
+        kind: "product",
+        token,
+      });
+
+      URL.revokeObjectURL(localPreview);
+      setImageUrl(uploadedImage.imageUrl);
+      setImagePreview(uploadedImage.imageUrl);
       setImageError("");
     } catch (error) {
-      setImageFile(null);
-      setImagePreview(null);
+      setImageUrl(null);
       setImageError(
         error instanceof Error
           ? error.message
           : "No se pudo procesar la imagen seleccionada.",
       );
+    } finally {
+      setUploadingImage(false);
     }
+
+    event.target.value = "";
   }
 
   // ============================
@@ -215,8 +240,15 @@ export default function NewProductClient({
   // ============================
 
   const canSubmit = useMemo(() => {
-    return name.trim().length > 0 && categoryId !== null && price > 0;
-  }, [name, categoryId, price]);
+    const hasValidUploadedImage = !imageFile || Boolean(imageUrl);
+
+    return (
+      name.trim().length > 0 &&
+      categoryId !== null &&
+      price > 0 &&
+      hasValidUploadedImage
+    );
+  }, [categoryId, imageFile, imageUrl, name, price]);
 
   // ============================
   // 📌 Envío a API
@@ -224,6 +256,11 @@ export default function NewProductClient({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (uploadingImage) {
+      alert("Espera a que termine la subida de la imagen.");
+      return;
+    }
 
     // Generar SKU automático más corto y legible
     const skuValue =
@@ -252,7 +289,8 @@ export default function NewProductClient({
           max_per_order: maxPerOrder || null,
           min_per_order: minPerOrder || null,
           promotion_id: promotionId || null,
-          thumbnail_url: null,
+          thumbnail_url: imageUrl,
+          image_url: imageUrl,
           stock_average: stockAverage || 0, // ← 0 en lugar de null
           stock_danger: stockDanger || 0, // ← 0 en lugar de null
           created_at: new Date(),
@@ -280,73 +318,6 @@ export default function NewProductClient({
         return;
       }
 
-      const productId = Number(data.product_id ?? 0);
-
-      if (imageFile && productId > 0) {
-        try {
-          setUploadingImage(true);
-          const formData = new FormData();
-          formData.append("file", imageFile);
-
-          console.error(
-            "[product-image] subiendo imagen con /api/upload/product-image",
-          );
-          const uploadResponse = await fetch("/api/upload/product-image", {
-            method: "POST",
-            headers: {
-              Authorization: token ? `Bearer ${token}` : "",
-            },
-            body: formData,
-          });
-          const uploadData = await uploadResponse.json();
-
-          if (!uploadResponse.ok || uploadData.success === false) {
-            alert(
-              `✅ Producto creado, pero la imagen no se pudo guardar: ${
-                uploadData.error || "Error desconocido"
-              }`,
-            );
-            return;
-          }
-
-          const imageUrl =
-            typeof uploadData.url === "string" ? uploadData.url : null;
-
-          if (!imageUrl) {
-            alert(
-              "✅ Producto creado, pero Cloudinary no devolvió una URL válida para la imagen.",
-            );
-            return;
-          }
-
-          const saveImageResponse = await fetch("/api/business/products", {
-            method: "PATCH",
-            headers: {
-              Authorization: token ? `Bearer ${token}` : "",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              id: productId,
-              business_id: businessId,
-              image_url: imageUrl,
-              thumbnail_url: imageUrl,
-            }),
-          });
-          const saveImageData = await saveImageResponse.json();
-
-          if (!saveImageResponse.ok) {
-            alert(
-              `✅ Producto creado y la imagen se subió, pero no se pudo guardar en la base: ${
-                saveImageData.error || "Error desconocido"
-              }`,
-            );
-            return;
-          }
-        } finally {
-          setUploadingImage(false);
-        }
-      }
-
       if (!imageFile) {
         alert(
           "✅ Producto creado correctamente. Advertencia: el producto quedó sin imagen.",
@@ -368,8 +339,8 @@ export default function NewProductClient({
   // ============================
 
   return (
-    <main className="min-h-screen bg-fixed bg-cover bg-center [background-image:url('/portada.jpg')]">
-      <div className="min-h-screen bg-[linear-gradient(180deg,rgba(35,55,40,0.15)_0%,rgba(214,205,168,0.65)_25%,rgba(228,235,220,0.85)_55%,rgba(244,239,222,0.9)_100%)]">
+    <main className="min-h-screen bg-fixed bg-cover bg-center [background-image:url('/fondo.png')]">
+      <div className="min-h-screen bg-[linear-gradient(180deg,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.72)_45%,rgba(0,0,0,0.9)_100%)]">
         <div className="mx-auto max-w-7xl px-8 py-4 pt-8 sm:px-4 sm:py-6 md:px-6 md:py-8 lg:px-8">
           {/* ============================
               🏆 Header Principal
@@ -448,7 +419,7 @@ export default function NewProductClient({
               {/* Grupo 1: Información básica y precio */}
               <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
                 {/* Columna izquierda: Información básica */}
-                <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+                <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                   <header className="space-y-0.5 pb-2 sm:pb-3">
                     <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                       Información básica
@@ -548,7 +519,7 @@ export default function NewProductClient({
                 </section>
 
                 {/* Columna derecha: Precio y presentación */}
-                <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+                <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                   <header className="space-y-0.5 pb-2 sm:pb-3">
                     <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                       Precio y presentación
@@ -679,7 +650,7 @@ export default function NewProductClient({
               {/* Grupo 2: Detalles adicionales */}
               <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
                 {/* Columna izquierda: Impuestos y comisiones */}
-                <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+                <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                   <header className="space-y-0.5 pb-2 sm:pb-3">
                     <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                       Impuestos
@@ -748,7 +719,7 @@ export default function NewProductClient({
                 </section>
 
                 {/* Columna derecha: Inventario */}
-                <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+                <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                   <header className="space-y-0.5 pb-2 sm:pb-3">
                     <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                       Inventario
@@ -814,7 +785,7 @@ export default function NewProductClient({
                 </section>
               </div>
 
-              <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+              <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                 <header className="space-y-0.5 pb-2 sm:pb-3">
                   <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                     Imagen del producto
@@ -848,7 +819,7 @@ export default function NewProductClient({
                     <div className="flex flex-wrap gap-2">
                       <label
                         htmlFor="product-image"
-                        className="inline-flex cursor-pointer items-center rounded-lg border border-[#c1e3b2] bg-white px-3 py-2 text-xs font-semibold text-[#2f5238] shadow-sm transition hover:bg-[#f4ffef]"
+                        className="inline-flex cursor-pointer items-center rounded-lg border border-white/10 bg-black px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-black/80"
                       >
                         {imageFile ? "Cambiar imagen" : "Seleccionar imagen"}
                       </label>
@@ -877,7 +848,7 @@ export default function NewProductClient({
                     ) : null}
                   </div>
 
-                  <div className="rounded-xl border border-[#d6e3d0] bg-white p-3 shadow-sm">
+                  <div className="rounded-xl border border-white/10 bg-black/70 p-3 shadow-sm">
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#5c6f5b]">
                       Vista previa
                     </p>
@@ -914,7 +885,7 @@ export default function NewProductClient({
               {/* Grupo 3: Límites y descripción larga */}
               <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
                 {/* Columna izquierda: Límites y promoción */}
-                <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+                <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                   <header className="space-y-0.5 pb-2 sm:pb-3">
                     <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                       Límites y promoción
@@ -997,7 +968,7 @@ export default function NewProductClient({
                 </section>
 
                 {/* Columna derecha: Descripción larga y subcategoría */}
-                <section className="rounded-lg bg-[#f7f6ef] p-3 shadow-lg ring-1 ring-[#d6e3d0] backdrop-blur sm:rounded-xl sm:p-4">
+                <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 backdrop-blur sm:rounded-xl sm:p-4">
                   <header className="space-y-0.5 pb-2 sm:pb-3">
                     <h2 className="text-sm font-semibold text-[#1b4332] sm:text-base">
                       Detalles adicionales
@@ -1033,7 +1004,7 @@ export default function NewProductClient({
                 ============================ */}
             <aside className="space-y-4 sm:space-y-5">
               {/* Sección de Resumen y Guardar */}
-              <section className="rounded-lg bg-[#f6f5ec] p-3 shadow-lg ring-1 ring-[#d6e3d0] sm:rounded-xl sm:p-4">
+              <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 sm:rounded-xl sm:p-4">
                 <header className="space-y-0.5 pb-2 sm:pb-3">
                   <p className="text-sm font-semibold text-[#2f5238]">
                     Resumen
@@ -1093,7 +1064,7 @@ export default function NewProductClient({
                 <div className="mt-4">
                   <button
                     type="submit"
-                    disabled={!canSubmit}
+                    disabled={!canSubmit || uploadingImage}
                     className="w-full rounded-lg bg-gradient-to-r from-[#2f5238] via-[#4c956c] to-[#a7c957] px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:brightness-[1.05] disabled:cursor-not-allowed disabled:opacity-50 sm:rounded-xl"
                   >
                     Guardar producto
@@ -1115,14 +1086,14 @@ export default function NewProductClient({
                   <p className="text-[9px] text-[#5c6f5b] sm:text-[10px]">
                     <span className="font-semibold">Nota:</span>{" "}
                     {imageFile
-                      ? "La imagen se guardará después de crear el producto."
+                      ? "La imagen ya quedó subida y se guardará junto con el producto."
                       : "Puedes guardar el producto sin imagen y agregarla después."}
                   </p>
                 </div>
               </section>
 
               {/* Información rápida del negocio */}
-              <section className="rounded-lg bg-[#f6f5ec] p-3 shadow-lg ring-1 ring-[#d6e3d0] sm:rounded-xl sm:p-4">
+              <section className="rounded-lg bg-black/70 p-3 shadow-lg ring-1 ring-white/10 sm:rounded-xl sm:p-4">
                 <header className="space-y-0.5 pb-2 sm:pb-3">
                   <p className="text-sm font-semibold text-[#2f5238]">
                     Negocio actual

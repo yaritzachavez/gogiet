@@ -7,6 +7,7 @@
     "build": "prisma generate && next build --turbopack ",
     "start": "next start",
     "seed": "node prisma/seed.js",
+    "db:check": "node scripts/check-db-connection.js",
     "cleanup:business-owners": "node scripts/cleanup-business-owners.js",
     "ensure:business-owners": "node scripts/ensure-business-owners-table.js",
     "repair:business-relations": "node scripts/repair-business-relations.js",

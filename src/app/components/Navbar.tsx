@@ -72,18 +72,18 @@ function NotificationList({
   markingAll: boolean;
 }) {
   return (
-    <div className="w-full rounded-2xl border border-orange-200/70 bg-white text-slate-900 shadow-xl">
-      <div className="flex items-center justify-between border-b border-orange-100 px-4 py-3">
+    <div className="w-full rounded-[24px] border border-white/10 bg-[#121212]/96 text-[#f5f5f5] shadow-[0_24px_50px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+      <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Notificaciones</p>
-          <p className="text-xs text-slate-500">
+          <p className="text-sm font-semibold text-[#f5f5f5]">Notificaciones</p>
+          <p className="text-xs text-[#8f8f8f]">
             Manteniéndose al día cada 15 segundos
           </p>
         </div>
         <Button
           type="button"
           variant="ghost"
-          className="h-auto px-2 py-1 text-xs text-orange-700 hover:bg-orange-50 hover:text-orange-800"
+          className="h-auto px-2 py-1 text-xs text-orange-300 hover:bg-orange-500/10 hover:text-orange-200"
           disabled={markingAll || notifications.length === 0}
           onClick={() => {
             void onMarkAllAsRead();
@@ -95,13 +95,13 @@ function NotificationList({
 
       <div className="max-h-96 overflow-y-auto">
         {loading ? (
-          <div className="px-4 py-6 text-sm text-slate-500">
+          <div className="px-4 py-6 text-sm text-[#8f8f8f]">
             Cargando notificaciones...
           </div>
         ) : error ? (
           <div className="px-4 py-6 text-sm text-red-600">{error}</div>
         ) : notifications.length === 0 ? (
-          <div className="px-4 py-6 text-sm text-slate-500">
+          <div className="px-4 py-6 text-sm text-[#8f8f8f]">
             Sin notificaciones
           </div>
         ) : (
@@ -109,23 +109,23 @@ function NotificationList({
             <button
               key={notification.id}
               type="button"
-              className={`flex w-full flex-col gap-1 border-b border-orange-50 px-4 py-3 text-left transition hover:bg-orange-50 ${
-                notification.is_read ? "bg-white" : "bg-orange-50/70"
+              className={`flex w-full flex-col gap-1 border-b border-white/6 px-4 py-3 text-left transition hover:bg-white/5 ${
+                notification.is_read ? "bg-transparent" : "bg-orange-500/8"
               }`}
               onClick={() => {
                 void onMarkOneAsRead(notification.id);
               }}
             >
               <div className="flex items-start justify-between gap-3">
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-[#f5f5f5]">
                   {notification.title}
                 </p>
                 {!notification.is_read ? (
                   <span className="mt-1 inline-block size-2 rounded-full bg-red-500" />
                 ) : null}
               </div>
-              <p className="text-sm text-slate-600">{notification.message}</p>
-              <p className="text-xs uppercase tracking-wide text-slate-400">
+              <p className="text-sm text-[#b3b3b3]">{notification.message}</p>
+              <p className="text-xs uppercase tracking-wide text-[#7f7f7f]">
                 {formatNotificationTime(notification.created_at)}
               </p>
             </button>
@@ -382,12 +382,24 @@ export default function Navbar() {
 
   if (!mounted) {
     return (
-      <nav className="border-b border-orange-200/60 bg-orange-600 text-white shadow-sm">
+      <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/78 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between sm:h-20">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="size-7 rounded-full border border-white/80 bg-white shadow-md sm:size-8" />
-              <span className="hidden text-base font-extrabold tracking-wide text-white sm:inline">
+            <Link
+              href="/"
+              className="group flex items-center gap-3 rounded-2xl transition-all duration-300"
+            >
+              <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
+                <Image
+                  src="/LOGO-NEW2.jpg"
+                  alt="Gogi Eats"
+                  fill
+                  sizes="(max-width: 768px) 120px, 160px"
+                  className="scale-[1.6] object-contain"
+                  priority
+                />
+              </div>
+              <span className="hidden text-base font-extrabold tracking-[0.14em] text-white sm:inline">
                 Gogi Eats
               </span>
             </Link>
@@ -398,21 +410,25 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="border-b border-orange-200/60 bg-orange-600 text-white shadow-sm">
+    <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/78 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between sm:h-20">
           <div className="flex flex-shrink-0 items-center">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="relative h-7 w-7 overflow-hidden rounded-full border border-white/80 bg-white shadow-md sm:h-8 sm:w-8">
+            <Link
+              href="/"
+              className="group flex items-center gap-3 rounded-2xl transition-all duration-300"
+            >
+              <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_34px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
                   src="/LOGO-NEW2.jpg"
                   alt="Gogi Eats"
                   fill
-                  className="scale-[1.65] object-contain"
+                  sizes="(max-width: 768px) 120px, 160px"
+                  className="scale-[1.6] object-contain"
                   priority
                 />
               </div>
-              <span className="hidden text-base font-extrabold tracking-wide text-white sm:inline">
+              <span className="hidden text-base font-extrabold tracking-[0.14em] text-white sm:inline">
                 Gogi Eats
               </span>
             </Link>
@@ -421,14 +437,14 @@ export default function Navbar() {
           <div className="hidden items-center space-x-8 md:flex">
             <Link
               href="/"
-              className="text-white/80 transition-colors hover:text-white"
+              className="text-[#b3b3b3] transition-colors hover:text-white"
             >
               Inicio
             </Link>
             {user && (
               <Link
                 href="/pedidos"
-                className="text-white/80 transition-colors hover:text-white"
+                className="text-[#b3b3b3] transition-colors hover:text-white"
               >
                 Mis pedidos
               </Link>
@@ -436,7 +452,7 @@ export default function Navbar() {
             {user && hasPanelAccess(user.roles) && (
               <Link
                 href="/pickdash"
-                className="text-white/80 transition-colors hover:text-white"
+                className="text-[#b3b3b3] transition-colors hover:text-white"
               >
                 Paneles
               </Link>
@@ -448,10 +464,10 @@ export default function Navbar() {
               <>
                 <div className="relative">
                   <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="relative rounded-full border border-white/30 bg-white/10 text-white hover:bg-white/20"
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="relative rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                     onClick={() => {
                       setNotificationsOpen((current) => !current);
                     }}
@@ -485,7 +501,7 @@ export default function Navbar() {
                 <Button
                   asChild
                   variant="ghost"
-                  className="rounded-full border border-white/30 bg-white/10 text-white hover:bg-white/20"
+                  className="rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                 >
                   <Link href="/carrito" className="flex items-center gap-2">
                     <ShoppingCart className="h-4 w-4" />
@@ -497,11 +513,11 @@ export default function Navbar() {
                     ) : null}
                   </Link>
                 </Button>
-                <span className="text-sm text-white/70">Hola, {user.name}</span>
+                <span className="text-sm text-[#b3b3b3]">Hola, {user.name}</span>
                 <Button
                   variant="ghost"
                   onClick={logout}
-                  className="text-white hover:bg-white/10"
+                  className="text-[#b3b3b3] hover:bg-white/6 hover:text-white"
                 >
                   Cerrar sesión
                 </Button>
@@ -511,13 +527,13 @@ export default function Navbar() {
                 <Button
                   variant="ghost"
                   asChild
-                  className="text-white hover:bg-white/10"
+                  className="text-[#b3b3b3] hover:bg-white/6 hover:text-white"
                 >
                   <Link href="/auth?mode=login">Iniciar Sesión</Link>
                 </Button>
                 <Button
                   asChild
-                  className="bg-white text-orange-700 hover:bg-orange-50"
+                  className="rounded-full px-5"
                 >
                   <Link href="/auth?mode=register">Registrarse</Link>
                 </Button>
@@ -532,7 +548,7 @@ export default function Navbar() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="relative text-white hover:bg-white/10"
+                  className="relative text-white hover:bg-white/6"
                   onClick={() => {
                     setNotificationsOpen((current) => !current);
                   }}
@@ -553,7 +569,7 @@ export default function Navbar() {
                   asChild
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:bg-white/10"
+                  className="text-white hover:bg-white/6"
                 >
                   <Link href="/carrito" aria-label="Carrito de compras">
                     <span className="relative block">
@@ -573,7 +589,7 @@ export default function Navbar() {
               variant="ghost"
               size="icon"
               onClick={toggleMobileMenu}
-              className="text-white hover:bg-white/10"
+              className="text-white hover:bg-white/6"
               aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
               aria-expanded={mobileMenuOpen}
             >
@@ -604,7 +620,7 @@ export default function Navbar() {
             <div className="mb-4 flex flex-col space-y-3">
               <Link
                 href="/"
-                className="px-2 py-2 text-white/80 transition-colors hover:text-white"
+                className="px-2 py-2 text-[#b3b3b3] transition-colors hover:text-white"
                 onClick={closeMobileMenu}
               >
                 Inicio
@@ -612,7 +628,7 @@ export default function Navbar() {
               {user && (
                 <Link
                   href="/pedidos"
-                  className="px-2 py-2 text-white/80 transition-colors hover:text-white"
+                  className="px-2 py-2 text-[#b3b3b3] transition-colors hover:text-white"
                   onClick={closeMobileMenu}
                 >
                   Mis pedidos
@@ -621,7 +637,7 @@ export default function Navbar() {
               {user && hasPanelAccess(user.roles) && (
                 <Link
                   href="/pickdash"
-                  className="px-2 py-2 text-white/80 transition-colors hover:text-white"
+                  className="px-2 py-2 text-[#b3b3b3] transition-colors hover:text-white"
                   onClick={closeMobileMenu}
                 >
                   Paneles
@@ -641,7 +657,7 @@ export default function Navbar() {
                       logout();
                       closeMobileMenu();
                     }}
-                    className="w-full justify-start text-white hover:bg-white/10"
+                    className="w-full justify-start text-white hover:bg-white/6"
                   >
                     Cerrar sesión
                   </Button>
@@ -651,7 +667,7 @@ export default function Navbar() {
                   <Button
                     variant="ghost"
                     asChild
-                    className="w-full justify-start text-white hover:bg-white/10"
+                    className="w-full justify-start text-white hover:bg-white/6"
                   >
                     <Link href="/auth?mode=login" onClick={closeMobileMenu}>
                       Iniciar Sesión
@@ -659,7 +675,7 @@ export default function Navbar() {
                   </Button>
                   <Button
                     asChild
-                    className="w-full bg-white text-orange-700 hover:bg-orange-50"
+                    className="w-full"
                   >
                     <Link href="/auth?mode=register" onClick={closeMobileMenu}>
                       Registrarse

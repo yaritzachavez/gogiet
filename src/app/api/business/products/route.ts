@@ -5,6 +5,10 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import {
+  getPersistedImageUrlError,
+  normalizePersistedImageUrl,
+} from "@/lib/image-url";
 
 function validateBearer(req: Request) {
   const authHeader = req.headers.get("authorization");
@@ -327,6 +331,7 @@ export async function POST(req: NextRequest) {
       min_per_order,
       promotion_id,
       thumbnail_url,
+      image_url,
       stock_average,
       stock_danger,
       expires_at,
@@ -342,6 +347,15 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 },
       );
+    }
+
+    const nextImageUrl = normalizePersistedImageUrl(image_url ?? thumbnail_url);
+    const nextImageUrlError = getPersistedImageUrlError(
+      image_url ?? thumbnail_url,
+    );
+
+    if (nextImageUrlError) {
+      return NextResponse.json({ error: nextImageUrlError }, { status: 400 });
     }
 
     const access = await resolveBusinessAccess(
@@ -413,7 +427,7 @@ export async function POST(req: NextRequest) {
         max_per_order ?? null,
         min_per_order ?? null,
         promotion_id ?? null,
-        thumbnail_url ?? null,
+        nextImageUrl,
         stock_average ?? 0,
         stock_danger ?? 0,
         createdAt,
@@ -516,22 +530,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await syncOfferPromotionForProduct(
-      connection,
-      ({
-        id: result.insertId,
-        name: String(name),
-        price: Number(price),
-        discount_price:
-          discount_price === null || discount_price === undefined
-            ? null
-            : Number(discount_price),
-        promotion_id:
-          promotion_id === null || promotion_id === undefined
-            ? null
-            : Number(promotion_id),
-      } as unknown) as ProductPromotionRow,
-    );
+    await syncOfferPromotionForProduct(connection, {
+      id: result.insertId,
+      name: String(name),
+      price: Number(price),
+      discount_price:
+        discount_price === null || discount_price === undefined
+          ? null
+          : Number(discount_price),
+      promotion_id:
+        promotion_id === null || promotion_id === undefined
+          ? null
+          : Number(promotion_id),
+    } as unknown as ProductPromotionRow);
 
     await connection.commit();
 
@@ -732,10 +743,21 @@ export async function PATCH(req: Request) {
 
     const nextImageUrl =
       image_url !== undefined
-        ? String(image_url ?? "").trim() || null
+        ? normalizePersistedImageUrl(image_url)
         : thumbnail_url !== undefined
-          ? String(thumbnail_url ?? "").trim() || null
+          ? normalizePersistedImageUrl(thumbnail_url)
           : undefined;
+
+    const nextImageUrlError =
+      nextImageUrl !== undefined
+        ? getPersistedImageUrlError(
+            image_url !== undefined ? image_url : thumbnail_url,
+          )
+        : null;
+
+    if (nextImageUrlError) {
+      return NextResponse.json({ error: nextImageUrlError }, { status: 400 });
+    }
 
     if (nextImageUrl !== undefined) {
       if (productColumns.has("thumbnail_url")) {
@@ -750,10 +772,7 @@ export async function PATCH(req: Request) {
     }
 
     if (!fields.length) {
-      if (
-        product_category_id === undefined &&
-        nextImageUrl === undefined
-      ) {
+      if (product_category_id === undefined && nextImageUrl === undefined) {
         return NextResponse.json(
           { error: "Nada que actualizar" },
           { status: 400 },

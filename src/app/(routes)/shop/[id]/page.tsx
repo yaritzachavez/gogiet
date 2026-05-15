@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Minus, Plus, Search } from "lucide-react";
+import { Clock3, Loader2, Minus, Plus, Search, Store } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AddressRequiredDialog, {
@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -432,91 +431,123 @@ export default function BusinessDetailPage() {
 
   if (loading)
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-[#f8f8f8]">
+      <div className="flex h-screen w-full items-center justify-center bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_24%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)]">
         <div className="text-center">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-orange-600" />
-          <p className="mt-4 font-medium text-slate-600">Cargando menú...</p>
+          <p className="mt-4 font-medium text-white/70">Cargando menú...</p>
         </div>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb]">
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_22%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)]">
+      <main className="mx-auto max-w-[1380px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
         {/* Header del Negocio */}
-        <SectionCard className="mb-8 flex flex-col gap-6 p-5 sm:p-8 md:flex-row">
-          <div className="relative h-32 w-32 shrink-0 overflow-hidden rounded-3xl border bg-slate-100">
-            <AppImage
-              src={getBusinessImage(business ?? {})}
-              alt={business?.name ? `Imagen de ${business.name}` : "Logo"}
-              width={256}
-              height={256}
-              aspectClassName="aspect-square"
-              className="h-full w-full"
-              imageClassName="object-cover"
-              fallbackLabel="Negocio"
-            />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col justify-center">
-            <PageHeader
-              className="border-none bg-transparent px-0 py-0 shadow-none"
-              eyebrow="Menú del negocio"
-              title={String(business?.name ?? "Negocio local")}
-              description={String(
-                business?.description_long ??
-                  "Descubre productos destacados y arma tu pedido en segundos.",
-              )}
-            />
-            <div className="flex flex-wrap gap-3 mt-4">
-              <Badge
-                variant="secondary"
-                className="rounded-full px-3 py-1.5 text-sm font-bold"
-              >
-                {business?.estimated_delivery_minutes || 30} min
-              </Badge>
-              <Badge
-                className={`rounded-full px-3 py-1.5 text-sm font-bold ${business?.is_open_now ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100" : "bg-red-100 text-red-700 hover:bg-red-100"}`}
-              >
-                {business?.is_open_now ? "Abierto ahora" : "Cerrado"}
-              </Badge>
+        <SectionCard className="mb-6 overflow-hidden border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(247,241,233,0.96)_100%)] p-4 shadow-[0_18px_48px_rgba(97,72,36,0.10)] backdrop-blur-xl sm:p-5">
+          <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
+            <div className="relative overflow-hidden rounded-[28px] border border-[#efe3d5] bg-white/80 shadow-[0_12px_28px_rgba(97,72,36,0.08)]">
+              <AppImage
+                src={getBusinessImage(business ?? {})}
+                alt={business?.name ? `Imagen de ${business.name}` : "Logo"}
+                width={640}
+                height={420}
+                aspectClassName="aspect-[5/4] sm:aspect-[16/11] lg:aspect-[5/4]"
+                className="h-full w-full"
+                imageClassName="object-cover"
+                fallbackLabel="Negocio"
+              />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-col gap-4 rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,253,249,0.92)_0%,rgba(248,242,235,0.96)_100%)] px-5 py-5 shadow-[0_10px_28px_rgba(97,72,36,0.08)] sm:px-6">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-black uppercase tracking-[0.22em] text-[#d96a18]">
+                      Menú del negocio
+                    </p>
+                    <h1 className="mt-2 text-3xl font-black tracking-tight text-[#23170f] sm:text-4xl">
+                      {String(business?.name ?? "Negocio local")}
+                    </h1>
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-[#6e6257] sm:text-base">
+                      {String(
+                        business?.description_long ??
+                          "Descubre productos destacados y arma tu pedido en segundos.",
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+                    <Badge className="rounded-full border border-[#f0d7bf] bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] px-3.5 py-2 text-sm font-bold text-[#b85a18] hover:bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)]">
+                      <Clock3 className="mr-1 h-4 w-4" />
+                      {business?.estimated_delivery_minutes || 30} min
+                    </Badge>
+                    <Badge
+                      className={`rounded-full border px-3.5 py-2 text-sm font-bold ${
+                        business?.is_open_now
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
+                          : "border-red-200 bg-red-50 text-red-700 hover:bg-red-50"
+                      }`}
+                    >
+                      {business?.is_open_now ? "Abierto ahora" : "Cerrado"}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2.5">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#eadccb] bg-white/72 px-3.5 py-2 text-sm font-semibold text-[#5d5145]">
+                    <Store className="h-4 w-4 text-[#d96a18]" />
+                    {products.length} productos disponibles
+                  </div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#eadccb] bg-white/72 px-3.5 py-2 text-sm font-semibold text-[#5d5145]">
+                    <Search className="h-4 w-4 text-[#d96a18]" />
+                    {availableCategories.length || 1} categorías
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </SectionCard>
 
         {/* Buscador y Grid */}
-        <div className="grid gap-8 lg:grid-cols-[260px_1fr]">
-          <aside className="space-y-6">
-            <SectionCard className="sticky top-24 p-4 sm:p-5">
+        <div className="grid gap-5 xl:grid-cols-[220px_minmax(0,1fr)] xl:items-start">
+          <aside className="order-1 xl:order-none">
+            <SectionCard className="border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.86)_0%,rgba(246,239,231,0.94)_100%)] p-4 shadow-[0_14px_34px_rgba(97,72,36,0.08)] backdrop-blur-xl sm:p-5 xl:sticky xl:top-24">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a28974]" />
                 <input
-                  className="w-full pl-10 pr-4 py-3.5 text-sm font-semibold"
+                  className="h-12 w-full rounded-2xl border border-[#eadfce] bg-white/80 pl-10 pr-4 text-sm font-semibold text-[#2a1d14] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] outline-none transition-all duration-300 placeholder:text-[#a18e7e] focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
                   placeholder="Buscar en el menú..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <div className="mt-8">
-                <h3 className="font-bold text-slate-900 mb-4 px-1">
-                  Categorías
-                </h3>
-                <nav className="space-y-1">
+              <div className="mt-5">
+                <div className="mb-3 flex items-center justify-between px-1">
+                  <h3 className="font-bold text-[#221811]">
+                    Categorías
+                  </h3>
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9a8674]">
+                    {availableCategories.length || 1}
+                  </span>
+                </div>
+                <nav className="flex gap-2 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible">
                   <button
                     type="button"
                     onClick={() => setActiveCategory("all")}
-                      className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${activeCategory === "all" ? "bg-orange-50 text-orange-600 shadow-sm" : "text-slate-600 hover:bg-slate-100"}`}
-                    >
-                      Todo el menú
-                    </button>
+                    className={`shrink-0 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition-all duration-300 xl:w-full ${
+                      activeCategory === "all"
+                        ? "border-orange-200 bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] text-[#c7641a] shadow-[0_10px_24px_rgba(255,107,0,0.10)]"
+                        : "border-transparent bg-white/72 text-[#6a5f55] hover:border-orange-100 hover:bg-white"
+                    }`}
+                  >
+                    Todo el menú
+                  </button>
                   {availableCategories.map((category) => (
                     <button
                       key={category.id}
                       type="button"
                       onClick={() => setActiveCategory(category.id)}
-                      className={`w-full rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                      className={`shrink-0 rounded-2xl border px-4 py-3 text-left text-sm font-bold transition-all duration-300 xl:w-full ${
                         activeCategory === category.id
-                          ? "bg-orange-50 text-orange-600 shadow-sm"
-                          : "text-slate-600 hover:bg-slate-100"
+                          ? "border-orange-200 bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] text-[#c7641a] shadow-[0_10px_24px_rgba(255,107,0,0.10)]"
+                          : "border-transparent bg-white/72 text-[#6a5f55] hover:border-orange-100 hover:bg-white"
                       }`}
                     >
                       {category.name}
@@ -527,75 +558,101 @@ export default function BusinessDetailPage() {
             </SectionCard>
           </aside>
 
-          <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {paginatedProducts.length > 0 ? (
-              paginatedProducts.map((product) => (
-                <div
-                  key={product.id}
-                  className="group flex min-h-[360px] max-h-[400px] flex-col overflow-hidden rounded-[24px] border border-slate-200/90 bg-white p-3 shadow-[0_16px_40px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)]"
-                >
-                  <div className="relative mb-3 h-40 overflow-hidden rounded-[18px] bg-slate-50">
-                    <AppImage
-                      src={getProductImage(product)}
-                      alt={product.name || "Producto"}
-                      width={480}
-                      height={360}
-                      aspectClassName="aspect-[4/3]"
-                      className="h-full w-full"
-                      imageClassName="object-cover group-hover:scale-110 transition duration-500"
-                      fallbackLabel="Producto"
-                    />
-                  </div>
-                  <div className="flex flex-1 flex-col">
-                    <div className="space-y-1.5">
-                    <h3 className="line-clamp-2 min-h-[2.8rem] text-base font-black tracking-tight text-slate-900">
-                      {product.name}
-                    </h3>
-                    {product.category_name ? (
-                      <p className="mt-1 text-[11px] font-black uppercase tracking-[0.14em] text-orange-500">
-                        {product.category_name}
-                      </p>
-                    ) : null}
-                    <p className="line-clamp-2 min-h-[2.75rem] text-sm leading-5 text-slate-500">
-                      {product.description_short || "Disponible para entrega rápida."}
-                    </p>
+          <section className="order-2 min-w-0">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
+                  Productos del menú
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-white/64">
+                  Explora opciones rápidas, filtra por categoría y agrega al carrito sin salir de la vista.
+                </p>
+              </div>
+              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadccb] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] px-3.5 py-2 text-sm font-semibold text-[#5d5145] shadow-[0_12px_28px_rgba(0,0,0,0.18)]">
+                {filteredProducts.length} resultados
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              {paginatedProducts.length > 0 ? (
+                paginatedProducts.map((product) => (
+                  <article
+                    key={product.id}
+                    className="group flex min-h-[292px] flex-col overflow-hidden rounded-[22px] border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,243,236,0.98)_100%)] p-2.5 shadow-[0_14px_30px_rgba(97,72,36,0.08)] transition-all duration-300 hover:-translate-y-1 hover:border-orange-200 hover:shadow-[0_20px_42px_rgba(255,107,0,0.12)]"
+                  >
+                    <div className="relative overflow-hidden rounded-[18px] border border-[#efe4d8] bg-[#f6efe6]">
+                      <AppImage
+                        src={getProductImage(product)}
+                        alt={product.name || "Producto"}
+                        width={520}
+                        height={390}
+                        aspectClassName="aspect-[1.08/1]"
+                        className="h-full w-full"
+                        imageClassName="object-cover transition duration-500 group-hover:scale-[1.04]"
+                        fallbackLabel="Producto"
+                      />
                     </div>
-                  <div className="mt-auto flex items-center justify-between border-t border-slate-100 pt-3">
-                    <div className="flex flex-col">
-                      <span className="text-base font-black text-orange-600">
-                        MX${getProductPrice(product).toFixed(2)}
-                      </span>
-                      {Number(product.discount_price ?? 0) > 0 &&
-                      getOriginalProductPrice(product) >
-                        getProductPrice(product) ? (
-                        <span className="text-[11px] text-slate-400 line-through">
-                          MX${getOriginalProductPrice(product).toFixed(2)}
-                        </span>
-                      ) : null}
+                    <div className="flex flex-1 flex-col px-1 pt-3">
+                      <div className="space-y-1.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="line-clamp-2 text-base font-black tracking-tight text-[#23170f]">
+                              {product.name}
+                            </h3>
+                            {product.category_name ? (
+                              <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#d96a18]">
+                                {product.category_name}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <p className="line-clamp-2 min-h-[3rem] text-xs leading-5 text-[#6f6459]">
+                          {product.description_short ||
+                            "Disponible para entrega rápida."}
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-end justify-between gap-2 border-t border-[#eee3d6] pt-3">
+                        <div className="min-w-0">
+                          <span className="block text-base font-black text-[#ff6b00]">
+                            MX${getProductPrice(product).toFixed(2)}
+                          </span>
+                          {Number(product.discount_price ?? 0) > 0 &&
+                          getOriginalProductPrice(product) >
+                            getProductPrice(product) ? (
+                            <span className="text-xs text-[#a39181] line-through">
+                              MX${getOriginalProductPrice(product).toFixed(2)}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-medium text-[#9c8a79]">
+                              Listo para agregar
+                            </span>
+                          )}
+                        </div>
+                        <Button
+                          className="h-9 rounded-xl px-3 text-xs"
+                          onClick={() => openCustomizationModal(product)}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Agregar
+                        </Button>
+                      </div>
                     </div>
-                    <Button
-                      className="h-10 min-w-[44px] rounded-2xl px-3"
-                      onClick={() => openCustomizationModal(product)}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <EmptyState
-                className="col-span-full"
-                icon={Search}
-                title="No encontramos productos"
-                description="Prueba con otra búsqueda o cambia la categoría para descubrir más opciones del negocio."
-                actionLabel="Ver todo el menú"
-                onAction={() => {
-                  setActiveCategory("all");
-                  setSearchQuery("");
-                }}
-              />
-            )}
+                  </article>
+                ))
+              ) : (
+                <EmptyState
+                  className="col-span-full border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,239,231,0.96)_100%)]"
+                  icon={Search}
+                  title="No encontramos productos"
+                  description="Prueba con otra búsqueda o cambia la categoría para descubrir más opciones del negocio."
+                  actionLabel="Ver todo el menú"
+                  onAction={() => {
+                    setActiveCategory("all");
+                    setSearchQuery("");
+                  }}
+                />
+              )}
+            </div>
           </section>
         </div>
       </main>

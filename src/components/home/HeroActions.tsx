@@ -22,7 +22,7 @@ export function HeroActions() {
     <div className="mt-8 flex flex-col gap-4 sm:flex-row">
       <Button
         onClick={handleOrder}
-        className="h-14 rounded-full bg-orange-600 px-9 text-base font-bold text-white shadow-xl shadow-orange-500/25 transition hover:bg-orange-700"
+        className="h-14 rounded-full px-9 text-base font-bold"
       >
         <ShoppingBag className="mr-2 h-5 w-5" />
         Ordenar ahora
@@ -30,7 +30,7 @@ export function HeroActions() {
       <Button
         asChild
         variant="outline"
-        className="h-14 rounded-full border-2 border-orange-600 bg-white/70 px-9 text-base font-bold text-orange-600 transition hover:bg-orange-50"
+        className="h-14 rounded-full border border-white/14 bg-white/5 px-9 text-base font-bold text-white"
       >
         <Link href="/shop" className="flex items-center gap-2">
           Ver tiendas

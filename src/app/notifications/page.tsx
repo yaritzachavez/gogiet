@@ -166,7 +166,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f6f7f8] px-4 py-8 text-slate-950 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-black px-4 py-8 text-white sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-6">
         <PageHeader
           eyebrow="Centro"
@@ -199,23 +199,23 @@ export default function NotificationsPage() {
                   key={notification.id}
                   className={`rounded-2xl border px-5 py-4 ${
                     notification.is_read
-                      ? "border-slate-200 bg-slate-50"
-                      : "border-orange-200 bg-orange-50"
+                      ? "border-white/10 bg-black/60"
+                      : "border-orange-500/30 bg-black/75"
                   }`}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex items-start gap-3">
-                      <span className="inline-flex size-10 items-center justify-center rounded-full bg-white text-orange-600 shadow-sm">
+                      <span className="inline-flex size-10 items-center justify-center rounded-full bg-black/70 text-orange-400 shadow-sm">
                         {getNotificationIcon(notification.type)}
                       </span>
                       <div>
-                        <h2 className="font-black text-slate-950">
+                        <h2 className="font-black text-white">
                           {notification.title}
                         </h2>
-                        <p className="mt-1 font-semibold text-slate-600">
+                        <p className="mt-1 font-semibold text-white/70">
                           {notification.message}
                         </p>
-                        <p className="mt-2 text-sm font-semibold text-slate-500">
+                        <p className="mt-2 text-sm font-semibold text-white/50">
                           {formatDate(notification.created_at)}
                         </p>
                       </div>
@@ -226,7 +226,7 @@ export default function NotificationsPage() {
                         <button
                           type="button"
                           onClick={() => handleMarkAsRead(notification.id)}
-                          className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 transition hover:bg-slate-50"
+                          className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-black/70 px-4 py-2 text-sm font-black text-white transition hover:bg-black/90"
                         >
                           Marcar como leída
                         </button>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { NavbarWrapper } from "./components/NavbarWrapper";
 import Providers from "./providers";
@@ -7,7 +7,7 @@ import Providers from "./providers";
 export const metadata: Metadata = {
   title: "Gogi Eats",
   description:
-    "Plataforma naranja y cercana para pedir comida local a domicilio",
+    "Plataforma local para descubrir negocios cercanos y pedir comida a domicilio con una experiencia simple y confiable",
   icons: [
     {
       rel: "icon",
@@ -20,7 +20,17 @@ export const metadata: Metadata = {
   ],
 };
 
-const inter = Inter({ subsets: ["latin"], display: "swap" });
+const manrope = Manrope({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-manrope",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-space-grotesk",
+});
 
 export default function RootLayout({
   children,
@@ -30,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${inter.className} min-h-screen bg-[linear-gradient(135deg,#fff7ed_0%,#ffffff_45%,#ffedd5_100%)] text-foreground`}
+        className={`${manrope.variable} ${spaceGrotesk.variable} ${manrope.className} min-h-screen bg-black text-foreground`}
       >
         <Providers>
           <div className="flex min-h-screen flex-col">

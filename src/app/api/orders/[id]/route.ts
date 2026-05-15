@@ -529,11 +529,14 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const fields: string[] = [];
     const values: Array<string | number | null> = [];
 
-    if (body.status !== undefined) {
-      const { statusId } = await ensureCanonicalOrderStatus(body.status);
-
-      fields.push("order_status_id = ?");
-      values.push(statusId);
+    if (body.status !== undefined || body.nextStatus !== undefined) {
+      return NextResponse.json(
+        {
+          error:
+            "El estado del pedido solo puede cambiarse desde el endpoint seguro /api/orders/[id]/status.",
+        },
+        { status: 403 },
+      );
     }
 
     if (body.payment_method !== undefined) {

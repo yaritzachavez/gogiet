@@ -124,23 +124,36 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="rounded-2xl border border-orange-100 bg-white p-8 shadow-2xl">
-      <h1 className="mb-8 text-center text-2xl font-semibold text-orange-950">
-        Registro
-      </h1>
+    <div className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.10),transparent_28%),linear-gradient(180deg,rgba(26,26,26,0.96)_0%,rgba(18,18,18,0.96)_100%)] p-8 shadow-[0_32px_80px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+      <div className="mb-8">
+        <p className="text-center text-xs font-extrabold uppercase tracking-[0.32em] text-orange-300">
+          Crear cuenta
+        </p>
+        <h1 className="mt-3 text-center text-3xl font-black text-[#f5f5f5]">
+          Registro
+        </h1>
+        <p className="mt-3 text-center text-sm text-[#b3b3b3]">
+          Únete a Gogi Eats y empieza a pedir con una experiencia moderna y
+          local.
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* 👇 mensaje de error */}
         {errorMessage && (
-          <p className="text-red-500 text-sm text-center">{errorMessage}</p>
+          <p className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
+            {errorMessage}
+          </p>
         )}
         {successMessage && (
-          <p className="text-green-600 text-sm text-center">{successMessage}</p>
+          <p className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-300">
+            {successMessage}
+          </p>
         )}
 
         {/* First Name */}
         <div className="space-y-2">
-          <Label htmlFor="firstName" className="text-sm text-orange-950">
+          <Label htmlFor="firstName" className="text-sm text-[#f5f5f5]">
             Nombre
           </Label>
           <Input
@@ -149,14 +162,14 @@ export default function RegisterForm() {
             placeholder="Tu nombre"
             value={firstName}
             onChange={(e) => setFirstName(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
 
         {/* Last Name */}
         <div className="space-y-2">
-          <Label htmlFor="lastName" className="text-sm text-orange-950">
+          <Label htmlFor="lastName" className="text-sm text-[#f5f5f5]">
             Apellido
           </Label>
           <Input
@@ -165,14 +178,14 @@ export default function RegisterForm() {
             placeholder="Tu apellido"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
 
         {/* Email */}
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm text-orange-950">
+          <Label htmlFor="email" className="text-sm text-[#f5f5f5]">
             Correo electrónico
           </Label>
           <Input
@@ -181,14 +194,14 @@ export default function RegisterForm() {
             placeholder="correo@ejemplo.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
 
         {/* Phone */}
         <div className="space-y-2">
-          <Label htmlFor="phone" className="text-sm text-orange-950">
+          <Label htmlFor="phone" className="text-sm text-[#f5f5f5]">
             Número de teléfono
           </Label>
           <Input
@@ -197,14 +210,14 @@ export default function RegisterForm() {
             placeholder="Tu número de contacto"
             value={phoneNumber}
             onChange={(e) => setPhoneNumber(normalizePhone(e.target.value))}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
 
         {/* Password */}
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-sm text-orange-950">
+          <Label htmlFor="password" className="text-sm text-[#f5f5f5]">
             Contraseña
           </Label>
           <Input
@@ -213,14 +226,14 @@ export default function RegisterForm() {
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
 
         {/* Confirm Password */}
         <div className="space-y-2">
-          <Label htmlFor="confirmPassword" className="text-sm text-orange-950">
+          <Label htmlFor="confirmPassword" className="text-sm text-[#f5f5f5]">
             Confirmar contraseña
           </Label>
           <Input
@@ -229,7 +242,7 @@ export default function RegisterForm() {
             placeholder="••••••••"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
@@ -241,25 +254,25 @@ export default function RegisterForm() {
             checked={acceptTerms}
             onCheckedChange={(checked) => setAcceptTerms(checked === true)}
           />
-          <Label htmlFor="terms" className="text-sm text-stone-500">
+          <Label htmlFor="terms" className="text-sm text-[#b3b3b3]">
             Acepto Términos de uso y política de privacidad
           </Label>
         </div>
 
         <Button
           type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 rounded-lg"
+          className="w-full py-3 text-white"
           disabled={!acceptTerms || submitting}
         >
           {submitting ? "Creando cuenta..." : "Registrarse"}
         </Button>
 
         <div className="text-center">
-          <span className="text-sm text-stone-500">
+          <span className="text-sm text-[#8f8f8f]">
             ¿Ya tienes cuenta?{" "}
             <Link
               href="/auth?mode=login"
-              className="font-semibold text-orange-600 hover:text-orange-700"
+              className="font-semibold text-orange-300 hover:text-orange-200"
             >
               Inicia sesión
             </Link>

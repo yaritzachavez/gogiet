@@ -1,7 +1,8 @@
-import jwt from "jsonwebtoken";
 import { NextResponse } from "next/server";
 
+import { getAuthUser } from "@/lib/admin-security";
 import pool from "@/lib/db";
+import { getExistingTables } from "@/lib/db-schema";
 import { mapDbRoleToPublicRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -11,23 +12,34 @@ export function OPTIONS(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const auth = req.headers.get("authorization");
-    if (!auth?.startsWith("Bearer ")) {
+    const authUser = getAuthUser(req);
+
+    if (!authUser.token || !authUser.user) {
       return withCors(
         req,
         NextResponse.json(
-        { error: "Token no proporcionado" },
-        { status: 401 },
+          {
+            success: false,
+            error: "Token inválido o faltante.",
+            roles: [],
+          },
+          { status: 401 },
         ),
       );
     }
 
-    const token = auth.split(" ")[1];
-    const secret = process.env.JWT_SECRET || "gogi-dev-secret";
+    const existingTables = await getExistingTables(["user_roles", "roles"]);
 
-    const decoded = jwt.verify(token, secret) as { id: number };
+    if (!existingTables.has("user_roles") || !existingTables.has("roles")) {
+      return withCors(
+        req,
+        NextResponse.json({
+          success: true,
+          roles: [],
+        }),
+      );
+    }
 
-    // Buscar roles del usuario
     const [rows] = await pool.query(
       `
       SELECT r.id, r.name
@@ -35,12 +47,13 @@ export async function GET(req: Request) {
       JOIN roles r ON ur.role_id = r.id
       WHERE ur.user_id = ?
       `,
-      [decoded.id],
+      [authUser.user.id],
     );
 
     return withCors(
       req,
       NextResponse.json({
+        success: true,
         roles: Array.isArray(rows)
           ? rows.map((row) => {
               const roleRow = row as { id?: number; name?: string };
@@ -59,11 +72,13 @@ export async function GET(req: Request) {
     return withCors(
       req,
       NextResponse.json(
-      {
-        error: "Error al obtener roles",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 },
+        {
+          success: false,
+          error: "Error al obtener roles",
+          details: error instanceof Error ? error.message : String(error),
+          roles: [],
+        },
+        { status: 500 },
       ),
     );
   }

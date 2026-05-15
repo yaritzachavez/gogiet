@@ -19,7 +19,11 @@ import {
 } from "@/lib/delivery-fees";
 import { saveDriverEarning } from "@/lib/driver-earnings";
 import { createNotificationsForUsers } from "@/lib/notifications";
-import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
+import {
+  applyValidatedOrderStatusTransition,
+  OrderStatusTransitionError,
+  validateOrderStatusTransition,
+} from "@/lib/order-status-guard";
 
 type AssignedOrderRow = RowDataPacket & {
   delivery_id: number;
@@ -28,6 +32,8 @@ type AssignedOrderRow = RowDataPacket & {
   customer_user_id: number;
   business_name: string;
   driver_user_id: number;
+  payment_method: string | null;
+  current_status: string | null;
   order_delivered_at: string | null;
   delivery_delivered_at: string | null;
   shipping_fee_amount: string | number | null;
@@ -125,12 +131,16 @@ export async function POST(req: NextRequest) {
           o.user_id AS customer_user_id,
           b.name AS business_name,
           d.driver_user_id,
+          COALESCE(o.payment_method, pm.name) AS payment_method,
+          osc.name AS current_status,
           o.delivered_at AS order_delivered_at,
           d.delivered_at AS delivery_delivered_at,
           ${shippingFeeExpression} AS shipping_fee_amount
         FROM orders o
         INNER JOIN delivery d ON d.order_id = o.id
         INNER JOIN businesses b ON b.id = o.business_id
+        LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
+        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         WHERE o.id = ?
         LIMIT 1
       `,
@@ -178,10 +188,20 @@ export async function POST(req: NextRequest) {
       fallbackRate: DEFAULT_DELIVERY_FEE_RATE,
     });
 
-    const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-      "delivered",
-      connection,
-    );
+    const { currentStatus } = validateOrderStatusTransition({
+      currentStatus: order.current_status,
+      nextStatus: "delivered",
+      role: "driver",
+      order: {
+        id: orderId,
+        businessId: Number(order.business_id),
+        customerUserId: Number(order.customer_user_id),
+        driverUserId: Number(order.driver_user_id),
+        paymentMethod: String(order.payment_method ?? ""),
+        currentStatus: String(order.current_status ?? ""),
+      },
+      actorUserId: authUser.user.id,
+    });
     const deliveryStatusId = await ensureDeliveryStatus(
       "completado",
       "Entrega completada por el repartidor",
@@ -194,13 +214,22 @@ export async function POST(req: NextRequest) {
       `
         UPDATE orders
         SET
-          order_status_id = ?,
-          delivered_at = NOW(),
           updated_at = NOW()
         WHERE id = ?
       `,
-      [orderStatusId, orderId],
+      [orderId],
     );
+
+    await applyValidatedOrderStatusTransition(connection, {
+      orderId,
+      nextStatus: "delivered",
+      actorUserId: authUser.user.id,
+      actorRole: "driver",
+      currentStatus,
+      metadata: {
+        endpoint: "/api/delivery/complete",
+      },
+    });
 
     await connection.query<ResultSetHeader>(
       `
@@ -256,6 +285,12 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     await connection.rollback();
     console.error("Error POST /api/delivery/complete:", error);
+    if (error instanceof OrderStatusTransitionError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode },
+      );
+    }
 
     return NextResponse.json(
       {

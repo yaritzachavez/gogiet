@@ -134,6 +134,11 @@ const PAYMENT_METHOD_OPTIONS = [
     description: "Paga en efectivo al llegar.",
   },
   {
+    id: "mercadopago",
+    label: "Tarjeta / Mercado Pago",
+    description: "Paga con crédito o débito en Checkout Pro.",
+  },
+  {
     id: "transferencia",
     label: "Transferencia",
     description: "Envía tu comprobante antes de la entrega.",
@@ -777,7 +782,73 @@ export default function CarritoPage() {
       setTransferDialogOpen(true);
       return;
     }
-    await processOrder("pending");
+
+    if (selectedPaymentMethod === "mercadopago") {
+      const orderId = await processOrder("pending_payment");
+
+      if (!orderId) return;
+
+      try {
+        const token = window.localStorage.getItem("token");
+
+        if (!token) {
+          throw new Error("Necesitas iniciar sesión para continuar.");
+        }
+
+        const preferenceRes = await fetch(
+          "/api/payments/mercadopago/create-preference",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              orderId,
+              userId: user?.id,
+              total: commissionBreakdown.total,
+              items: cartItems.map((item) => ({
+                product_id: item.productId,
+                quantity: item.quantity,
+              })),
+            }),
+          },
+        );
+
+        const preferenceData = await preferenceRes.json().catch(() => null);
+
+        if (!preferenceRes.ok || !preferenceData?.success || !preferenceData?.initPoint) {
+          throw new Error(
+            formatApiError(
+              preferenceRes.status,
+              preferenceData,
+              "Tu pedido se creó, pero no pudimos abrir Mercado Pago.",
+            ),
+          );
+        }
+
+        window.location.assign(String(preferenceData.initPoint));
+        return;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? getFriendlyErrorMessage(
+                error,
+                "Tu pedido se creó, pero no pudimos abrir Mercado Pago.",
+              )
+            : "Tu pedido se creó, pero no pudimos abrir Mercado Pago.";
+
+        router.push(
+          `/payments/mercadopago/status?status=failure&orderId=${orderId}&message=${encodeURIComponent(message)}`,
+        );
+        return;
+      }
+    }
+
+    const orderId = await processOrder("pending");
+    if (orderId) {
+      router.push(`/orders/${orderId}`);
+    }
   };
 
   const processOrder = async (
@@ -789,7 +860,7 @@ export default function CarritoPage() {
       setTransferError(
         checkoutBlockReason || "Tu pedido no se pudo completar. Intenta nuevamente.",
       );
-      return;
+      return null;
     }
 
     setSubmittingOrder(true);
@@ -825,6 +896,7 @@ export default function CarritoPage() {
           status,
           payment_receipt_url: proofUrl || null,
           comprobante_pago_url: proofUrl || null,
+          delivery_instructions: deliveryInstructions || null,
           items: cartItems.map((i) => ({
             product_id: i.productId,
             quantity: i.quantity,
@@ -835,6 +907,7 @@ export default function CarritoPage() {
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.success && data?.order?.id) {
+        const createdOrderId = Number(data.order.id);
         setCartItems([]);
         setCartId(null);
         syncCartStorage([]);
@@ -844,8 +917,7 @@ export default function CarritoPage() {
         setTransferReceiptFile(null);
         setTransferReceiptName("");
         setTransferError("");
-        router.push(`/orders/${data.order.id}`);
-        return;
+        return createdOrderId;
       }
 
       throw new Error(
@@ -864,6 +936,7 @@ export default function CarritoPage() {
             )
           : "No pudimos confirmar tu pedido. Intenta nuevamente.";
       setTransferError(message);
+      return null;
     } finally {
       setSubmittingOrder(false);
     }
@@ -901,11 +974,15 @@ export default function CarritoPage() {
         );
       }
 
-      await processOrder(
+      const createdOrderId = await processOrder(
         "payment_review",
         String(uploadData.url),
         transferReceiptFile.name,
       );
+
+      if (createdOrderId) {
+        router.push(`/orders/${createdOrderId}`);
+      }
     } catch (error) {
       const message =
         error instanceof Error
@@ -923,7 +1000,7 @@ export default function CarritoPage() {
   // --- Render condicional para vacíos ---
   if (cartLoading && cartItems.length === 0)
     return (
-      <div className="min-h-screen bg-[#f6f7fb] px-4 py-10 sm:px-6">
+      <div className="min-h-screen bg-black px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-3xl">
           <SectionCard className="p-6">
             <p className="text-sm font-semibold text-slate-500">
@@ -936,7 +1013,7 @@ export default function CarritoPage() {
 
   if (!cartLoading && cartItems.length === 0)
     return (
-      <div className="min-h-screen bg-[#f6f7fb] px-4 py-10 sm:px-6">
+      <div className="min-h-screen bg-black px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-3xl">
           <EmptyState
             icon={ShoppingCart}
@@ -950,7 +1027,7 @@ export default function CarritoPage() {
     );
 
   return (
-    <div className="min-h-screen bg-[#f6f7fb] text-orange-950">
+    <div className="min-h-screen bg-black text-white">
       <div className="container mx-auto space-y-6 px-4 py-6 sm:px-6 sm:py-8">
         <PageHeader
           eyebrow="Checkout"
@@ -979,12 +1056,12 @@ export default function CarritoPage() {
         ) : null}
         <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
         <section className="space-y-6">
-          <h2 className="text-2xl font-black tracking-tight text-slate-950">
+          <h2 className="text-2xl font-black tracking-tight text-[#f5f5f5]">
             Productos seleccionados
           </h2>
           {cartLoading ? (
             <SectionCard className="p-6">
-              <p className="text-sm font-semibold text-slate-500">
+              <p className="text-sm font-semibold text-[#b3b3b3]">
                 Actualizando tu carrito...
               </p>
             </SectionCard>
@@ -1007,55 +1084,55 @@ export default function CarritoPage() {
                 />
               </div>
               <div className="flex-1">
-                <h3 className="text-lg font-black tracking-tight text-slate-950">
+                <h3 className="text-lg font-black tracking-tight text-[#f5f5f5]">
                   {item.nombre}
                 </h3>
                 <p className="mt-1 text-sm font-semibold text-orange-700/80">
                   {item.negocio}
                 </p>
                 {item.description ? (
-                  <p className="mt-2 text-sm leading-5 text-slate-500">
+                  <p className="mt-2 text-sm leading-5 text-[#b3b3b3]">
                     {item.description}
                   </p>
                 ) : null}
                 {item.customizationsSummary || item.notes ? (
                   <div className="mt-3 space-y-1">
                     {item.customizationsSummary ? (
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f8f8f]">
                         {item.customizationsSummary}
                       </p>
                     ) : null}
                     {item.notes ? (
-                      <p className="text-xs font-medium text-slate-500">
+                      <p className="text-xs font-medium text-[#b3b3b3]">
                         {item.notes}
                       </p>
                     ) : null}
                   </div>
                 ) : null}
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1">
+                  <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1">
                     <button
                       type="button"
                       onClick={() => handleQuantityChange(item.id, -1)}
-                      className="inline-flex size-8 items-center justify-center rounded-full text-slate-600 hover:bg-white"
+                      className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
                     >
                       −
                     </button>
-                    <span className="min-w-[20px] text-center font-black text-slate-900">
+                    <span className="min-w-[20px] text-center font-black text-[#f5f5f5]">
                       {item.quantity}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleQuantityChange(item.id, 1)}
-                      className="inline-flex size-8 items-center justify-center rounded-full text-slate-600 hover:bg-white"
+                      className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
                     >
                       +
                     </button>
                   </div>
-                  <span className="rounded-full bg-orange-50 px-3 py-1 text-sm font-bold text-orange-700">
+                  <span className="rounded-full bg-orange-500/15 px-3 py-1 text-sm font-bold text-orange-300">
                     {formatMoney(getCartItemUnitPrice(item))} c/u
                   </span>
-                  <span className="text-base font-black text-slate-950">
+                  <span className="text-base font-black text-[#f5f5f5]">
                     {formatMoney(getCartItemSubtotal(item))}
                   </span>
                 </div>
@@ -1074,60 +1151,60 @@ export default function CarritoPage() {
 
         <aside className="space-y-6">
           <SectionCard className="p-6">
-            <h2 className="mb-4 text-xl font-black tracking-tight text-slate-950">
+            <h2 className="mb-4 text-xl font-black tracking-tight text-[#f5f5f5]">
               Resumen de compra
             </h2>
             {hasOnlyZeroPriceItems ? (
-              <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
-                <p className="text-sm font-semibold text-orange-900">
+              <div className="mb-4 rounded-2xl border border-orange-500/30 bg-black/60 p-4">
+                <p className="text-sm font-semibold text-orange-300">
                   Detectamos productos viejos sin precio en tu carrito.
                 </p>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={handleClearCart}
-                  className="mt-3 border-orange-300 text-orange-700"
+                  className="mt-3 border-orange-300 text-orange-300"
                 >
                   Vaciar carrito
                 </Button>
               </div>
             ) : null}
             <div className="space-y-3 text-sm">
-              <div className="flex justify-between font-medium text-slate-600">
+              <div className="flex justify-between font-medium text-[#b3b3b3]">
                 <span>Productos</span>
-                <span className="font-bold text-slate-900">
+                <span className="font-bold text-[#f5f5f5]">
                   {formatMoney(subtotal)}
                 </span>
               </div>
-              <div className="flex justify-between font-medium text-slate-600">
+              <div className="flex justify-between font-medium text-[#b3b3b3]">
                 <span>Servicio</span>
-                <span className="font-bold text-slate-900">
+                <span className="font-bold text-[#f5f5f5]">
                   {formatMoney(commissionBreakdown.serviceFee)}
                 </span>
               </div>
-              <div className="flex justify-between font-medium text-slate-600">
+              <div className="flex justify-between font-medium text-[#b3b3b3]">
                 <span>Envío</span>
-                <span className="font-bold text-slate-900">
+                <span className="font-bold text-[#f5f5f5]">
                   {commissionBreakdown.deliveryFee > 0
                     ? formatMoney(commissionBreakdown.deliveryFee)
                     : "Gratis"}
                 </span>
               </div>
-              <div className="flex justify-between border-t border-slate-100 pt-3 text-lg font-black text-slate-950">
+              <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-black text-[#f5f5f5]">
                 <span>Total</span>
                 <span>{formatMoney(commissionBreakdown.total)}</span>
               </div>
             </div>
 
-            <div className="mt-6 rounded-[24px] bg-orange-50 p-4">
-              <p className="text-xs font-bold uppercase text-orange-800">
+            <div className="mt-6 rounded-[24px] bg-black/60 p-4">
+              <p className="text-xs font-bold uppercase text-orange-300">
                 Entrega en:
               </p>
-              <p className="mt-1 text-sm font-semibold text-slate-700">
+              <p className="mt-1 text-sm font-semibold text-[#f5f5f5]">
                 {savedAddress?.fullAddress || "Sin dirección"}
               </p>
               {shipping.message ? (
-                <p className="mt-2 text-xs font-medium text-slate-500">
+                <p className="mt-2 text-xs font-medium text-[#b3b3b3]">
                   {shipping.message}
                 </p>
               ) : null}
@@ -1150,7 +1227,7 @@ export default function CarritoPage() {
               <ArrowRight className="h-4 w-4" />
             </Button>
             {checkoutBlockReason ? (
-              <p className="mt-3 text-sm font-semibold text-slate-500">
+              <p className="mt-3 text-sm font-semibold text-[#b3b3b3]">
                 {checkoutBlockReason}
               </p>
             ) : null}
@@ -1167,12 +1244,12 @@ export default function CarritoPage() {
       />
 
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="rounded-[28px] border-white/80 bg-white">
+        <DialogContent className="rounded-[28px] border-white/10 bg-black">
           <DialogHeader>
             <DialogTitle>Método de pago</DialogTitle>
           </DialogHeader>
-          <div className="rounded-[22px] bg-slate-50 p-4 text-sm text-slate-600">
-            <p className="font-semibold text-slate-900">
+          <div className="rounded-[22px] bg-black/60 p-4 text-sm text-white/70">
+            <p className="font-semibold text-[#f5f5f5]">
               Resumen antes de confirmar
             </p>
             <p className="mt-2">
@@ -1181,7 +1258,7 @@ export default function CarritoPage() {
             <p>Subtotal: {formatMoney(subtotal)}</p>
             <p>Envío: {commissionBreakdown.deliveryFee > 0 ? formatMoney(commissionBreakdown.deliveryFee) : "Gratis"}</p>
             <p>Servicio: {formatMoney(commissionBreakdown.serviceFee)}</p>
-            <p className="mt-1 font-black text-slate-950">
+            <p className="mt-1 font-black text-[#f5f5f5]">
               Total: {formatMoney(commissionBreakdown.total)}
             </p>
             <p className="mt-2 text-xs">
@@ -1191,7 +1268,9 @@ export default function CarritoPage() {
               Método:{" "}
               {selectedPaymentMethod === "transferencia"
                 ? "Transferencia"
-                : "Efectivo al recibir"}
+                : selectedPaymentMethod === "mercadopago"
+                  ? "Tarjeta / Mercado Pago"
+                  : "Efectivo al recibir"}
             </p>
           </div>
           <div className="grid gap-3">
@@ -1200,10 +1279,10 @@ export default function CarritoPage() {
                 type="button"
                 key={opt.id}
                 onClick={() => setSelectedPaymentMethod(opt.id)}
-                className={`rounded-[22px] border p-4 text-left transition ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-50 shadow-sm" : "border-slate-200 bg-white hover:border-orange-200"}`}
+                className={`rounded-[22px] border p-4 text-left transition ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"}`}
               >
-                <p className="font-black text-slate-950">{opt.label}</p>
-                <p className="mt-1 text-sm text-slate-500">{opt.description}</p>
+                <p className="font-black text-[#f5f5f5]">{opt.label}</p>
+                <p className="mt-1 text-sm text-[#b3b3b3]">{opt.description}</p>
               </button>
             ))}
           </div>
@@ -1222,11 +1301,11 @@ export default function CarritoPage() {
 
       {/* Diálogo de Transferencia */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent className="rounded-[28px] border-white/80 bg-white">
+        <DialogContent className="rounded-[28px] border-white/10 bg-black">
           <DialogHeader>
             <DialogTitle>Datos de Transferencia</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 rounded-[24px] bg-slate-50 p-4 text-sm">
+          <div className="space-y-1 rounded-[24px] bg-black/60 p-4 text-sm">
             <p>
               <strong>Banco:</strong> {TRANSFER_ACCOUNT.bank}
             </p>
@@ -1236,14 +1315,14 @@ export default function CarritoPage() {
             <p>
               <strong>Titular:</strong> {TRANSFER_ACCOUNT.holder}
             </p>
-            <p className="pt-2 text-center font-black text-orange-700">
+            <p className="pt-2 text-center font-black text-orange-300">
               Total a pagar: {formatMoney(commissionBreakdown.total)}
             </p>
           </div>
           <div className="py-4">
             <label
               htmlFor="transfer-proof"
-              className="text-xs font-bold mb-2 block"
+              className="mb-2 block text-xs font-bold text-[#f5f5f5]"
             >
               Sube tu comprobante:
             </label>

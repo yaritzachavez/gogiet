@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { ensureAddressesTable } from "@/lib/addresses-table";
 import { getAuthUser } from "@/lib/admin-security";
+import { getFirstExistingTable } from "@/lib/db-schema";
 import { prisma } from "@/lib/prisma";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 import { getDefaultShippingZoneByName } from "@/lib/shipping-zones";
@@ -19,6 +20,20 @@ type ShippingZoneRow = {
   nombre: string;
   tipo?: string;
   distancia_km?: number | string | null;
+};
+
+type AddressRow = {
+  id: number;
+  label: string | null;
+  recipient_name: string | null;
+  phone: string | null;
+  street: string;
+  external_number: string | null;
+  internal_number: string | null;
+  neighborhood: string;
+  city: string;
+  state: string;
+  reference_notes: string | null;
 };
 
 const DELIVERY_LOCATION_STORAGE_KEY = "gogi:selected-delivery-location";
@@ -156,23 +171,19 @@ async function resolveShippingZone(zoneName: string) {
   };
 }
 
-export async function GET(req: NextRequest) {
-  const json = (body: unknown, init?: ResponseInit) =>
-    withCors(req, NextResponse.json(body, init));
+async function findUserAddress(userId: number) {
+  const existingTable = await getFirstExistingTable([
+    "addresses",
+    "account_address",
+    "account_addresses",
+  ]);
 
-  try {
+  if (!existingTable) {
     await ensureAddressesTable();
+  }
 
-    const userId = getUserIdFromRequest(req);
-
-    if (!userId) {
-      return json(
-        { success: false, error: "Inicia sesión para guardar tu dirección" },
-        { status: 401 },
-      );
-    }
-
-    const address = await prisma.addresses.findFirst({
+  if (!existingTable || existingTable === "addresses") {
+    return prisma.addresses.findFirst({
       where: {
         user_id: userId,
       },
@@ -191,6 +202,60 @@ export async function GET(req: NextRequest) {
         reference_notes: true,
       },
     });
+  }
+
+  try {
+    const rows = await prisma.$queryRawUnsafe<AddressRow[]>(
+      `
+        SELECT
+          id,
+          label,
+          recipient_name,
+          phone,
+          street,
+          external_number,
+          internal_number,
+          neighborhood,
+          city,
+          state,
+          reference_notes
+        FROM \`${existingTable}\`
+        WHERE user_id = ?
+        ORDER BY is_default DESC, updated_at DESC
+        LIMIT 1
+      `,
+      userId,
+    );
+
+    return rows[0] ?? null;
+  } catch (error) {
+    console.warn(
+      `[account/address] No se pudo leer la tabla alternativa ${existingTable}`,
+      error,
+    );
+    return null;
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const json = (body: unknown, init?: ResponseInit) =>
+    withCors(req, NextResponse.json(body, init));
+
+  try {
+    const userId = getUserIdFromRequest(req);
+
+    if (!userId) {
+      return json(
+        {
+          success: false,
+          error: "Inicia sesión para consultar tu dirección.",
+          address: null,
+        },
+        { status: 401 },
+      );
+    }
+
+    const address = await findUserAddress(userId);
 
     return json({
       success: true,
@@ -205,6 +270,7 @@ export async function GET(req: NextRequest) {
           error instanceof Error
             ? error.message
             : "No pudimos cargar la dirección",
+        address: null,
       },
       { status: 500 },
     );

@@ -4,10 +4,18 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { ensureDeliveryStatus } from "@/lib/business-panel";
 import pool from "@/lib/db";
-import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
+import {
+  applyValidatedOrderStatusTransition,
+  OrderStatusTransitionError,
+  validateOrderStatusTransition,
+} from "@/lib/order-status-guard";
 
 type AssignedOrderRow = RowDataPacket & {
   order_id: number;
+  business_id: number;
+  customer_user_id: number;
+  payment_method: string | null;
+  current_status: string | null;
   driver_user_id: number;
   delivery_delivered_at: string | null;
 };
@@ -67,9 +75,15 @@ export async function PATCH(
       `
         SELECT
           o.id AS order_id,
+          o.business_id,
+          o.user_id AS customer_user_id,
+          COALESCE(o.payment_method, pm.name) AS payment_method,
+          osc.name AS current_status,
           d.driver_user_id,
           d.delivered_at AS delivery_delivered_at
         FROM orders o
+        LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
+        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         INNER JOIN delivery d ON d.order_id = o.id
         WHERE o.id = ?
         LIMIT 1
@@ -110,10 +124,20 @@ export async function PATCH(
         false,
         connection,
       );
-      const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-        "driver_assigned",
-        connection,
-      );
+      const { currentStatus } = validateOrderStatusTransition({
+        currentStatus: order.current_status,
+        nextStatus: "on_the_way",
+        role: "driver",
+        order: {
+          id: orderId,
+          businessId: Number(order.business_id),
+          customerUserId: Number(order.customer_user_id),
+          driverUserId: Number(order.driver_user_id),
+          paymentMethod: String(order.payment_method ?? ""),
+          currentStatus: String(order.current_status ?? ""),
+        },
+        actorUserId: authUser.user.id,
+      });
 
       await connection.query<ResultSetHeader>(
         `
@@ -132,11 +156,22 @@ export async function PATCH(
           UPDATE orders
           SET
             driver_id = COALESCE(driver_id, ?),
-            order_status_id = ?,
             updated_at = NOW()
           WHERE id = ?
         `,
-        [authUser.user.id, orderStatusId, orderId],
+        [authUser.user.id, orderId],
+      );
+
+      await applyValidatedOrderStatusTransition(connection, {
+        orderId,
+        nextStatus: "on_the_way",
+        actorUserId: authUser.user.id,
+        actorRole: "driver",
+        currentStatus,
+        metadata: {
+          endpoint: "/api/delivery/orders/[orderId]/status",
+          driver_action: "picked_up",
+        },
       );
     } else {
       const deliveryStatusId = await ensureDeliveryStatus(
@@ -146,10 +181,20 @@ export async function PATCH(
         false,
         connection,
       );
-      const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-        "on_the_way",
-        connection,
-      );
+      const { currentStatus } = validateOrderStatusTransition({
+        currentStatus: order.current_status,
+        nextStatus: "on_the_way",
+        role: "driver",
+        order: {
+          id: orderId,
+          businessId: Number(order.business_id),
+          customerUserId: Number(order.customer_user_id),
+          driverUserId: Number(order.driver_user_id),
+          paymentMethod: String(order.payment_method ?? ""),
+          currentStatus: String(order.current_status ?? ""),
+        },
+        actorUserId: authUser.user.id,
+      });
 
       await connection.query<ResultSetHeader>(
         `
@@ -169,11 +214,22 @@ export async function PATCH(
           UPDATE orders
           SET
             driver_id = COALESCE(driver_id, ?),
-            order_status_id = ?,
             updated_at = NOW()
           WHERE id = ?
         `,
-        [authUser.user.id, orderStatusId, orderId],
+        [authUser.user.id, orderId],
+      );
+
+      await applyValidatedOrderStatusTransition(connection, {
+        orderId,
+        nextStatus: "on_the_way",
+        actorUserId: authUser.user.id,
+        actorRole: "driver",
+        currentStatus,
+        metadata: {
+          endpoint: "/api/delivery/orders/[orderId]/status",
+          driver_action: "on_the_way",
+        },
       );
     }
 
@@ -191,6 +247,12 @@ export async function PATCH(
   } catch (error) {
     await connection.rollback();
     console.error("Error PATCH /api/delivery/orders/[orderId]/status:", error);
+    if (error instanceof OrderStatusTransitionError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode },
+      );
+    }
     return NextResponse.json(
       {
         success: false,

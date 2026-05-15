@@ -1,19 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import {
+  getPersistedImageUrlError,
+  normalizePersistedImageUrl,
+} from "@/lib/image-url";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
-
-function isHttpUrl(value: string) {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 function buildImageErrorResponse(message: string, status = 400) {
   return NextResponse.json(
@@ -23,42 +17,6 @@ function buildImageErrorResponse(message: string, status = 400) {
     },
     { status },
   );
-}
-
-function uploadToCloudinary(buffer: Buffer, businessId: number) {
-  return new Promise<{
-    secure_url: string;
-    public_id: string;
-  }>((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: `gogi-eats/business/${businessId}`,
-        resource_type: "image",
-        transformation: [
-          {
-            width: 800,
-            height: 800,
-            crop: "limit",
-            quality: "auto:good",
-            fetch_format: "auto",
-          },
-        ],
-      },
-      (error, result) => {
-        if (error || !result) {
-          reject(error ?? new Error("No se pudo subir la imagen."));
-          return;
-        }
-
-        resolve({
-          secure_url: result.secure_url,
-          public_id: result.public_id,
-        });
-      },
-    );
-
-    stream.end(buffer);
-  });
 }
 
 export async function POST(req: NextRequest) {
@@ -75,39 +33,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    step = "cloudinary-config";
-    const cloudinaryConfig = getCloudinaryConfigStatus();
-
-    if (!cloudinaryConfig.isConfigured) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Faltan variables de Cloudinary",
-          details: cloudinaryConfig.missing.join(", "),
-        },
-        { status: 500 },
-      );
-    }
-
     step = "read-form-data";
-    const formData = await req.formData();
+    const contentType = req.headers.get("content-type") ?? "";
+    const isFormData = contentType.includes("multipart/form-data");
+    const bodySource = isFormData ? await req.formData() : await req.json();
     const requestedBusinessIdRaw =
-      formData.get("businessId") ?? formData.get("business_id");
+      bodySource.get?.("businessId") ??
+      bodySource.get?.("business_id") ??
+      (typeof bodySource === "object" && bodySource !== null
+        ? ((bodySource as Record<string, unknown>).businessId ??
+          (bodySource as Record<string, unknown>).business_id)
+        : null);
+    const requestedImageUrlRaw =
+      bodySource.get?.("imageUrl") ??
+      bodySource.get?.("url") ??
+      (typeof bodySource === "object" && bodySource !== null
+        ? ((bodySource as Record<string, unknown>).imageUrl ??
+          (bodySource as Record<string, unknown>).url)
+        : null);
+    const requestedRemoveRaw =
+      bodySource.get?.("remove") ??
+      (typeof bodySource === "object" && bodySource !== null
+        ? (bodySource as Record<string, unknown>).remove
+        : null);
     const requestedBusinessId = Number(requestedBusinessIdRaw);
-    const remove = String(formData.get("remove") ?? "0") === "1";
+    const remove = String(requestedRemoveRaw ?? "0") === "1";
     const userId = authUser.user.id;
     const body: {
       businessId: number | null;
-      remove: boolean;
-      hasFile: boolean;
       imageUrl: string | null;
+      remove: boolean;
     } = {
       businessId: Number.isFinite(requestedBusinessId)
         ? requestedBusinessId
         : null,
+      imageUrl: normalizePersistedImageUrl(requestedImageUrlRaw),
       remove,
-      hasFile: formData.get("file") instanceof File,
-      imageUrl: null,
     };
 
     console.log("save-db-url userId:", userId);
@@ -139,6 +100,13 @@ export async function POST(req: NextRequest) {
       return buildImageErrorResponse("Negocio no encontrado", 404);
     }
 
+    if (isFormData && bodySource.get("file") instanceof File) {
+      return buildImageErrorResponse(
+        "Sube la imagen primero en /api/upload/image y después guarda imageUrl.",
+        400,
+      );
+    }
+
     if (remove) {
       step = "remove-photo-db-update";
       const updateResult = await prisma.business.updateMany({
@@ -168,70 +136,27 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    step = "extract-file";
-    const file = formData.get("file");
-
-    if (!(file instanceof File)) {
-      return buildImageErrorResponse("No llegó archivo", 400);
-    }
-
-    const allowedTypes = new Set([
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/webp",
-    ]);
-
-    if (!allowedTypes.has(file.type)) {
-      return NextResponse.json(
-        { success: false, error: "Solo se permiten JPG, PNG o WEBP" },
-        { status: 400 },
-      );
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { success: false, error: "La imagen no debe superar 5 MB" },
-        { status: 400 },
-      );
-    }
-
-    step = "read-file-buffer";
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    step = "cloudinary-upload";
-    const uploadResult = await uploadToCloudinary(buffer, business.id);
-    body.imageUrl = uploadResult.secure_url ?? null;
-
-    console.log("BODY recibido imagen negocio:", body);
-    console.log("businessId:", business.id);
-    console.log("imageUrl:", body.imageUrl);
-    console.log("Respuesta Cloudinary:", uploadResult);
-
-    if (!uploadResult.secure_url) {
-      return buildImageErrorResponse("Cloudinary no devolvió URL segura", 500);
-    }
-
-    if (uploadResult.secure_url.startsWith("blob:")) {
-      return buildImageErrorResponse(
-        "La imagen debe subirse primero a Cloudinary",
-        400,
-      );
-    }
-
-    if (!isHttpUrl(uploadResult.secure_url)) {
+    if (!body.imageUrl) {
       return buildImageErrorResponse("URL de imagen inválida", 400);
     }
 
+    const imageUrlError = getPersistedImageUrlError(body.imageUrl);
+
+    if (imageUrlError) {
+      return buildImageErrorResponse(imageUrlError, 400);
+    }
+
     step = "save-db-url";
+    console.log("BODY recibido imagen negocio:", body);
+    console.log("businessId:", business.id);
+    console.log("imageUrl:", body.imageUrl);
     console.info("[business-photo] saving business logo", {
       businessId: business.id,
       businessName: business.name,
     });
     const updateResult = await prisma.business.updateMany({
       where: { id: business.id },
-      data: { logo_url: uploadResult.secure_url },
+      data: { logo_url: body.imageUrl },
     });
 
     if (updateResult.count === 0) {
@@ -255,9 +180,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      url: uploadResult.secure_url,
+      url: updatedBusiness.logo_url,
       imageUrl: updatedBusiness.logo_url,
-      publicId: uploadResult.public_id,
       logo_url: updatedBusiness.logo_url,
       avatar_url: updatedBusiness.logo_url,
       updatedBusiness,

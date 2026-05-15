@@ -48,6 +48,7 @@ function resolvePrismaDatabaseUrl() {
     dbSslCaSource: sslSummary.source,
     dbSslCaLoaded: sslSummary.hasCertificate,
     dbSslCaLength: sslSummary.certificateLength,
+    dbSslIgnoredSources: sslSummary.ignoredSources,
     nodeEnv: process.env.NODE_ENV ?? "development",
     needsSsl,
     hasRuntimeCaFile: Boolean(caPath),

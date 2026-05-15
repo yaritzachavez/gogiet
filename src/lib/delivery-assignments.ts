@@ -15,7 +15,11 @@ import {
   createNotificationForBusiness,
   createNotificationsForUsers,
 } from "@/lib/notifications";
-import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
+import {
+  applyValidatedOrderStatusTransition,
+  OrderStatusTransitionError,
+  validateOrderStatusTransition,
+} from "@/lib/order-status-guard";
 
 type OrderRow = RowDataPacket & {
   id: number;
@@ -309,11 +313,6 @@ export async function requestCourierAssignment(params: {
         false,
         connection,
       );
-      const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-        "delivery_requested",
-        connection,
-      );
-
       if (existingDelivery) {
         await connection.query<ResultSetHeader>(
           `
@@ -351,11 +350,10 @@ export async function requestCourierAssignment(params: {
           UPDATE orders
           SET
             driver_id = NULL,
-            order_status_id = ?,
             updated_at = NOW()
           WHERE id = ?
         `,
-        [orderStatusId, params.orderId],
+        [params.orderId],
       );
 
       await createNotificationsForUsers(
@@ -407,11 +405,6 @@ export async function requestCourierAssignment(params: {
       false,
       connection,
     );
-    const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-      "delivery_requested",
-      connection,
-    );
-
     if (existingDelivery) {
       await connection.query<ResultSetHeader>(
         `
@@ -451,11 +444,10 @@ export async function requestCourierAssignment(params: {
         UPDATE orders
         SET
           driver_id = NULL,
-          order_status_id = ?,
           updated_at = NOW()
         WHERE id = ?
       `,
-      [orderStatusId, params.orderId],
+      [params.orderId],
     );
 
     await createNotificationsForUsers(
@@ -582,10 +574,20 @@ export async function respondToCourierAssignment(params: {
         false,
         connection,
       );
-      const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-        "driver_assigned",
-        connection,
-      );
+      const { currentStatus } = validateOrderStatusTransition({
+        currentStatus: order.order_status_name,
+        nextStatus: "driver_assigned",
+        role: "driver",
+        order: {
+          id: params.orderId,
+          businessId: Number(order.business_id),
+          customerUserId: Number(order.customer_user_id),
+          driverUserId: params.userId,
+          paymentMethod: null,
+          currentStatus: String(order.order_status_name ?? ""),
+        },
+        actorUserId: params.userId,
+      });
 
       await connection.query<ResultSetHeader>(
         `
@@ -605,12 +607,23 @@ export async function respondToCourierAssignment(params: {
           UPDATE orders
           SET
             driver_id = ?,
-            order_status_id = ?,
             confirmed_at = COALESCE(confirmed_at, NOW()),
             updated_at = NOW()
           WHERE id = ?
         `,
-        [params.userId, orderStatusId, params.orderId],
+        [params.userId, params.orderId],
+      );
+
+      await applyValidatedOrderStatusTransition(connection, {
+        orderId: params.orderId,
+        nextStatus: "driver_assigned",
+        actorUserId: params.userId,
+        actorRole: "driver",
+        currentStatus,
+        metadata: {
+          source: "respondToCourierAssignment",
+          action: "accept",
+        },
       );
 
       await createNotificationForBusiness(
@@ -667,11 +680,6 @@ export async function respondToCourierAssignment(params: {
       true,
       connection,
     );
-    const { statusId: orderStatusId } = await ensureCanonicalOrderStatus(
-      "delivery_requested",
-      connection,
-    );
-
     await connection.query<ResultSetHeader>(
       `
         UPDATE delivery
@@ -689,11 +697,10 @@ export async function respondToCourierAssignment(params: {
         UPDATE orders
         SET
           driver_id = NULL,
-          order_status_id = ?,
           updated_at = NOW()
         WHERE id = ?
       `,
-      [orderStatusId, params.orderId],
+      [params.orderId],
     );
 
     const businessUserIds = await getBusinessNotificationUserIds(

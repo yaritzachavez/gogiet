@@ -13,49 +13,64 @@ const ORDER_STATUS_META: Record<
   CanonicalOrderStatus,
   { description: string; sortOrder: number; isFinal: boolean }
 > = {
+  pending_payment: {
+    description: "Pedido creado a la espera de pago en línea",
+    sortOrder: 1,
+    isFinal: false,
+  },
   pending: {
     description: "Pedido pendiente de atención",
-    sortOrder: 1,
+    sortOrder: 2,
+    isFinal: false,
+  },
+  paid: {
+    description: "Pedido pagado y pendiente de atención",
+    sortOrder: 3,
     isFinal: false,
   },
   payment_review: {
     description: "Pago pendiente de validación",
-    sortOrder: 2,
+    sortOrder: 4,
     isFinal: false,
   },
   accepted: {
     description: "Pedido aceptado",
-    sortOrder: 3,
+    sortOrder: 5,
     isFinal: false,
   },
   preparing: {
     description: "Pedido en preparación",
-    sortOrder: 4,
+    sortOrder: 6,
     isFinal: false,
   },
   ready_for_pickup: {
     description: "Pedido listo para recoger",
-    sortOrder: 5,
+    sortOrder: 7,
     isFinal: false,
   },
   delivery_requested: {
     description: "Se solicitó repartidor para el pedido",
-    sortOrder: 6,
+    sortOrder: 8,
     isFinal: false,
   },
   driver_assigned: {
     description: "Pedido con repartidor asignado",
-    sortOrder: 7,
+    sortOrder: 9,
     isFinal: false,
   },
   on_the_way: {
     description: "Pedido en camino al cliente",
-    sortOrder: 8,
+    sortOrder: 10,
     isFinal: false,
   },
   delivered: {
     description: "Pedido entregado",
-    sortOrder: 9,
+    sortOrder: 11,
+    isFinal: true,
+  },
+  payment_failed: {
+    description: "El pago en línea no se completó",
+    sortOrder: 98,
     isFinal: true,
   },
   cancelled: {

@@ -6,7 +6,11 @@ import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
 import {
-  ensureCanonicalOrderStatus,
+  applyValidatedOrderStatusTransition,
+  OrderStatusTransitionError,
+  validateOrderStatusTransition,
+} from "@/lib/order-status-guard";
+import {
   ensureCoreOrderStatuses,
 } from "@/lib/order-status-server";
 
@@ -14,6 +18,9 @@ type OrderRow = RowDataPacket & {
   business_id: number;
   business_name: string;
   customer_user_id: number;
+  current_status: string | null;
+  payment_method: string | null;
+  driver_user_id: number | null;
 };
 
 export async function PATCH(
@@ -65,9 +72,15 @@ export async function PATCH(
         SELECT
           o.business_id,
           o.user_id AS customer_user_id,
-          b.name AS business_name
+          b.name AS business_name,
+          osc.name AS current_status,
+          COALESCE(o.payment_method, pm.name) AS payment_method,
+          COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id
         FROM orders o
         INNER JOIN businesses b ON b.id = o.business_id
+        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
+        LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
+        LEFT JOIN delivery d ON d.order_id = o.id
         WHERE o.id = ?
         LIMIT 1
       `,
@@ -97,19 +110,33 @@ export async function PATCH(
     }
 
     await ensureCoreOrderStatuses(connection);
-    const { statusId } = await ensureCanonicalOrderStatus(
-      "preparing",
-      connection,
-    );
+    const { currentStatus } = validateOrderStatusTransition({
+      currentStatus: orderRows[0].current_status,
+      nextStatus: "preparing",
+      role: "business",
+      order: {
+        id: orderId,
+        businessId,
+        customerUserId: Number(orderRows[0].customer_user_id),
+        driverUserId: Number(orderRows[0].driver_user_id ?? 0) || null,
+        paymentMethod: String(orderRows[0].payment_method ?? ""),
+        currentStatus: String(orderRows[0].current_status ?? ""),
+      },
+      actorUserId: authUser.user.id,
+    });
 
-    await connection.query(
-      `
-        UPDATE orders
-        SET order_status_id = ?, updated_at = NOW()
-        WHERE id = ? AND business_id = ?
-      `,
-      [statusId, orderId, businessId],
-    );
+    await connection.beginTransaction();
+
+    await applyValidatedOrderStatusTransition(connection, {
+      orderId,
+      nextStatus: "preparing",
+      actorUserId: authUser.user.id,
+      actorRole: "business",
+      currentStatus,
+      metadata: {
+        endpoint: "/api/business/orders/[id]/status",
+      },
+    });
 
     await createNotification(
       {
@@ -127,12 +154,21 @@ export async function PATCH(
       connection,
     );
 
+    await connection.commit();
+
     return NextResponse.json({
       success: true,
       message: "Pedido actualizado a preparación",
     });
   } catch (error) {
+    await connection.rollback();
     console.error("Error PATCH /api/business/orders/[id]/status:", error);
+    if (error instanceof OrderStatusTransitionError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode },
+      );
+    }
     return NextResponse.json(
       {
         success: false,

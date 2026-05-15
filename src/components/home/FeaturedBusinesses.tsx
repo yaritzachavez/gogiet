@@ -35,14 +35,14 @@ function FeaturedBusinessesSkeleton() {
       {Array.from({ length: 4 }).map((_, index) => (
         <div
           key={`featured-skeleton-${index + 1}`}
-          className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_18px_45px_rgba(15,23,42,0.08)]"
+          className="overflow-hidden rounded-[30px] border border-white/8 bg-[#1a1a1a] shadow-[0_18px_45px_rgba(0,0,0,0.28)]"
         >
-          <div className="h-44 animate-pulse bg-gradient-to-br from-orange-100 to-white" />
+          <div className="h-44 animate-pulse bg-gradient-to-br from-[#202020] via-[#181818] to-[#111111]" />
           <div className="space-y-3 p-5">
-            <div className="h-4 w-24 animate-pulse rounded-full bg-orange-100" />
-            <div className="h-7 w-3/4 animate-pulse rounded-full bg-slate-200" />
-            <div className="h-4 w-1/2 animate-pulse rounded-full bg-slate-100" />
-            <div className="h-11 animate-pulse rounded-2xl bg-slate-100" />
+            <div className="h-4 w-24 animate-pulse rounded-full bg-orange-500/20" />
+            <div className="h-7 w-3/4 animate-pulse rounded-full bg-white/8" />
+            <div className="h-4 w-1/2 animate-pulse rounded-full bg-white/6" />
+            <div className="h-11 animate-pulse rounded-2xl bg-white/6" />
           </div>
         </div>
       ))}
@@ -107,7 +107,7 @@ export function FeaturedBusinesses() {
   }, []);
 
   return (
-    <section className="px-4 py-12 sm:py-16">
+    <section className="px-4 py-14 sm:py-18">
       <div className="mx-auto max-w-7xl">
         <HomeSectionHeader
           eyebrow="Negocios destacados"
@@ -139,9 +139,9 @@ export function FeaturedBusinesses() {
               {businesses.map((business) => (
                 <article
                   key={business.id}
-                  className="group flex min-w-[285px] snap-start flex-col overflow-hidden rounded-[30px] border border-orange-100/70 bg-white shadow-[0_22px_50px_rgba(15,23,42,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_28px_65px_rgba(249,115,22,0.16)] md:min-w-0"
+                  className="group flex min-w-[240px] max-w-[270px] snap-start flex-col overflow-hidden rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.98)_0%,rgba(22,22,22,0.96)_100%)] shadow-[0_22px_50px_rgba(0,0,0,0.32)] transition duration-300 hover:-translate-y-1 hover:border-orange-500/30 hover:shadow-[0_28px_65px_rgba(255,107,0,0.16)] md:min-w-0 md:max-w-none"
                 >
-                  <div className="relative h-48 overflow-hidden bg-gradient-to-br from-orange-100 via-orange-50 to-white">
+                  <div className="relative h-36 overflow-hidden bg-gradient-to-br from-[#1b1b1b] via-[#111111] to-black">
                     <AppImage
                       src={business.imageUrl}
                       alt={business.name}
@@ -152,7 +152,7 @@ export function FeaturedBusinesses() {
                       imageClassName="transition duration-500 group-hover:scale-105"
                       fallbackLabel="Negocio"
                     />
-                    <div className="absolute left-4 top-4 inline-flex items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-xs font-bold text-slate-700 shadow-lg backdrop-blur">
+                    <div className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/55 px-2.5 py-1.5 text-[11px] font-bold text-[#f5f5f5] shadow-lg backdrop-blur-md">
                       <span
                         className={`h-2.5 w-2.5 rounded-full ${
                           business.isOpen ? "bg-emerald-500" : "bg-slate-300"
@@ -162,9 +162,9 @@ export function FeaturedBusinesses() {
                     </div>
                   </div>
 
-                  <div className="flex flex-1 flex-col p-5">
-                    <div className="mb-4 flex items-center gap-3">
-                      <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-orange-100 bg-orange-50">
+                  <div className="flex flex-1 flex-col p-4">
+                    <div className="mb-3 flex items-center gap-3">
+                      <div className="relative flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/8 bg-[#202020]">
                         <AppImage
                           src={business.logoUrl}
                           alt={`${business.name} logo`}
@@ -181,29 +181,29 @@ export function FeaturedBusinesses() {
                       </div>
 
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold uppercase tracking-[0.18em] text-orange-600">
+                        <p className="truncate text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">
                           {business.category}
                         </p>
-                        <h3 className="truncate text-xl font-black text-slate-950">
+                        <h3 className="truncate text-lg font-black text-[#f5f5f5]">
                           {business.name}
                         </h3>
                       </div>
                     </div>
 
-                    <div className="space-y-2 text-sm text-slate-600">
+                    <div className="space-y-1.5 text-sm text-[#b3b3b3]">
                       <p className="inline-flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-orange-500" />
+                        <MapPin className="h-4 w-4 text-orange-400" />
                         {business.city ?? "Mazamitla"}
                         {business.district ? `, ${business.district}` : ""}
                       </p>
-                      <p className="font-medium text-slate-500">
+                      <p className="font-medium text-[#8c8c8c]">
                         {business.productCount} productos listos para explorar
                       </p>
                     </div>
 
                     <Link
                       href={`/shop/${business.id}`}
-                      className="mt-5 inline-flex items-center justify-between rounded-2xl bg-slate-950 px-4 py-3 text-sm font-bold text-white transition hover:bg-orange-600"
+                      className="mt-4 inline-flex items-center justify-between rounded-2xl border border-orange-500/30 bg-orange-500/12 px-4 py-2.5 text-sm font-bold text-[#f5f5f5] transition hover:bg-orange-500 hover:text-white"
                     >
                       Ver negocio
                       <ChevronRight className="h-4 w-4" />

@@ -7,6 +7,7 @@ import type {
 
 import { isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
+import { getExistingTables } from "@/lib/db-schema";
 import { prisma } from "@/lib/prisma";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
 
@@ -120,45 +121,83 @@ export async function resolveBusinessAccess(
   userId: number,
   requestedBusinessId?: number | null,
 ): Promise<BusinessAccessContext> {
-  const [userInfoRows] = await pool.query<UserInfoRow[]>(
-    `
-      SELECT u.email, r.name AS role_name
-      FROM users u
-      LEFT JOIN user_roles ur ON ur.user_id = u.id
-      LEFT JOIN roles r ON r.id = ur.role_id
-      WHERE u.id = ?
-    `,
-    [userId],
-  );
+  const existingTables = await getExistingTables([
+    "users",
+    "user_roles",
+    "roles",
+    "business_owners",
+    "business_managers",
+    "businesses",
+  ]);
+  const hasUsersTable = existingTables.has("users");
+  const hasRolesTables =
+    existingTables.has("user_roles") && existingTables.has("roles");
+  const hasBusinessesTable = existingTables.has("businesses");
+
+  let userInfoRows: UserInfoRow[] = [];
+
+  if (hasUsersTable && hasRolesTables) {
+    [userInfoRows] = await pool.query<UserInfoRow[]>(
+      `
+        SELECT u.email, r.name AS role_name
+        FROM users u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        LEFT JOIN roles r ON r.id = ur.role_id
+        WHERE u.id = ?
+      `,
+      [userId],
+    );
+  } else if (hasUsersTable) {
+    [userInfoRows] = await pool.query<UserInfoRow[]>(
+      `
+        SELECT u.email, NULL AS role_name
+        FROM users u
+        WHERE u.id = ?
+      `,
+      [userId],
+    );
+  }
 
   const email = userInfoRows[0]?.email ?? null;
   const roles = userInfoRows
     .map((row) => row.role_name)
     .filter(Boolean) as string[];
 
-  const [ownerBusinesses] = await pool.query<AssignedBusinessRow[]>(
-    `
-      SELECT b.id, b.name, b.city, 'owner' AS source
-      FROM business_owners bo
-      INNER JOIN businesses b ON b.id = bo.business_id
-      WHERE bo.user_id = ?
-      ORDER BY b.name ASC
-    `,
-    [userId],
-  );
+  const ownerBusinesses =
+    existingTables.has("business_owners") && hasBusinessesTable
+      ? (
+          await pool.query<AssignedBusinessRow[]>(
+            `
+              SELECT b.id, b.name, b.city, 'owner' AS source
+              FROM business_owners bo
+              INNER JOIN businesses b ON b.id = bo.business_id
+              WHERE bo.user_id = ?
+              ORDER BY b.name ASC
+            `,
+            [userId],
+          )
+        )[0]
+      : [];
 
-  const [managerBusinesses] = await pool.query<AssignedBusinessRow[]>(
-    `
-      SELECT b.id, b.name, b.city, 'manager' AS source
-      FROM business_managers bm
-      INNER JOIN businesses b ON b.id = bm.business_id
-      WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
-      ORDER BY b.name ASC
-    `,
-    [userId],
-  );
+  const managerBusinesses =
+    existingTables.has("business_managers") && hasBusinessesTable
+      ? (
+          await pool.query<AssignedBusinessRow[]>(
+            `
+              SELECT b.id, b.name, b.city, 'manager' AS source
+              FROM business_managers bm
+              INNER JOIN businesses b ON b.id = bm.business_id
+              WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
+              ORDER BY b.name ASC
+            `,
+            [userId],
+          )
+        )[0]
+      : [];
 
-  const userIsAdminGeneral = await isAdminGeneral(userId);
+  const userIsAdminGeneral = hasRolesTables
+    ? await isAdminGeneral(userId)
+    : false;
   const assignedBusinessesMap = new Map<number, AssignedBusinessRow>();
 
   for (const business of [...ownerBusinesses, ...managerBusinesses]) {
@@ -167,7 +206,7 @@ export async function resolveBusinessAccess(
 
   let assignedBusinesses = Array.from(assignedBusinessesMap.values());
 
-  if (assignedBusinesses.length > 0) {
+  if (assignedBusinesses.length > 0 && hasBusinessesTable) {
     const requestedIds = assignedBusinesses
       .map((business) => Number(business.id))
       .filter((businessId) => Number.isFinite(businessId) && businessId > 0);
@@ -194,7 +233,7 @@ export async function resolveBusinessAccess(
     );
   }
 
-  if (!assignedBusinesses.length && userIsAdminGeneral) {
+  if (!assignedBusinesses.length && userIsAdminGeneral && hasBusinessesTable) {
     const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'admin_general' AS source

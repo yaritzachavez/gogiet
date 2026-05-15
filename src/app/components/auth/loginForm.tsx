@@ -118,20 +118,31 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="rounded-2xl border border-orange-100 bg-white p-8 shadow-2xl">
-      <h1 className="mb-8 text-center text-2xl font-semibold text-orange-950">
-        Inicio de sesión
-      </h1>
+    <div className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.10),transparent_28%),linear-gradient(180deg,rgba(26,26,26,0.96)_0%,rgba(18,18,18,0.96)_100%)] p-8 shadow-[0_32px_80px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+      <div className="mb-8">
+        <p className="text-center text-xs font-extrabold uppercase tracking-[0.32em] text-orange-300">
+          Bienvenido
+        </p>
+        <h1 className="mt-3 text-center text-3xl font-black text-[#f5f5f5]">
+          Inicia sesión
+        </h1>
+        <p className="mt-3 text-center text-sm text-[#b3b3b3]">
+          Entra a tu cuenta para seguir pidiendo, administrar tu negocio o
+          revisar tus paneles.
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Mensaje de error */}
         {errorMessage && (
-          <p className="text-red-500 text-sm text-center">{errorMessage}</p>
+          <p className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
+            {errorMessage}
+          </p>
         )}
 
         {/* Email */}
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm text-orange-950">
+          <Label htmlFor="email" className="text-sm text-[#f5f5f5]">
             Correo electrónico
           </Label>
           <Input
@@ -140,14 +151,14 @@ export default function LoginForm() {
             placeholder="correo@ejemplo.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
         </div>
 
         {/* Password */}
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-sm text-orange-950">
+          <Label htmlFor="password" className="text-sm text-[#f5f5f5]">
             Contraseña
           </Label>
           <Input
@@ -156,13 +167,13 @@ export default function LoginForm() {
             placeholder="••••••••"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="border-orange-200 bg-orange-50/50 text-orange-950 placeholder:text-orange-300 focus:border-orange-500"
+            className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
           <div className="text-right">
             <Link
               href="/request-reset"
-              className="text-sm font-semibold text-orange-600 hover:text-orange-700"
+              className="text-sm font-semibold text-orange-300 hover:text-orange-200"
             >
               Olvidé mi contraseña
             </Link>
@@ -172,7 +183,7 @@ export default function LoginForm() {
         {/* Login Button */}
         <Button
           type="submit"
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-medium py-3 rounded-lg"
+          className="w-full py-3 text-white"
           disabled={submitting}
         >
           {submitting ? "Ingresando..." : "Iniciar sesión"}
@@ -180,11 +191,11 @@ export default function LoginForm() {
 
         {/* Register Link */}
         <div className="text-center">
-          <span className="text-sm text-stone-500">
+          <span className="text-sm text-[#8f8f8f]">
             ¿No tienes cuenta?{" "}
             <Link
               href="/auth?mode=register"
-              className="font-semibold text-orange-600 hover:text-orange-700"
+              className="font-semibold text-orange-300 hover:text-orange-200"
             >
               Regístrate
             </Link>

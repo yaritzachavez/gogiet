@@ -142,13 +142,13 @@ export function AppImage({
           />
         </>
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 via-white to-orange-50 px-4 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-[#1a1a1a] via-[#151515] to-[#0f0f0f] px-4 text-center">
           {fallback ?? fallbackNode ?? (
             <>
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-white/90 text-orange-500 shadow-sm">
+              <span className="flex size-12 items-center justify-center rounded-2xl border border-white/8 bg-white/6 text-orange-400 shadow-sm">
                 <ImageIcon className={cn("h-6 w-6", fallbackIconClassName)} />
               </span>
-              <span className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+              <span className="text-xs font-bold uppercase tracking-[0.18em] text-[#8f8f8f]">
                 {fallbackLabel}
               </span>
             </>

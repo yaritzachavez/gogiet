@@ -7,6 +7,10 @@ import type {
 import { type NextRequest, NextResponse } from "next/server";
 import pool, { logDbUsage } from "@/lib/db";
 import {
+  ensureOrderPaymentColumns,
+  ensurePaymentsTable,
+} from "@/lib/order-payments";
+import {
   createNotificationForBusiness,
   createNotificationsForAdminGeneral,
 } from "@/lib/notifications";
@@ -210,6 +214,8 @@ async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
       `,
     );
   }
+
+  await ensureOrderPaymentColumns(conn);
 }
 
 function parseAddressMeta(referenceNotes?: string | null) {
@@ -295,6 +301,7 @@ async function getOrCreateCatalogId(
       efectivo: "Pago en efectivo al recibir",
       transferencia: "Transferencia bancaria por validar",
       terminal: "Pago con terminal al recibir",
+      mercadopago: "Pago con tarjeta vía Mercado Pago Checkout Pro",
     };
 
     const [result] = await conn.query<ResultSetHeader>(
@@ -320,8 +327,11 @@ async function getOrCreateCatalogId(
   }
 
   const statusDescriptions: Record<string, string> = {
+    pendiente_de_pago: "Pedido pendiente de pago en línea",
     pendiente: "Pedido pendiente de preparacion",
+    pagado: "Pedido pagado pendiente de atención",
     por_validar_pago: "Transferencia recibida pendiente de validacion",
+    pago_fallido: "El pago del pedido no se completó",
   };
 
   const [result] = await conn.query<ResultSetHeader>(
@@ -339,7 +349,15 @@ async function getOrCreateCatalogId(
     [
       normalizedName,
       statusDescriptions[normalizedName] ?? `Estado ${normalizedName}`,
-      normalizedName === "por_validar_pago" ? 2 : 1,
+      normalizedName === "pendiente_de_pago"
+        ? 1
+        : normalizedName === "por_validar_pago"
+          ? 3
+          : normalizedName === "pagado"
+            ? 2
+            : normalizedName === "pago_fallido"
+              ? 99
+              : 1,
     ],
   );
 
@@ -478,6 +496,7 @@ export async function GET(req: NextRequest) {
     await ensureOrderItemsTable(pool);
     await ensureCoreOrderStatuses(pool);
     await ensureAdminMessagesTable(pool);
+    await ensurePaymentsTable(pool);
 
     const { searchParams } = new URL(req.url);
     const requestedUserId = searchParams.get("user_id");
@@ -730,6 +749,7 @@ export async function POST(req: NextRequest) {
     await ensureOrderItemsTable(conn);
     await ensureCoreOrderStatuses(conn);
     await ensureAdminMessagesTable(conn);
+    await ensurePaymentsTable(conn);
 
     const addressId =
       toPositiveNumber(body.delivery_address_id ?? body.address_id) ??
@@ -767,9 +787,24 @@ export async function POST(req: NextRequest) {
         : await ensureCanonicalOrderStatus(
             paymentMethodName === "transferencia"
               ? "payment_review"
+              : paymentMethodName === "mercadopago" &&
+                  requestedStatus === "pending"
+                ? "pending_payment"
               : requestedStatus,
             conn,
           );
+    const paymentProvider =
+      paymentMethodName === "mercadopago" ? "MERCADOPAGO" : null;
+    const normalizedPaymentStatus =
+      paymentMethodName === "mercadopago"
+        ? resolvedStatus.canonical === "paid"
+          ? "approved"
+          : resolvedStatus.canonical === "payment_failed"
+            ? "failed"
+            : "pending"
+        : paymentMethodName === "transferencia"
+          ? "review"
+          : null;
     const transferProofUrl =
       typeof (body.payment_receipt_url ?? body.comprobante_pago_url) ===
       "string"
@@ -963,11 +998,13 @@ export async function POST(req: NextRequest) {
           discount_amount,
           total_amount,
           customer_notes,
+          payment_provider,
+          payment_status,
           placed_at,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
       `,
       [
         userId,
@@ -992,6 +1029,8 @@ export async function POST(req: NextRequest) {
           body.customer_notes ??
           body.client_note ??
           null,
+        paymentProvider,
+        normalizedPaymentStatus,
       ],
     );
 
@@ -1071,7 +1110,12 @@ export async function POST(req: NextRequest) {
       {
         type: "pedido",
         title: `Pedido nuevo #${orderId}`,
-        message: `Se creó un pedido nuevo${paymentMethodName === "transferencia" ? " con transferencia por validar" : ""} y aún no tiene repartidor asignado.`,
+        message:
+          paymentMethodName === "transferencia"
+            ? "Se creó un pedido nuevo con transferencia por validar y aún no tiene repartidor asignado."
+            : paymentMethodName === "mercadopago"
+              ? "Se creó un pedido nuevo con pago en línea pendiente de confirmación."
+              : "Se creó un pedido nuevo y aún no tiene repartidor asignado.",
         relatedId: orderId,
       },
       conn,
@@ -1085,7 +1129,9 @@ export async function POST(req: NextRequest) {
         message:
           paymentMethodName === "transferencia"
             ? "Se recibió un pedido con transferencia. Espera la validación del pago antes de prepararlo."
-            : "Tienes un pedido nuevo pendiente de preparación en tu negocio.",
+            : paymentMethodName === "mercadopago"
+              ? "Se recibió un pedido con pago en línea pendiente. Prepáralo cuando Mercado Pago confirme el cobro."
+              : "Tienes un pedido nuevo pendiente de preparación en tu negocio.",
         relatedId: orderId,
         dataJson: {
           order_id: orderId,

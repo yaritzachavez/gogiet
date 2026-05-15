@@ -5,7 +5,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { createNotificationForBusiness } from "@/lib/notifications";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
-import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
+import {
+  applyValidatedOrderStatusTransition,
+  OrderStatusTransitionError,
+  validateOrderStatusTransition,
+} from "@/lib/order-status-guard";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 
 type JwtPayload = {
@@ -81,10 +85,6 @@ export async function PATCH(
       .trim()
       .toLowerCase();
     const reason = String(body?.reason ?? "").trim();
-    const nextApprovedStatus = String(body?.next_status ?? "accepted")
-      .trim()
-      .toLowerCase();
-
     if (action !== "approve" && action !== "reject") {
       return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
     }
@@ -136,75 +136,109 @@ export async function PATCH(
       );
     }
 
-    const approvedStatus =
-      nextApprovedStatus === "preparing" ? "preparing" : "accepted";
-    const nextStatus = action === "approve" ? approvedStatus : "cancelled";
-    const { statusId: nextStatusId } =
-      await ensureCanonicalOrderStatus(nextStatus);
+    const nextStatus = action === "approve" ? "paid" : "cancelled";
 
-    await pool.query(
-      `
-        UPDATE orders
-        SET order_status_id = ?, updated_at = NOW()
-        WHERE id = ?
-      `,
-      [nextStatusId, orderId],
-    );
+    const connection = await pool.getConnection();
 
-    const adminMessage =
-      action === "approve"
-        ? "ADMIN_GENERAL validó correctamente el pago por transferencia."
-        : `ADMIN_GENERAL rechazó el pago por transferencia. Motivo: ${reason}`;
-    const customerNotice =
-      action === "approve"
-        ? "Tu pago por transferencia fue validado. Tu pedido podrá continuar con la preparación."
-        : `Tu pago por transferencia fue rechazado. Motivo: ${reason}`;
+    try {
+      await connection.beginTransaction();
 
-    await pool.query(
-      `
-        INSERT INTO admin_messages (order_id, user_id, type, message, file_url)
-        VALUES (?, ?, 'payment_validation', ?, NULL)
-      `,
-      [orderId, authUser.id, adminMessage],
-    );
+      const { currentStatus } = validateOrderStatusTransition({
+        currentStatus: order.status_name,
+        nextStatus,
+        role: "admin",
+        order: {
+          id: orderId,
+          businessId: Number(order.business_id),
+          customerUserId: Number(order.user_id),
+          driverUserId: null,
+          paymentMethod: String(order.payment_method ?? ""),
+          currentStatus: String(order.status_name ?? ""),
+        },
+        actorUserId: authUser.id,
+        reason,
+      });
 
-    await pool.query(
-      `
-        INSERT INTO order_notes (order_id, user_id, note_type, note_text)
-        VALUES (?, ?, 'system', ?)
-      `,
-      [orderId, authUser.id, customerNotice],
-    );
-
-    const supportThreadId = await getOrCreateSupportThread({
-      userId: Number(order.user_id),
-      orderId,
-    });
-
-    await addSupportMessage({
-      threadId: supportThreadId,
-      senderId: authUser.id,
-      senderType: "admin",
-      message:
-        action === "approve"
-          ? "Pago por transferencia aprobado por ADMIN_GENERAL."
-          : `Pago por transferencia rechazado por ADMIN_GENERAL. Motivo: ${reason}`,
-      messageType: "text",
-    });
-
-    if (action === "approve") {
-      await createNotificationForBusiness(Number(order.business_id), {
-        type: "pago",
-        title: `Pago validado #${orderId}`,
-        message:
-          "El pago por transferencia fue validado. Ya puedes preparar este pedido.",
-        relatedId: orderId,
-        dataJson: {
-          order_id: orderId,
-          status: nextStatus,
+      await applyValidatedOrderStatusTransition(connection, {
+        orderId,
+        nextStatus,
+        actorUserId: authUser.id,
+        actorRole: "admin",
+        currentStatus,
+        reason,
+        metadata: {
+          endpoint: "/api/admin/orders/[id]/payment",
+          action,
           payment_method: "transferencia",
         },
       });
+
+      const adminMessage =
+        action === "approve"
+          ? "ADMIN_GENERAL validó correctamente el pago por transferencia."
+          : `ADMIN_GENERAL rechazó el pago por transferencia. Motivo: ${reason}`;
+      const customerNotice =
+        action === "approve"
+          ? "Tu pago por transferencia fue validado. Tu pedido quedó pagado y ahora el negocio debe aceptarlo."
+          : `Tu pago por transferencia fue rechazado. Motivo: ${reason}`;
+
+      await connection.query(
+        `
+          INSERT INTO admin_messages (order_id, user_id, type, message, file_url)
+          VALUES (?, ?, 'payment_validation', ?, NULL)
+        `,
+        [orderId, authUser.id, adminMessage],
+      );
+
+      await connection.query(
+        `
+          INSERT INTO order_notes (order_id, user_id, note_type, note_text)
+          VALUES (?, ?, 'system', ?)
+        `,
+        [orderId, authUser.id, customerNotice],
+      );
+
+      const supportThreadId = await getOrCreateSupportThread({
+        userId: Number(order.user_id),
+        orderId,
+      });
+
+      await addSupportMessage({
+        threadId: supportThreadId,
+        senderId: authUser.id,
+        senderType: "admin",
+        message:
+          action === "approve"
+            ? "Pago por transferencia aprobado por ADMIN_GENERAL."
+            : `Pago por transferencia rechazado por ADMIN_GENERAL. Motivo: ${reason}`,
+        messageType: "text",
+      });
+
+      if (action === "approve") {
+        await createNotificationForBusiness(
+          Number(order.business_id),
+          {
+            type: "pago",
+            title: `Pago validado #${orderId}`,
+            message:
+              "El pago por transferencia fue validado. El negocio ya puede aceptarlo.",
+            relatedId: orderId,
+            dataJson: {
+              order_id: orderId,
+              status: nextStatus,
+              payment_method: "transferencia",
+            },
+          },
+          connection,
+        );
+      }
+
+      await connection.commit();
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
     }
 
     return NextResponse.json({
@@ -217,6 +251,9 @@ export async function PATCH(
     });
   } catch (error) {
     console.error("Error PATCH /api/admin/orders/[id]/payment:", error);
+    if (error instanceof OrderStatusTransitionError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     return NextResponse.json(
       {
         error: "No se pudo validar el pago.",

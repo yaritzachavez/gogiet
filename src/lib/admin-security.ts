@@ -1,7 +1,5 @@
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
-import type { NextRequest } from "next/server";
-
 import pool from "@/lib/db";
 
 export type JwtPayload = {
@@ -16,11 +14,18 @@ export type SessionRow = RowDataPacket & {
   status: string | null;
 };
 
-export function getAuthUser(req: NextRequest) {
+type AuthRequestLike = {
+  headers: Pick<Headers, "get">;
+  cookies?: {
+    get: (name: string) => { value: string } | undefined;
+  };
+};
+
+export function getAuthUser(req: AuthRequestLike) {
   const auth = req.headers.get("authorization");
   const token = auth?.startsWith("Bearer ")
     ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
+    : req.cookies?.get("authToken")?.value;
   const secret = process.env.JWT_SECRET || "gogi-dev-secret";
 
   if (!token) {

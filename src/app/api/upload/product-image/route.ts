@@ -1,34 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import {
+  uploadImageToCloudinary,
+  validateImageFile,
+} from "@/lib/server-image-upload";
 
 export const runtime = "nodejs";
-
-function fileToDataUri(file: File, buffer: Buffer) {
-  const mimeType = file.type || "application/octet-stream";
-  return `data:${mimeType};base64,${buffer.toString("base64")}`;
-}
-
-async function uploadProductImage(file: File) {
-  const bytes = await file.arrayBuffer();
-  const buffer = Buffer.from(bytes);
-  const dataUri = fileToDataUri(file, buffer);
-
-  return cloudinary.uploader.upload(dataUri, {
-    folder: "gogi-eats/products",
-    resource_type: "image",
-    transformation: [
-      {
-        width: 1200,
-        height: 1200,
-        crop: "limit",
-        quality: "auto:good",
-        fetch_format: "auto",
-      },
-    ],
-  });
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,24 +46,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!file.type.startsWith("image/")) {
+    const fileError = validateImageFile(file);
+
+    if (fileError) {
       return NextResponse.json(
-        { success: false, error: "El archivo debe ser una imagen válida" },
+        { success: false, error: fileError },
         { status: 400 },
       );
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json(
-        { success: false, error: "La imagen no debe superar 5 MB" },
-        { status: 400 },
-      );
-    }
-
-    const result = await uploadProductImage(file);
+    const result = await uploadImageToCloudinary(file, {
+      kind: "product",
+    });
 
     return NextResponse.json({
       success: true,
+      imageUrl: result.secure_url,
+      publicId: result.public_id,
       url: result.secure_url,
     });
   } catch (error) {
