@@ -36,7 +36,7 @@ CREATE TABLE branches (
   business_id INT NOT NULL,
   branch_details_id INT NOT NULL,
   branch_name VARCHAR(150) NOT NULL,
-  FOREIGN KEY (business_id) REFERENCES businesses(id),
+  FOREIGN KEY (business_id) REFERENCES business(id),
   FOREIGN KEY (branch_details_id) REFERENCES branch_details(id_bd)
 );
 

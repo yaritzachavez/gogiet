@@ -1,62 +1,16 @@
-import jwt from "jsonwebtoken";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
+import { requireAdminGeneral } from "@/lib/permissions";
 import { mapDbRolesToPublicRoles, normalizeRoleInputs } from "@/lib/role-utils";
-
-type JwtPayload = {
-  id: number;
-};
-
-function getAuthUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, secret) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
-async function isAdminGeneral(userId: number) {
-  const [rows] = await pool.query(
-    `
-      SELECT 1
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ? AND r.name = 'admin_general'
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  return Array.isArray(rows) && rows.length > 0;
-}
 
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
-  const authUser = getAuthUser(req);
-
-  if (!authUser) {
-    return NextResponse.json(
-      { error: "Token inválido o faltante" },
-      { status: 401 },
-    );
-  }
-
-  const hasAccess = await isAdminGeneral(authUser.id);
-
-  if (!hasAccess) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-  }
+  const auth = await requireAdminGeneral(req);
+  if (!auth.ok) return auth.response;
 
   const { id } = await context.params;
   const userId = Number(id);
@@ -75,7 +29,7 @@ export async function PATCH(
     );
   }
 
-  if (userId === authUser.id) {
+  if (userId === auth.access.userId) {
     return NextResponse.json(
       { error: "No puedes modificar tus propios roles desde este panel" },
       { status: 403 },
@@ -89,10 +43,20 @@ export async function PATCH(
 
     const [userRows] = await connection.query(
       `
-        SELECT id
+        SELECT
+          u.id,
+          JSON_ARRAYAGG(
+            CASE
+              WHEN r.id IS NULL THEN NULL
+              ELSE r.name
+            END
+          ) AS roles
         FROM users
-        WHERE id = ?
-        LIMIT 1
+        u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        LEFT JOIN roles r ON r.id = ur.role_id
+        WHERE u.id = ?
+        GROUP BY u.id
       `,
       [userId],
     );
@@ -137,6 +101,23 @@ export async function PATCH(
         [userId, Number(row.id)],
       );
     }
+
+    await recordAuditLog(
+      {
+        userId: auth.access.userId,
+        action: "ASSIGN_ROLES",
+        resourceType: "user",
+        resourceId: userId,
+        oldValue:
+          Array.isArray(userRows) && userRows[0] && "roles" in userRows[0]
+            ? userRows[0].roles
+            : null,
+        newValue: requestedRoles,
+        ip: req.headers.get("x-forwarded-for"),
+        userAgent: req.headers.get("user-agent"),
+      },
+      connection,
+    );
 
     await connection.commit();
 

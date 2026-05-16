@@ -111,7 +111,7 @@ function resolvePrismaDatabaseUrl() {
   const encodedPassword = encodeURIComponent(password);
   const encodedDatabase = encodeURIComponent(database);
   const hostWithPort = port ? `${host}:${port}` : host;
-  const query = needsSsl ? "?sslaccept=strict" : "";
+  const query = needsSsl ? "?sslaccept=accept_invalid_certs" : "";
 
   const url = `mysql://${encodedUser}:${encodedPassword}@${hostWithPort}/${encodedDatabase}${query}`;
   process.env.DATABASE_URL = needsSsl ? applyMysqlSslParams(url) : url;

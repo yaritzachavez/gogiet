@@ -172,7 +172,7 @@ export async function PATCH(
           endpoint: "/api/delivery/orders/[orderId]/status",
           driver_action: "picked_up",
         },
-      );
+      });
     } else {
       const deliveryStatusId = await ensureDeliveryStatus(
         "en_camino",
@@ -230,7 +230,7 @@ export async function PATCH(
           endpoint: "/api/delivery/orders/[orderId]/status",
           driver_action: "on_the_way",
         },
-      );
+      });
     }
 
     await connection.commit();

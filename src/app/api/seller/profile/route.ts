@@ -184,7 +184,7 @@ async function getSellerContext(userId: number) {
         b.phone AS business_phone
       FROM business_managers bm
       INNER JOIN users u ON u.id = bm.user_id
-      INNER JOIN businesses b ON b.id = bm.business_id
+      INNER JOIN business b ON b.id = bm.business_id
       LEFT JOIN status_catalog sc ON sc.id = u.status_id
       WHERE bm.user_id = ?
       ORDER BY bm.assigned_at DESC
@@ -219,7 +219,7 @@ async function getSellerContext(userId: number) {
         b.phone AS business_phone,
         bo.assigned_at
       FROM business_owners bo
-      INNER JOIN businesses b ON b.id = bo.business_id
+      INNER JOIN business b ON b.id = bo.business_id
       WHERE bo.user_id = ?
       ORDER BY bo.assigned_at DESC
       LIMIT 1

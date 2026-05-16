@@ -122,7 +122,7 @@ async function tryRepairBusinessOwnerRelation(params: {
       SELECT COLUMN_NAME AS column_name
       FROM INFORMATION_SCHEMA.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'businesses'
+        AND TABLE_NAME = 'business'
         AND COLUMN_NAME IN ('owner_id', 'owner_user_id', 'email')
     `,
   );
@@ -137,7 +137,7 @@ async function tryRepairBusinessOwnerRelation(params: {
     const [ownerIdCandidates] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'owner_id_repair' AS source
-        FROM businesses b
+        FROM business b
         WHERE b.owner_id = ?
         ORDER BY b.updated_at DESC, b.id DESC
       `,
@@ -153,7 +153,7 @@ async function tryRepairBusinessOwnerRelation(params: {
     const [ownerUserIdCandidates] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'owner_user_id_repair' AS source
-        FROM businesses b
+        FROM business b
         WHERE b.owner_user_id = ?
         ORDER BY b.updated_at DESC, b.id DESC
       `,
@@ -171,7 +171,7 @@ async function tryRepairBusinessOwnerRelation(params: {
     const [emailCandidates] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'email_repair' AS source
-        FROM businesses b
+        FROM business b
         WHERE LOWER(TRIM(COALESCE(b.email, ''))) = LOWER(TRIM(?))
         ORDER BY b.updated_at DESC, b.id DESC
       `,
@@ -312,7 +312,7 @@ export async function GET(req: NextRequest) {
     debug.ownerBusinessesQuery = `
         SELECT b.id, b.name, b.city, 'owner' AS source
         FROM business_owners bo
-        INNER JOIN businesses b ON b.id = bo.business_id
+        INNER JOIN business b ON b.id = bo.business_id
         WHERE bo.user_id = ?
         ORDER BY b.name ASC
       `.trim();
@@ -384,7 +384,7 @@ export async function GET(req: NextRequest) {
       `
         SELECT b.id, b.name, b.city, 'manager' AS source
         FROM business_managers bm
-        INNER JOIN businesses b ON b.id = bm.business_id
+        INNER JOIN business b ON b.id = bm.business_id
         WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
         ORDER BY b.name ASC
       `,
@@ -408,7 +408,7 @@ export async function GET(req: NextRequest) {
       const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
         `
           SELECT b.id, b.name, b.city, 'admin_general' AS source
-          FROM businesses b
+          FROM business b
           WHERE COALESCE(b.status_id, 1) = 1
           ORDER BY b.name ASC
         `,
@@ -465,7 +465,7 @@ export async function GET(req: NextRequest) {
 
     debug.businessQuery = `
         SELECT *
-        FROM businesses
+        FROM business
         WHERE id = ?
       `.trim();
     const [rawBusinessRows] = await pool.query<RowDataPacket[]>(
@@ -500,7 +500,7 @@ export async function GET(req: NextRequest) {
           b.status_id,
           b.is_open AS is_open_now,
           bo.user_id AS owner_id
-        FROM businesses b
+        FROM business b
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         LEFT JOIN business_owners bo ON bo.business_id = b.id

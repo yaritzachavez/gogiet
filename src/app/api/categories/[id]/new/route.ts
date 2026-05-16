@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
     // 4. Verificar que el negocio exista
     const [business] = await pool.query(
-      "SELECT id FROM businesses WHERE id = ?",
+      "SELECT id FROM business WHERE id = ?",
       [business_id]
     );
 

@@ -261,12 +261,12 @@ export default function AddressRequiredDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-3xl border-slate-200 bg-white p-0 shadow-xl">
-        <DialogHeader className="border-b border-slate-100 px-6 py-5">
-          <DialogTitle className="text-slate-950">
+      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-3xl border border-orange-500/20 bg-[linear-gradient(180deg,rgba(14,14,14,0.98)_0%,rgba(24,16,10,0.98)_100%)] p-0 text-white shadow-[0_30px_80px_rgba(0,0,0,0.65)]">
+        <DialogHeader className="border-b border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.18),transparent_55%)] px-6 py-5">
+          <DialogTitle className="text-[#f5f5f5]">
             Agrega tu dirección de entrega
           </DialogTitle>
-          <DialogDescription className="text-slate-500">
+          <DialogDescription className="text-[#b3b3b3]">
             Necesitamos tu dirección guardada para calcular el envío antes de
             agregar productos al carrito.
           </DialogDescription>
@@ -274,7 +274,7 @@ export default function AddressRequiredDialog({
 
         <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
           <div className="grid flex-1 gap-4 overflow-y-auto px-6 py-5 md:grid-cols-2">
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Tipo de lugar</span>
               <select
                 value={placeType}
@@ -282,8 +282,10 @@ export default function AddressRequiredDialog({
                   setPlaceType(event.target.value);
                   setFieldErrors((prev) => ({ ...prev, placeType: "" }));
                 }}
-                className={`w-full rounded-2xl border px-4 py-3 outline-none focus:border-slate-400 ${
-                  fieldErrors.placeType ? "border-red-300" : "border-slate-200"
+                className={`w-full rounded-2xl border bg-black/70 px-4 py-3 text-white outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 ${
+                  fieldErrors.placeType
+                    ? "border-red-400"
+                    : "border-white/10 shadow-[0_10px_30px_rgba(255,107,0,0.08)]"
                 }`}
               >
                 <option value="">Selecciona una opción</option>
@@ -298,17 +300,17 @@ export default function AddressRequiredDialog({
               ) : null}
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Nombre del lugar</span>
               <input
                 value={placeName}
                 onChange={(event) => setPlaceName(event.target.value)}
                 placeholder="Ej. Cabaña Río de la Montaña"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
+                className="w-full rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
               />
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Calle</span>
               <input
                 value={street}
@@ -317,8 +319,8 @@ export default function AddressRequiredDialog({
                   setFieldErrors((prev) => ({ ...prev, street: "" }));
                 }}
                 placeholder="Calle o camino principal"
-                className={`w-full rounded-2xl border px-4 py-3 outline-none focus:border-slate-400 ${
-                  fieldErrors.street ? "border-red-300" : "border-slate-200"
+                className={`w-full rounded-2xl border bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 ${
+                  fieldErrors.street ? "border-red-400" : "border-white/10"
                 }`}
               />
               {fieldErrors.street ? (
@@ -326,7 +328,7 @@ export default function AddressRequiredDialog({
               ) : null}
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Número exterior</span>
               <input
                 value={externalNumber}
@@ -336,10 +338,10 @@ export default function AddressRequiredDialog({
                 }}
                 placeholder="Ej. 14"
                 disabled={withoutExternalNumber}
-                className={`w-full rounded-2xl border px-4 py-3 outline-none focus:border-slate-400 disabled:bg-slate-100 ${
+                className={`w-full rounded-2xl border bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 disabled:bg-white/5 disabled:text-[#6f6f6f] ${
                   fieldErrors.externalNumber
-                    ? "border-red-300"
-                    : "border-slate-200"
+                    ? "border-red-400"
+                    : "border-white/10"
                 }`}
               />
               {fieldErrors.externalNumber ? (
@@ -349,17 +351,17 @@ export default function AddressRequiredDialog({
               ) : null}
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Número interior</span>
               <input
                 value={internalNumber}
                 onChange={(event) => setInternalNumber(event.target.value)}
                 placeholder="Opcional"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
+                className="w-full rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
               />
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Colonia, ranchería o zona</span>
               <select
                 value={neighborhood}
@@ -372,10 +374,10 @@ export default function AddressRequiredDialog({
                   }));
                 }}
                 disabled={loadingZones}
-                className={`w-full rounded-2xl border px-4 py-3 outline-none focus:border-slate-400 disabled:bg-slate-100 ${
+                className={`w-full rounded-2xl border bg-black/70 px-4 py-3 text-white outline-none transition focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 disabled:bg-white/5 disabled:text-[#6f6f6f] ${
                   fieldErrors.neighborhood
-                    ? "border-red-300"
-                    : "border-slate-200"
+                    ? "border-red-400"
+                    : "border-white/10"
                 }`}
               >
                 <option value="">
@@ -395,7 +397,7 @@ export default function AddressRequiredDialog({
                 </p>
               ) : null}
               {!fieldErrors.neighborhood && neighborhood ? (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-[#b3b3b3]">
                   {(() => {
                     const selectedZone = zones.find(
                       (zone) => zone.nombre === neighborhood,
@@ -409,7 +411,7 @@ export default function AddressRequiredDialog({
               ) : null}
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700 md:col-span-2">
+            <label className="space-y-2 text-sm text-[#f5f5f5] md:col-span-2">
               <span className="font-semibold">Referencias</span>
               <textarea
                 value={references}
@@ -418,8 +420,8 @@ export default function AddressRequiredDialog({
                   setFieldErrors((prev) => ({ ...prev, references: "" }));
                 }}
                 placeholder="Ej. portón negro, junto a la iglesia, frente a la tienda"
-                className={`min-h-24 w-full rounded-2xl border px-4 py-3 outline-none focus:border-slate-400 ${
-                  fieldErrors.references ? "border-red-300" : "border-slate-200"
+                className={`min-h-24 w-full rounded-2xl border bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 ${
+                  fieldErrors.references ? "border-red-400" : "border-white/10"
                 }`}
               />
               {fieldErrors.references ? (
@@ -427,7 +429,7 @@ export default function AddressRequiredDialog({
               ) : null}
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700">
+            <label className="space-y-2 text-sm text-[#f5f5f5]">
               <span className="font-semibold">Teléfono de contacto</span>
               <input
                 value={phone}
@@ -436,8 +438,8 @@ export default function AddressRequiredDialog({
                   setFieldErrors((prev) => ({ ...prev, phone: "" }));
                 }}
                 placeholder="Ej. 3312345678"
-                className={`w-full rounded-2xl border px-4 py-3 outline-none focus:border-slate-400 ${
-                  fieldErrors.phone ? "border-red-300" : "border-slate-200"
+                className={`w-full rounded-2xl border bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20 ${
+                  fieldErrors.phone ? "border-red-400" : "border-white/10"
                 }`}
               />
               {fieldErrors.phone ? (
@@ -445,7 +447,7 @@ export default function AddressRequiredDialog({
               ) : null}
             </label>
 
-            <label className="flex items-center gap-3 rounded-2xl border border-slate-200 px-4 py-3 text-sm text-slate-700">
+            <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(255,107,0,0.14),rgba(255,107,0,0.04))] px-4 py-3 text-sm text-[#f5f5f5] shadow-[0_10px_25px_rgba(255,107,0,0.08)]">
               <input
                 type="checkbox"
                 checked={withoutExternalNumber}
@@ -453,12 +455,12 @@ export default function AddressRequiredDialog({
                   setWithoutExternalNumber(event.target.checked);
                   setFieldErrors((prev) => ({ ...prev, externalNumber: "" }));
                 }}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-4 w-4 rounded border-white/20 bg-black"
               />
               Cabaña o lugar sin número exterior
             </label>
 
-            <label className="space-y-2 text-sm text-slate-700 md:col-span-2">
+            <label className="space-y-2 text-sm text-[#f5f5f5] md:col-span-2">
               <span className="font-semibold">
                 Indicaciones adicionales para el repartidor
               </span>
@@ -468,7 +470,7 @@ export default function AddressRequiredDialog({
                   setDeliveryInstructions(event.target.value)
                 }
                 placeholder="Ej. tocar el timbre 2, llamar al llegar, subir por el sendero"
-                className="min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
+                className="min-h-24 w-full rounded-2xl border border-white/10 bg-black/70 px-4 py-3 text-white outline-none transition placeholder:text-[#8f8f8f] focus:border-orange-400 focus:ring-2 focus:ring-orange-500/20"
               />
             </label>
 
@@ -479,18 +481,18 @@ export default function AddressRequiredDialog({
             ) : null}
           </div>
 
-          <DialogFooter className="sticky bottom-0 border-t border-slate-100 bg-white px-6 pb-4 pt-5 sm:justify-end">
+          <DialogFooter className="sticky bottom-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(10,10,10,0.96)_0%,rgba(27,16,7,0.98)_100%)] px-6 pb-4 pt-5 sm:justify-end">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/60 px-5 text-sm font-semibold text-white transition hover:border-orange-400/40 hover:bg-white/5"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex h-11 items-center justify-center rounded-2xl bg-orange-500 px-5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:opacity-60"
+              className="inline-flex h-11 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#ff6b00,#ff8a1f)] px-5 text-sm font-semibold text-white shadow-[0_16px_40px_rgba(255,107,0,0.28)] transition hover:brightness-110 disabled:opacity-60"
             >
               {saving ? "Guardando..." : "Guardar dirección"}
             </button>

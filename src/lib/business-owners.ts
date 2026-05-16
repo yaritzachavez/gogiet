@@ -29,7 +29,7 @@ export async function assignBusinessOwnerSafely(
   const [businessRows] = await executor.query<RowDataPacket[]>(
     `
       SELECT id
-      FROM businesses
+      FROM business
       WHERE id = ?
       LIMIT 1
     `,

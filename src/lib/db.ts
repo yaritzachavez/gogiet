@@ -122,7 +122,7 @@ const maskedDatabaseUrl = getMaskedDatabaseUrl(process.env.DATABASE_URL);
 const sslConfig = caCertificate
   ? {
       ca: caCertificate.replace(/\\n/g, "\n"),
-      rejectUnauthorized: true,
+      rejectUnauthorized: false,
     }
   : dbConfig.useSsl
     ? {

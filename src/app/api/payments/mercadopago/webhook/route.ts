@@ -8,7 +8,12 @@ import {
   ensurePaymentsTable,
   upsertPaymentRecord,
 } from "@/lib/order-payments";
-import { ensureCanonicalOrderStatus, ensureCoreOrderStatuses } from "@/lib/order-status-server";
+import {
+  applyValidatedOrderStatusTransition,
+  OrderStatusTransitionError,
+  validateOrderStatusTransition,
+} from "@/lib/order-status-guard";
+import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
 import {
   createNotificationForBusiness,
   createNotificationsForAdminGeneral,
@@ -110,17 +115,43 @@ export async function POST(req: NextRequest) {
     }
 
     if (nextStatus) {
-      const { statusId } = await ensureCanonicalOrderStatus(nextStatus, conn);
+      const { currentStatus } = validateOrderStatusTransition({
+        currentStatus: order.current_status,
+        nextStatus,
+        role: "system",
+        order: {
+          id: orderId,
+          businessId: Number(order.business_id),
+          customerUserId: 0,
+          driverUserId: null,
+          paymentMethod: "mercadopago",
+          currentStatus: String(order.current_status ?? ""),
+        },
+        actorUserId: 0,
+        reason: `webhook:${paymentStatus}`,
+      });
+
+      await applyValidatedOrderStatusTransition(conn, {
+        orderId,
+        nextStatus,
+        actorUserId: 0,
+        actorRole: "system",
+        currentStatus,
+        reason: `Mercado Pago webhook: ${paymentStatus}`,
+        metadata: {
+          endpoint: "/api/payments/mercadopago/webhook",
+          payment_id: paymentId,
+        },
+      });
 
       await conn.query(
         `
           UPDATE orders
           SET
-            order_status_id = ?,
             payment_provider = 'MERCADOPAGO',
             provider_payment_id = ?,
             payment_status = ?,
-            paid_at = CASE WHEN ? = 'approved' THEN NOW() ELSE paid_at END,
+            paid_at = CASE WHEN ? = 'approved' THEN COALESCE(paid_at, NOW()) ELSE paid_at END,
             amount_paid = CASE
               WHEN ? = 'approved' THEN ?
               ELSE amount_paid
@@ -129,7 +160,6 @@ export async function POST(req: NextRequest) {
           WHERE id = ?
         `,
         [
-          statusId,
           paymentId,
           paymentStatus,
           paymentStatus,
@@ -186,6 +216,12 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     await conn.rollback();
     console.error("Error POST /api/payments/mercadopago/webhook:", error);
+    if (error instanceof OrderStatusTransitionError) {
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: error.statusCode },
+      );
+    }
     return NextResponse.json(
       { success: false, error: "No pudimos procesar la notificación de pago." },
       { status: 500 },

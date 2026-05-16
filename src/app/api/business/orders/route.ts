@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
           du.phone AS delivery_phone,
           dsc.is_final AS delivery_status_is_final
         FROM orders o
-        INNER JOIN businesses b ON b.id = o.business_id
+        INNER JOIN business b ON b.id = o.business_id
         LEFT JOIN users u ON u.id = o.user_id
         LEFT JOIN addresses a ON a.id = o.address_id
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id

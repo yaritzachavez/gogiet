@@ -43,7 +43,7 @@ export async function GET(
           COALESCE(p.image_url, p.thumbnail_url) AS image_url,
           p.thumbnail_url
         FROM products p
-        LEFT JOIN businesses b ON b.id = p.business_id
+        LEFT JOIN business b ON b.id = p.business_id
         WHERE p.id = ?
         LIMIT 1
       `,

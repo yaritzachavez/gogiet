@@ -51,7 +51,7 @@ export async function PATCH(
 
     await pool.query<ResultSetHeader>(
       `
-        UPDATE businesses
+        UPDATE business
         SET status_id = ?, is_open = ?, updated_at = NOW()
         WHERE id = ?
       `,
@@ -61,7 +61,7 @@ export async function PATCH(
     const [rows] = await pool.query<BusinessStatusRow[]>(
       `
         SELECT id, status_id, is_open
-        FROM businesses
+        FROM business
         WHERE id = ?
         LIMIT 1
       `,

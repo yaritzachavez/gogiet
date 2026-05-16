@@ -8,7 +8,12 @@ import {
 
 type Queryable = Pool | PoolConnection;
 
-export type OrderActorRole = "client" | "business" | "driver" | "admin";
+export type OrderActorRole =
+  | "client"
+  | "business"
+  | "driver"
+  | "admin"
+  | "system";
 
 export type GuardedOrderRow = {
   id: number;
@@ -299,6 +304,40 @@ export function validateOrderStatusTransition(params: {
       nextStatus,
       changedByRole: role,
     };
+  }
+
+  if (role === "system") {
+    if (nextStatus === "paid") {
+      if (
+        currentStatus !== "pending_payment" &&
+        currentStatus !== "payment_review" &&
+        currentStatus !== "pending"
+      ) {
+        throw new OrderStatusTransitionError(
+          "Solo se pueden confirmar pagos pendientes automáticamente.",
+          409,
+        );
+      }
+
+      return {
+        currentStatus,
+        nextStatus,
+        changedByRole: role,
+      };
+    }
+
+    if (nextStatus === "pending_payment" || nextStatus === "payment_failed") {
+      return {
+        currentStatus,
+        nextStatus,
+        changedByRole: role,
+      };
+    }
+
+    throw new OrderStatusTransitionError(
+      "El sistema no puede forzar esa transición del pedido.",
+      403,
+    );
   }
 
   throw new OrderStatusTransitionError(

@@ -46,7 +46,7 @@ export async function GET() {
           MIN(pc.name) AS category_name,
           p.created_at
         FROM products p
-        INNER JOIN businesses b ON b.id = p.business_id
+        INNER JOIN business b ON b.id = p.business_id
         LEFT JOIN status_catalog psc ON psc.id = p.status_id
         LEFT JOIN status_catalog bsc ON bsc.id = b.status_id
         LEFT JOIN product_category_map pcm ON pcm.product_id = p.id

@@ -105,3 +105,21 @@ SET @sql = IF(
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  
+  email VARCHAR(255) NOT NULL,
+  
+  code VARCHAR(10) NOT NULL,
+  
+  verified BOOLEAN NOT NULL DEFAULT FALSE,
+  
+  expires_at DATETIME NOT NULL,
+  
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  INDEX idx_email (email),
+  INDEX idx_code (code)
+);

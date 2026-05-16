@@ -54,7 +54,7 @@ export async function GET() {
           osc.name AS status_name,
           COALESCE(o.delivered_at, o.confirmed_at, o.placed_at, o.created_at) AS created_at
         FROM orders o
-        INNER JOIN businesses b ON b.id = o.business_id
+        INNER JOIN business b ON b.id = o.business_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         ORDER BY COALESCE(o.delivered_at, o.confirmed_at, o.placed_at, o.created_at) DESC
         LIMIT 6
@@ -69,7 +69,7 @@ export async function GET() {
           p.name AS product_name,
           p.created_at
         FROM products p
-        INNER JOIN businesses b ON b.id = p.business_id
+        INNER JOIN business b ON b.id = p.business_id
         LEFT JOIN status_catalog psc ON psc.id = p.status_id
         WHERE p.status_id = 1
           OR LOWER(COALESCE(psc.name, '')) IN ('active', 'activo')

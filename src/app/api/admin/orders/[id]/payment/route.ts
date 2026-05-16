@@ -1,7 +1,7 @@
-import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import { createNotificationForBusiness } from "@/lib/notifications";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
@@ -10,42 +10,8 @@ import {
   OrderStatusTransitionError,
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
+import { requirePermission } from "@/lib/permissions";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
-
-type JwtPayload = {
-  id: number;
-};
-
-function getAuthUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, secret) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
-async function isAdminGeneral(userId: number) {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `
-      SELECT 1
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ? AND r.name = 'admin_general'
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  return rows.length > 0;
-}
 
 function normalizeCatalogName(value: unknown, fallback: string) {
   const normalized = String(value ?? "")
@@ -60,18 +26,13 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
-    if (!(await isAdminGeneral(authUser.id))) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const access = await requirePermission(
+      req,
+      "VALIDATE_PAYMENT",
+      undefined,
+      "No tienes permiso para validar pagos.",
+    );
+    if (!access.ok) return access.response;
 
     const { id } = await context.params;
     const orderId = Number(id);
@@ -155,14 +116,14 @@ export async function PATCH(
           paymentMethod: String(order.payment_method ?? ""),
           currentStatus: String(order.status_name ?? ""),
         },
-        actorUserId: authUser.id,
+        actorUserId: access.access.userId,
         reason,
       });
 
       await applyValidatedOrderStatusTransition(connection, {
         orderId,
         nextStatus,
-        actorUserId: authUser.id,
+        actorUserId: access.access.userId,
         actorRole: "admin",
         currentStatus,
         reason,
@@ -187,7 +148,7 @@ export async function PATCH(
           INSERT INTO admin_messages (order_id, user_id, type, message, file_url)
           VALUES (?, ?, 'payment_validation', ?, NULL)
         `,
-        [orderId, authUser.id, adminMessage],
+        [orderId, access.access.userId, adminMessage],
       );
 
       await connection.query(
@@ -195,7 +156,7 @@ export async function PATCH(
           INSERT INTO order_notes (order_id, user_id, note_type, note_text)
           VALUES (?, ?, 'system', ?)
         `,
-        [orderId, authUser.id, customerNotice],
+        [orderId, access.access.userId, customerNotice],
       );
 
       const supportThreadId = await getOrCreateSupportThread({
@@ -205,7 +166,7 @@ export async function PATCH(
 
       await addSupportMessage({
         threadId: supportThreadId,
-        senderId: authUser.id,
+        senderId: access.access.userId,
         senderType: "admin",
         message:
           action === "approve"
@@ -213,6 +174,26 @@ export async function PATCH(
             : `Pago por transferencia rechazado por ADMIN_GENERAL. Motivo: ${reason}`,
         messageType: "text",
       });
+
+      await recordAuditLog(
+        {
+          userId: access.access.userId,
+          action: action === "approve" ? "VALIDATE_PAYMENT" : "REJECT_PAYMENT",
+          resourceType: "order",
+          resourceId: orderId,
+          oldValue: {
+            status: order.status_name,
+            payment_method: order.payment_method,
+          },
+          newValue: {
+            status: nextStatus,
+            reason,
+          },
+          ip: req.headers.get("x-forwarded-for"),
+          userAgent: req.headers.get("user-agent"),
+        },
+        connection,
+      );
 
       if (action === "approve") {
         await createNotificationForBusiness(

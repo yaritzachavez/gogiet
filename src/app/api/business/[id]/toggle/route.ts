@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const [rows]: any = await pool.query(
-      "SELECT is_open FROM businesses WHERE id = ? LIMIT 1",
+      "SELECT is_open FROM business WHERE id = ? LIMIT 1",
       [businessId],
     );
 
@@ -58,7 +58,7 @@ export async function PUT(
     }
 
     const [rows]: any = await pool.query(
-      "SELECT is_open FROM businesses WHERE id = ? LIMIT 1",
+      "SELECT is_open FROM business WHERE id = ? LIMIT 1",
       [businessId],
     );
 
@@ -73,7 +73,7 @@ export async function PUT(
     const newStatus = currentStatus === 1 ? 0 : 1;
 
     await pool.query(
-      "UPDATE businesses SET is_open = ?, updated_at = NOW() WHERE id = ?",
+      "UPDATE business SET is_open = ?, updated_at = NOW() WHERE id = ?",
       [newStatus, businessId],
     );
 

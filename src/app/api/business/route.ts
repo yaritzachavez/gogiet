@@ -51,7 +51,7 @@ export async function GET(req: Request) {
         b.created_at,
         b.updated_at,
         bo.user_id AS owner_id
-      FROM businesses b
+      FROM business b
       LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
       LEFT JOIN business_categories bc ON bc.id = bcm.category_id
       LEFT JOIN business_owners bo ON bo.business_id = b.id
@@ -117,7 +117,7 @@ export async function POST(req: Request) {
 
     const [businessResult]: any = await connection.query(
       `
-        INSERT INTO businesses (
+        INSERT INTO business (
           name,
           legal_name,
           tax_id,
@@ -176,7 +176,7 @@ export async function POST(req: Request) {
           b.*,
           bcm.category_id AS business_category_id,
           bc.name AS category_name
-        FROM businesses b
+        FROM business b
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id
         WHERE b.id = ?

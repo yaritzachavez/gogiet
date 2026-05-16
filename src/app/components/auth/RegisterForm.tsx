@@ -23,11 +23,77 @@ export default function RegisterForm() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+
+  const sendVerificationCode = async () => {
+    try {
+      setErrorMessage("");
+      setSuccessMessage("");
+
+      if (!email.trim()) {
+        setErrorMessage("Ingresa un correo.");
+        return;
+      }
+
+      if (!isValidEmail(email.trim())) {
+        setErrorMessage("Ingresa un correo válido.");
+        return;
+      }
+
+      setSendingCode(true);
+
+      const response = await fetch(
+        getClientApiUrl("/api/auth/send-verification-code"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: email.trim().toLowerCase(),
+          }),
+        },
+      );
+
+      const data = (await response.json().catch(() => null)) as
+        | {
+            success?: boolean;
+            error?: string;
+            message?: string;
+          }
+        | null;
+
+      if (response.ok && data?.success) {
+        setCodeSent(true);
+        setSuccessMessage(
+          data?.message || "Código enviado correctamente.",
+        );
+      } else {
+        setErrorMessage(
+          data?.error ||
+            data?.message ||
+            "No se pudo enviar el código.",
+        );
+      }
+    } catch (err) {
+      console.warn("Error enviando código", err);
+      setErrorMessage(
+        getFriendlyErrorMessage(
+          err,
+          "No se pudo enviar el código. Revisa tu conexión e intenta nuevamente.",
+        ),
+      );
+    } finally {
+      setSendingCode(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,6 +133,11 @@ export default function RegisterForm() {
       return;
     }
 
+    if (!verificationCode.trim()) {
+      setErrorMessage("Debes ingresar el código de verificación.");
+      return;
+    }
+
     try {
       setSubmitting(true);
       const response = await fetch(getClientApiUrl("/api/auth/register"), {
@@ -82,6 +153,7 @@ export default function RegisterForm() {
           phone: normalizePhone(phoneNumber),
           password,
           confirmPassword,
+          verificationCode: verificationCode.trim(),
         }),
       });
 
@@ -197,6 +269,42 @@ export default function RegisterForm() {
             className="text-[#f5f5f5] placeholder:text-[#7f7f7f]"
             required
           />
+        </div>
+
+        {/* Verification Code */}
+        <div className="space-y-3">
+          <Button
+            type="button"
+            onClick={sendVerificationCode}
+            disabled={sendingCode || !email.trim()}
+            className="w-full py-3 text-white"
+          >
+            {sendingCode
+              ? "Enviando código..."
+              : codeSent
+                ? "Reenviar código"
+                : "Enviar código"}
+          </Button>
+
+          {codeSent && (
+            <div className="space-y-2">
+              <Label
+                htmlFor="verificationCode"
+                className="text-sm text-[#f5f5f5]"
+              >
+                Código de verificación
+              </Label>
+              <Input
+                id="verificationCode"
+                type="text"
+                placeholder="123456"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                className="text-center tracking-[0.5em] text-[#f5f5f5] placeholder:text-[#7f7f7f]"
+                required
+              />
+            </div>
+          )}
         </div>
 
         {/* Phone */}

@@ -77,7 +77,7 @@ export async function PATCH(
           COALESCE(o.payment_method, pm.name) AS payment_method,
           COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id
         FROM orders o
-        INNER JOIN businesses b ON b.id = o.business_id
+        INNER JOIN business b ON b.id = o.business_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
         LEFT JOIN delivery d ON d.order_id = o.id

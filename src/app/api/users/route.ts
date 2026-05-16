@@ -1,60 +1,17 @@
-import jwt from "jsonwebtoken";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
-
-type JwtPayload = {
-  id: number;
-  roles?: string[];
-};
-
-function getAuthUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, secret) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
-async function isAdminGeneral(userId: number) {
-  const [rows] = await pool.query(
-    `
-      SELECT 1
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ? AND r.name = 'admin_general'
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  return Array.isArray(rows) && rows.length > 0;
-}
+import { requirePermission } from "@/lib/permissions";
 
 export async function GET(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
-    const allowed = await isAdminGeneral(authUser.id);
-
-    if (!allowed) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const access = await requirePermission(
+      req,
+      "VIEW_ALL_USERS",
+      undefined,
+      "Solo el administrador general puede ver todos los usuarios.",
+    );
+    if (!access.ok) return access.response;
 
     const [rows] = await pool.query(
       `

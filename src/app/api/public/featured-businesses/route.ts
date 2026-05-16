@@ -41,7 +41,7 @@ export async function GET() {
           b.is_open,
           GROUP_CONCAT(DISTINCT bc.name ORDER BY bc.name SEPARATOR ', ') AS categories,
           COUNT(DISTINCT p.id) AS product_count
-        FROM businesses b
+        FROM business b
         LEFT JOIN status_catalog bsc ON bsc.id = b.status_id
         LEFT JOIN business_category_map bcm ON bcm.business_id = b.id
         LEFT JOIN business_categories bc ON bc.id = bcm.category_id

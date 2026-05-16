@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
         FROM training_assignments ta
         INNER JOIN trainings t ON t.id = ta.training_id
         LEFT JOIN training_results tr ON tr.assignment_id = ta.id
-        LEFT JOIN businesses b ON b.id = ta.business_id
+        LEFT JOIN business b ON b.id = ta.business_id
         WHERE ta.user_id = ?
         ORDER BY ta.created_at DESC, ta.id DESC
       `,

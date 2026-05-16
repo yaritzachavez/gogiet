@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
-import { resolveDeliveryAccess } from "@/lib/delivery-access";
+import { requireDriverAccess } from "@/lib/permissions";
 
 type DeliveryOrderRow = RowDataPacket & {
   order_id: number;
@@ -92,39 +92,29 @@ function buildAddress(parts: {
 export async function GET(req: NextRequest) {
   try {
     const authUser = getAuthUser(req);
-
-    if (!authUser?.token) {
-      return NextResponse.json(
-        { success: false, error: "Token faltante", orders: [] },
-        { status: 401 },
-      );
-    }
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido", orders: [] },
-        { status: 401 },
-      );
-    }
-
-    const userId = authUser.user.id;
-    const access = await resolveDeliveryAccess(userId);
-
-    if (!access.allowed) {
+    const access = await requireDriverAccess(
+      req,
+      authUser?.user?.id ?? null,
+      "VIEW_ASSIGNED_DELIVERIES",
+      "No puedes ver pedidos de otro repartidor.",
+    );
+    if (!access.ok) {
       return NextResponse.json(
         {
           success: false,
           error: "No autorizado para acceder al panel de repartidor",
           orders: [],
         },
-        { status: 403 },
+        { status: access.response.status },
       );
     }
 
+    const userId = access.access.userId;
+
     logDbUsage("/api/delivery/orders", {
       userId,
-      email: access.email,
-      role: access.roles,
+      email: access.deliveryAccess.email,
+      role: access.deliveryAccess.roles,
     });
 
     const [ordersRows] = await pool.query<DeliveryOrderRow[]>(
@@ -150,7 +140,7 @@ export async function GET(req: NextRequest) {
           d.estimated_duration_min
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
-        INNER JOIN businesses b ON b.id = o.business_id
+        INNER JOIN business b ON b.id = o.business_id
         INNER JOIN users u ON u.id = o.user_id
         INNER JOIN addresses a ON a.id = o.address_id
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id

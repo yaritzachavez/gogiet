@@ -193,7 +193,7 @@ export async function GET(req: NextRequest) {
     const [businesses] = await pool.query<BusinessRow[]>(
       `
         SELECT id, name
-        FROM businesses
+        FROM business
         ORDER BY name ASC
       `,
     );
@@ -244,7 +244,7 @@ export async function GET(req: NextRequest) {
           ) AS delivery_address
         FROM orders o
         LEFT JOIN users u ON u.id = o.user_id
-        LEFT JOIN businesses b ON b.id = o.business_id
+        LEFT JOIN business b ON b.id = o.business_id
         LEFT JOIN addresses a ON a.id = o.address_id
         LEFT JOIN delivery d ON d.order_id = o.id
         LEFT JOIN users du ON du.id = d.driver_user_id

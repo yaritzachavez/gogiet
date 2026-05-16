@@ -59,7 +59,7 @@ export async function GET() {
         FROM reviews r
         INNER JOIN users u ON u.id = r.user_id
         LEFT JOIN orders o ON o.id = r.order_id
-        LEFT JOIN businesses b ON b.id = COALESCE(o.business_id, r.target_id)
+        LEFT JOIN business b ON b.id = COALESCE(o.business_id, r.target_id)
         WHERE r.is_visible = 1
           AND r.comment_text IS NOT NULL
           AND TRIM(r.comment_text) <> ''

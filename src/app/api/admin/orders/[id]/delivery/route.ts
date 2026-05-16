@@ -1,43 +1,9 @@
-import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
-
-type JwtPayload = {
-  id: number;
-};
-
-function getAuthUser(req: NextRequest) {
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, secret) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
-
-async function isAdminGeneral(userId: number) {
-  const [rows] = await pool.query<RowDataPacket[]>(
-    `
-      SELECT 1
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ? AND r.name = 'admin_general'
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  return rows.length > 0;
-}
+import { requirePermission } from "@/lib/permissions";
 
 async function ensureDeliveryStatus(statusName: string) {
   const normalized = statusName.trim().toLowerCase() || "asignado";
@@ -93,18 +59,13 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
-    if (!(await isAdminGeneral(authUser.id))) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    const access = await requirePermission(
+      req,
+      "REASSIGN_DRIVER",
+      undefined,
+      "Solo el administrador general puede reasignar repartidores.",
+    );
+    if (!access.ok) return access.response;
 
     const { id } = await context.params;
     const orderId = Number(id);
@@ -132,7 +93,7 @@ export async function PATCH(
 
     const [orderRows] = await pool.query<RowDataPacket[]>(
       `
-        SELECT id, delivered_at
+        SELECT id, delivered_at, driver_id
         FROM orders
         WHERE id = ?
         LIMIT 1
@@ -194,6 +155,28 @@ export async function PATCH(
         [orderId, driverUserId, deliveryStatusId],
       );
     }
+
+    await pool.query(
+      `
+        UPDATE orders
+        SET driver_id = ?, updated_at = NOW()
+        WHERE id = ?
+      `,
+      [driverUserId, orderId],
+    );
+
+    await recordAuditLog({
+      userId: access.access.userId,
+      action: "REASSIGN_DRIVER",
+      resourceType: "order",
+      resourceId: orderId,
+      oldValue: {
+        driverUserId: Number(orderRows[0]?.driver_id ?? 0) || null,
+      },
+      newValue: { driverUserId },
+      ip: req.headers.get("x-forwarded-for"),
+      userAgent: req.headers.get("user-agent"),
+    });
 
     return NextResponse.json({
       success: true,

@@ -185,7 +185,7 @@ export function applyMysqlSslParams(databaseUrl: string) {
     return parsedUrl.toString();
   }
 
-  parsedUrl.searchParams.set("sslaccept", "strict");
+  parsedUrl.searchParams.set("sslaccept", "accept_invalid_certs");
   parsedUrl.searchParams.set("sslcert", certificatePath);
 
   return parsedUrl.toString();

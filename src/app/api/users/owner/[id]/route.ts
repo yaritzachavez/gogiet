@@ -30,7 +30,7 @@ export async function GET(
         b.address,
         b.status_id
       FROM business_owners bo
-      INNER JOIN businesses b ON b.id = bo.business_id
+      INNER JOIN business b ON b.id = bo.business_id
       WHERE bo.user_id = ?;
       `,
       [userId]

@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
           ${shippingFeeExpression} AS shipping_fee_amount
         FROM orders o
         INNER JOIN delivery d ON d.order_id = o.id
-        INNER JOIN businesses b ON b.id = o.business_id
+        INNER JOIN business b ON b.id = o.business_id
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         WHERE o.id = ?

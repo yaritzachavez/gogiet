@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
           ) AS total
         FROM products_cart pc
         INNER JOIN products p ON p.id = pc.product_id
-        LEFT JOIN businesses b ON b.id = p.business_id
+        LEFT JOIN business b ON b.id = p.business_id
         WHERE pc.cart_id = ?
         ORDER BY pc.added_at DESC, pc.product_id DESC
       `,
