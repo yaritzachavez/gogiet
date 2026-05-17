@@ -1036,7 +1036,7 @@ export default function CarritoPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="section-shell space-y-5 py-5 sm:space-y-6 sm:py-8">
+      <div className="section-shell responsive-stack py-4 sm:py-6 lg:py-8">
         <PageHeader
           eyebrow="Checkout"
           title="Tu pedido está casi listo"
@@ -1062,7 +1062,7 @@ export default function CarritoPage() {
             {transferError}
           </div>
         ) : null}
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)] lg:gap-8">
+        <div className="responsive-dashboard-grid lg:gap-8">
           <section className="space-y-6">
             <h2 className="text-2xl font-black tracking-tight text-[#f5f5f5]">
               Productos seleccionados
@@ -1077,9 +1077,9 @@ export default function CarritoPage() {
             {cartItems.map((item) => (
               <SectionCard
                 key={item.id}
-                className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5"
+                className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:p-5"
               >
-                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                <div className="relative aspect-square w-full max-w-[6rem] shrink-0 overflow-hidden rounded-2xl bg-slate-100 max-sm:max-w-full sm:h-24 sm:w-24">
                   <AppImage
                     src={item.image}
                     alt={item.nombre}
@@ -1091,7 +1091,7 @@ export default function CarritoPage() {
                     fallbackLabel="Producto"
                   />
                 </div>
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <h3 className="text-lg font-black tracking-tight text-[#f5f5f5]">
                     {item.nombre}
                   </h3>
@@ -1244,7 +1244,7 @@ export default function CarritoPage() {
         </div>
       </div>
 
-      <div className="safe-bottom sticky bottom-0 z-30 border-t border-white/10 bg-black/90 px-4 py-3 backdrop-blur-xl lg:hidden">
+      <div className="safe-bottom sticky bottom-0 z-30 border-t border-white/10 bg-black/90 px-3 py-3 backdrop-blur-xl lg:hidden">
         <div className="section-shell flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8f8f8f]">
@@ -1257,7 +1257,7 @@ export default function CarritoPage() {
           <Button
             onClick={handleCheckout}
             size="lg"
-            className="min-w-[12rem]"
+            className="min-w-[10.5rem] shrink-0"
             disabled={!canContinueToPayment}
           >
             {submittingOrder ? "Procesando..." : "Continuar"}
