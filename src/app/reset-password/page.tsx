@@ -7,6 +7,7 @@ import { Suspense, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useNotify } from "@/context/NotificationContext";
 import { validatePasswordStrength } from "@/lib/auth-account-shared";
 import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
@@ -14,74 +15,81 @@ import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = useMemo(() => String(searchParams.get("token") ?? "").trim(), [searchParams]);
+  const token = useMemo(
+    () => String(searchParams.get("token") ?? "").trim(),
+    [searchParams],
+  );
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const notify = useNotify();
 
   const handleSubmit = async () => {
-    setErrorMessage("");
-    setSuccessMessage("");
-
     if (!token) {
-      setErrorMessage("El enlace expiró.");
+      notify.error("El enlace expiró.", "Solicitud inválida");
       return;
     }
 
     const passwordError = validatePasswordStrength(password);
     if (passwordError) {
-      setErrorMessage(passwordError);
+      notify.warning(passwordError, "Revisa tu contraseña");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("Las contraseñas no coinciden.");
+      notify.warning("Las contraseñas no coinciden.", "Confirma tu contraseña");
       return;
     }
 
     try {
       setSubmitting(true);
-      const response = await fetch(getClientApiUrl("/api/auth/reset-password"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        getClientApiUrl("/api/auth/reset-password"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            token,
+            password,
+            confirmPassword,
+          }),
         },
-        body: JSON.stringify({
-          token,
-          password,
-          confirmPassword,
-        }),
-      });
+      );
 
-      const payload = (await response.json().catch(() => null)) as
-        | { success?: boolean; error?: string; message?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      } | null;
 
       if (!response.ok || payload?.success === false) {
-        setErrorMessage(
+        notify.error(
           formatApiError(
             response.status,
             payload,
             "No pudimos actualizar tu contraseña. Intenta nuevamente.",
           ),
+          "No pudimos actualizarla",
         );
         return;
       }
 
-      setSuccessMessage(
+      notify.success(
         payload?.message || "Tu contraseña fue actualizada correctamente.",
+        "Contraseña actualizada",
       );
       window.setTimeout(() => {
         router.push("/auth?mode=login");
       }, 1200);
     } catch (error) {
-      setErrorMessage(
+      notify.error(
         getFriendlyErrorMessage(
           error,
           "No pudimos actualizar tu contraseña. Intenta nuevamente.",
         ),
+        "Conexión no disponible",
       );
     } finally {
       setSubmitting(false);
@@ -99,13 +107,6 @@ function ResetPasswordContent() {
             Elige una contraseña segura para volver a entrar a tu cuenta.
           </p>
 
-          {errorMessage ? (
-            <p className="mb-4 text-center text-sm text-red-600">{errorMessage}</p>
-          ) : null}
-          {successMessage ? (
-            <p className="mb-4 text-center text-sm text-emerald-600">{successMessage}</p>
-          ) : null}
-
           <div className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="password" className="text-sm text-orange-950">
@@ -122,7 +123,10 @@ function ResetPasswordContent() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="confirm-password" className="text-sm text-orange-950">
+              <Label
+                htmlFor="confirm-password"
+                className="text-sm text-orange-950"
+              >
                 Confirmar contraseña
               </Label>
               <Input

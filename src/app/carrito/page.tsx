@@ -20,6 +20,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { useAuth } from "@/context/AuthContext";
+import { useNotify } from "@/context/NotificationContext";
 import {
   CART_UPDATED_EVENT,
   readStoredCartSnapshot,
@@ -175,6 +176,7 @@ const TRANSFER_ACCOUNT = {
 export default function CarritoPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const notify = useNotify();
 
   const mapToSavedAddress = useCallback(
     (address: RawAddressLike): SavedAddress => {
@@ -806,10 +808,11 @@ export default function CarritoPage() {
     });
 
     if (!user || !hasValidItems || !hasValidBusiness) {
-      setTransferError(
+      const message =
         checkoutBlockReason ||
-          "No pudimos continuar con tu pedido. Revisa tu carrito.",
-      );
+        "No pudimos continuar con tu pedido. Revisa tu carrito.";
+      setTransferError(message);
+      notify.warning(message, "Revisa tu pedido");
       return;
     }
 
@@ -819,10 +822,11 @@ export default function CarritoPage() {
     }
 
     if (shipping.requiresConfirmation) {
-      setTransferError(
+      const message =
         shipping.message ||
-          "No pudimos calcular el envío. Revisa tu dirección.",
-      );
+        "No pudimos calcular el envío. Revisa tu dirección.";
+      setTransferError(message);
+      notify.warning(message, "Falta confirmar el envío");
       return;
     }
     setPaymentDialogOpen(true);
@@ -830,15 +834,18 @@ export default function CarritoPage() {
 
   const handleConfirmOrder = async () => {
     if (!canSubmitOrder) {
-      setTransferError(
+      const message =
         checkoutBlockReason ||
-          "Revisa la información del pedido para continuar.",
-      );
+        "Revisa la información del pedido para continuar.";
+      setTransferError(message);
+      notify.warning(message, "Pedido incompleto");
       return;
     }
 
     if (!selectedPaymentMethod) {
-      setTransferError("Selecciona un método de pago.");
+      const message = "Selecciona un método de pago.";
+      setTransferError(message);
+      notify.warning(message, "Falta un paso");
       return;
     }
 
@@ -926,10 +933,11 @@ export default function CarritoPage() {
     _proofName = "",
   ) => {
     if (!canSubmitOrder) {
-      setTransferError(
+      const message =
         checkoutBlockReason ||
-          "Tu pedido no se pudo completar. Intenta nuevamente.",
-      );
+        "Tu pedido no se pudo completar. Intenta nuevamente.";
+      setTransferError(message);
+      notify.warning(message, "Pedido incompleto");
       return null;
     }
 
@@ -990,6 +998,7 @@ export default function CarritoPage() {
         setTransferReceiptFile(null);
         setTransferReceiptName("");
         setTransferError("");
+        notify.success("Tu pedido fue creado correctamente.", "Pedido listo");
         return createdOrderId;
       }
 
@@ -1009,6 +1018,7 @@ export default function CarritoPage() {
             )
           : "No pudimos confirmar tu pedido. Intenta nuevamente.";
       setTransferError(message);
+      notify.error(message, "No pudimos crear tu pedido");
       return null;
     } finally {
       setSubmittingOrder(false);
@@ -1017,7 +1027,9 @@ export default function CarritoPage() {
 
   const handleTransferOrder = async () => {
     if (!transferReceiptFile) {
-      setTransferError("Sube tu comprobante antes de continuar.");
+      const message = "Sube tu comprobante antes de continuar.";
+      setTransferError(message);
+      notify.warning(message, "Falta tu comprobante");
       return;
     }
 
@@ -1065,6 +1077,7 @@ export default function CarritoPage() {
             )
           : "No pudimos registrar la transferencia. Intenta nuevamente.";
       setTransferError(message);
+      notify.error(message, "Transferencia no registrada");
     } finally {
       setSubmittingOrder(false);
     }

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useNotify } from "@/context/NotificationContext";
 import {
   isValidEmail,
   normalizePhone,
@@ -27,23 +28,21 @@ export default function RegisterForm() {
   const [codeSent, setCodeSent] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
+  const notify = useNotify();
 
   const sendVerificationCode = async () => {
     try {
-      setErrorMessage("");
-      setSuccessMessage("");
-
       if (!email.trim()) {
-        setErrorMessage("Ingresa un correo.");
+        const message = "Ingresa un correo.";
+        notify.warning(message, "Falta tu correo");
         return;
       }
 
       if (!isValidEmail(email.trim())) {
-        setErrorMessage("Ingresa un correo válido.");
+        const message = "Ingresa un correo válido.";
+        notify.warning(message, "Correo inválido");
         return;
       }
 
@@ -70,20 +69,20 @@ export default function RegisterForm() {
 
       if (response.ok && data?.success) {
         setCodeSent(true);
-        setSuccessMessage(data?.message || "Código enviado correctamente.");
+        const message = data?.message || "Código enviado correctamente.";
+        notify.success(message, "Revisa tu correo");
       } else {
-        setErrorMessage(
-          data?.error || data?.message || "No se pudo enviar el código.",
-        );
+        const message =
+          data?.error || data?.message || "No se pudo enviar el código.";
+        notify.error(message, "No pudimos enviar el código");
       }
     } catch (err) {
       console.warn("Error enviando código", err);
-      setErrorMessage(
-        getFriendlyErrorMessage(
-          err,
-          "No se pudo enviar el código. Revisa tu conexión e intenta nuevamente.",
-        ),
+      const message = getFriendlyErrorMessage(
+        err,
+        "No se pudo enviar el código. Revisa tu conexión e intenta nuevamente.",
       );
+      notify.error(message, "Conexión no disponible");
     } finally {
       setSendingCode(false);
     }
@@ -91,8 +90,6 @@ export default function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
 
     if (
       !firstName.trim() ||
@@ -101,34 +98,39 @@ export default function RegisterForm() {
       !phoneNumber.trim() ||
       !password
     ) {
-      setErrorMessage("Completa todos los campos obligatorios.");
+      const message = "Completa todos los campos obligatorios.";
+      notify.warning(message, "Faltan datos");
       return;
     }
 
     if (!isValidEmail(email.trim())) {
-      setErrorMessage("Ingresa un correo válido.");
+      const message = "Ingresa un correo válido.";
+      notify.warning(message, "Correo inválido");
       return;
     }
 
     const passwordError = validatePasswordStrength(password);
 
     if (passwordError) {
-      setErrorMessage(passwordError);
+      notify.warning(passwordError, "Revisa tu contraseña");
       return;
     }
 
     if (!acceptTerms) {
-      setErrorMessage("Debes aceptar los términos y condiciones.");
+      const message = "Debes aceptar los términos y condiciones.";
+      notify.warning(message, "Falta tu confirmación");
       return;
     }
 
     if (password !== confirmPassword) {
-      setErrorMessage("Las contraseñas no coinciden.");
+      const message = "Las contraseñas no coinciden.";
+      notify.warning(message, "Contraseñas distintas");
       return;
     }
 
     if (!verificationCode.trim()) {
-      setErrorMessage("Debes ingresar el código de verificación.");
+      const message = "Debes ingresar el código de verificación.";
+      notify.warning(message, "Falta el código");
       return;
     }
 
@@ -161,14 +163,15 @@ export default function RegisterForm() {
       } | null;
 
       if (response.ok && data?.success) {
-        setSuccessMessage("Cuenta creada correctamente.");
+        const message = "Cuenta creada correctamente.";
+        notify.success(message, "Tu cuenta está lista");
         router.push("/login");
       } else {
-        setErrorMessage(
+        const message =
           data?.error ||
-            data?.message ||
-            "No pudimos crear tu cuenta. Intenta nuevamente.",
-        );
+          data?.message ||
+          "No pudimos crear tu cuenta. Intenta nuevamente.";
+        notify.error(message, "No pudimos crear tu cuenta");
         console.error("REGISTER FRONTEND ERROR:", {
           status: response.status,
           data,
@@ -176,12 +179,11 @@ export default function RegisterForm() {
       }
     } catch (err) {
       console.warn("Error en la petición de registro", err);
-      setErrorMessage(
-        getFriendlyErrorMessage(
-          err,
-          "No pudimos crear tu cuenta. Revisa tu conexión e intenta nuevamente.",
-        ),
+      const message = getFriendlyErrorMessage(
+        err,
+        "No pudimos crear tu cuenta. Revisa tu conexión e intenta nuevamente.",
       );
+      notify.error(message, "Conexión no disponible");
     } finally {
       setSubmitting(false);
     }
@@ -203,18 +205,6 @@ export default function RegisterForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
-        {/* 👇 mensaje de error */}
-        {errorMessage && (
-          <p className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
-            {errorMessage}
-          </p>
-        )}
-        {successMessage && (
-          <p className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-center text-sm text-emerald-300">
-            {successMessage}
-          </p>
-        )}
-
         {/* First Name */}
         <div className="space-y-2">
           <Label htmlFor="firstName" className="text-sm text-[#f5f5f5]">

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { type ReactNode, useState } from "react";
 
 import { AuthProvider } from "@/context/AuthContext";
+import { NotificationProvider } from "@/context/NotificationContext";
 import { OrdersProvider } from "@/context/OrdersContext";
 
 export default function Providers({ children }: { children: ReactNode }) {
@@ -11,9 +12,11 @@ export default function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={qc}>
-      <AuthProvider>
-        <OrdersProvider>{children}</OrdersProvider>
-      </AuthProvider>
+      <NotificationProvider>
+        <AuthProvider>
+          <OrdersProvider>{children}</OrdersProvider>
+        </AuthProvider>
+      </NotificationProvider>
     </QueryClientProvider>
   );
 }

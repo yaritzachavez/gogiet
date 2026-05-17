@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import { useNotify } from "@/context/NotificationContext";
 import { isValidEmail } from "@/lib/auth-account-shared";
 import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
@@ -15,10 +16,10 @@ import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
+  const notify = useNotify();
 
   const getLoginErrorMessage = (
     status: number,
@@ -53,15 +54,16 @@ export default function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrorMessage("");
 
     if (!email.trim() || !password) {
-      setErrorMessage("Completa tu correo y contraseña para continuar.");
+      const message = "Completa tu correo y contraseña para continuar.";
+      notify.warning(message, "Faltan datos");
       return;
     }
 
     if (!isValidEmail(email)) {
-      setErrorMessage("Ingresa un correo válido.");
+      const message = "Ingresa un correo válido.";
+      notify.warning(message, "Correo inválido");
       return;
     }
 
@@ -97,19 +99,20 @@ export default function LoginForm() {
           },
           data.token,
         );
+        notify.success("Sesión iniciada correctamente.", "Bienvenido");
         // Redirigir según rol
         router.push(data.redirectTo || "/");
       } else {
-        setErrorMessage(getLoginErrorMessage(res.status, data));
+        const message = getLoginErrorMessage(res.status, data);
+        notify.error(message, "No pudimos iniciar sesión");
       }
     } catch (err) {
       console.warn("Error en la petición de login", err);
-      setErrorMessage(
-        getFriendlyErrorMessage(
-          err,
-          "Error de conexión. Revisa tu internet e intenta nuevamente.",
-        ),
+      const message = getFriendlyErrorMessage(
+        err,
+        "Error de conexión. Revisa tu internet e intenta nuevamente.",
       );
+      notify.error(message, "Conexión no disponible");
     } finally {
       setSubmitting(false);
     }
@@ -131,13 +134,6 @@ export default function LoginForm() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
-        {/* Mensaje de error */}
-        {errorMessage && (
-          <p className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">
-            {errorMessage}
-          </p>
-        )}
-
         {/* Email */}
         <div className="space-y-2">
           <Label htmlFor="email" className="text-sm text-[#f5f5f5]">

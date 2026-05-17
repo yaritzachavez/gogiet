@@ -6,62 +6,67 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useNotify } from "@/context/NotificationContext";
 import { isValidEmail, normalizeEmail } from "@/lib/auth-account-shared";
 import { getClientApiUrl } from "@/lib/client-api";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 
 export default function RequestResetPage() {
   const [email, setEmail] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const notify = useNotify();
 
   const handleSubmit = async () => {
-    setErrorMessage("");
-    setSuccessMessage("");
-
     const normalizedEmail = normalizeEmail(email);
 
     if (!isValidEmail(normalizedEmail)) {
-      setErrorMessage("Ingresa un correo válido.");
+      notify.warning("Ingresa un correo válido.", "Correo inválido");
       return;
     }
 
     try {
       setSubmitting(true);
-      const response = await fetch(getClientApiUrl("/api/auth/forgot-password"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        getClientApiUrl("/api/auth/forgot-password"),
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email: normalizedEmail }),
         },
-        body: JSON.stringify({ email: normalizedEmail }),
-      });
+      );
 
-      const payload = (await response.json().catch(() => null)) as
-        | { success?: boolean; error?: string; message?: string }
-        | null;
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      } | null;
 
       if (!response.ok || payload?.success === false) {
-        setErrorMessage(
+        notify.error(
           formatApiError(
             response.status,
             payload,
             "No pudimos enviar el enlace de recuperación.",
           ),
+          "No pudimos enviarlo",
         );
         return;
       }
 
-      setSuccessMessage(
+      notify.success(
         payload?.message ||
           "Si encontramos una cuenta asociada a ese correo, recibirás un enlace de recuperación.",
+        "Revisa tu correo",
       );
     } catch (error) {
-      setErrorMessage(
+      notify.error(
         getFriendlyErrorMessage(
           error,
           "No pudimos enviar el enlace de recuperación.",
         ),
+        "Conexión no disponible",
       );
     } finally {
       setSubmitting(false);
@@ -76,15 +81,9 @@ export default function RequestResetPage() {
             Recupera tu contraseña
           </h1>
           <p className="mb-6 text-center text-sm text-stone-500">
-            Escribe tu correo y te enviaremos un enlace seguro para crear una nueva contraseña.
+            Escribe tu correo y te enviaremos un enlace seguro para crear una
+            nueva contraseña.
           </p>
-
-          {errorMessage ? (
-            <p className="mb-4 text-center text-sm text-red-600">{errorMessage}</p>
-          ) : null}
-          {successMessage ? (
-            <p className="mb-4 text-center text-sm text-emerald-600">{successMessage}</p>
-          ) : null}
 
           <div className="space-y-5">
             <div className="space-y-2">

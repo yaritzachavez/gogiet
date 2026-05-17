@@ -28,6 +28,7 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { SectionCard } from "@/components/ui/section-card";
 import { useAuth } from "@/context/AuthContext";
+import { useNotify } from "@/context/NotificationContext";
 import {
   CART_UPDATED_EVENT,
   getStoredCartCount,
@@ -184,6 +185,7 @@ function getOriginalProductPrice(product: {
 
 export default function BusinessDetailPage() {
   const { user } = useAuth();
+  const notify = useNotify();
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const businessId = Number(params?.id ?? NaN);
@@ -211,8 +213,6 @@ export default function BusinessDetailPage() {
   const [modalQuantity, setModalQuantity] = useState(1);
 
   // --- Estados de Carrito / Mensajes ---
-  const [cartMessage, setCartMessage] = useState<string | null>(null);
-  const [cartError, setCartError] = useState<string | null>(null);
   const [addingProductId, setAddingProductId] = useState<number | null>(null);
   const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
@@ -319,7 +319,8 @@ export default function BusinessDetailPage() {
       const data = await res.json();
       if (data.success) setCustomizationGroups(data.groups);
     } catch (_e) {
-      setCartError("Error al cargar opciones");
+      const message = "No pudimos cargar las opciones de este producto.";
+      notify.error(message, "Intenta de nuevo");
     } finally {
       setLoadingCustomizations(false);
     }
@@ -328,7 +329,10 @@ export default function BusinessDetailPage() {
   // ✅ 3. Validación de dirección antes de agregar al carrito
   const handleAddToCart = async () => {
     if (!selectedProduct || !user) {
-      if (!user) setCartError("Inicia sesión para comprar");
+      if (!user) {
+        const message = "Necesitas iniciar sesión para comprar.";
+        notify.warning(message, "Acceso requerido");
+      }
       return;
     }
 
@@ -340,11 +344,11 @@ export default function BusinessDetailPage() {
 
     setAddingProductId(selectedProduct.id);
     try {
-      setCartError(null);
       const token = window.localStorage.getItem("token");
 
       if (!token) {
-        setCartError("Inicia sesión para comprar");
+        const message = "Necesitas iniciar sesión para comprar.";
+        notify.warning(message, "Acceso requerido");
         return;
       }
 
@@ -473,14 +477,14 @@ export default function BusinessDetailPage() {
 
       writeStoredCartSnapshot(nextCart);
 
-      setCartMessage("Agregado con éxito");
-      setTimeout(() => setCartMessage(null), 3000);
+      const message = "Producto agregado al carrito.";
+      notify.success(message, "Listo");
       setCustomizeModalOpen(false);
     } catch (error) {
       console.error("ADD TO CART ERROR:", error);
-      setCartError(
-        error instanceof Error ? error.message : "No se pudo agregar",
-      );
+      const message =
+        error instanceof Error ? error.message : "No se pudo agregar";
+      notify.error(message, "No pudimos agregarlo");
     } finally {
       setAddingProductId(null);
     }
@@ -915,18 +919,6 @@ export default function BusinessDetailPage() {
           </Button>
         </div>
       </div>
-
-      {/* Notificaciones flotantes */}
-      {cartMessage && (
-        <div className="fixed bottom-20 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-slate-900 px-5 py-3 text-center text-white shadow-2xl animate-bounce sm:bottom-10">
-          {cartMessage}
-        </div>
-      )}
-      {cartError && (
-        <div className="fixed bottom-36 left-1/2 z-50 max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-full bg-red-600 px-5 py-3 text-center text-white shadow-2xl sm:bottom-24">
-          {cartError}
-        </div>
-      )}
     </div>
   );
 }
