@@ -6,6 +6,9 @@ import {
   getDbSslSummary,
 } from "@/lib/db-ssl";
 
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DATABASE_URL:", process.env.DATABASE_URL);
+
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };

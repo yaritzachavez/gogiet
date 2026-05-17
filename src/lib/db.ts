@@ -2,6 +2,9 @@ import mysql from "mysql2/promise";
 
 import { getDbSslSummary, resolveDbSslCaContent } from "@/lib/db-ssl";
 
+console.log("DB_HOST:", process.env.DB_HOST);
+console.log("DATABASE_URL:", process.env.DATABASE_URL);
+
 type DbRuntimeConfig = {
   host: string;
   port: number;
