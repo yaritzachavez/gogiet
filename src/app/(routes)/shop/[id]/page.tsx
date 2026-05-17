@@ -522,11 +522,11 @@ export default function BusinessDetailPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_22%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)]">
-      <main className="section-shell pb-24 pt-3 sm:pt-5 xl:pb-8">
+      <main className="section-shell pb-28 pt-3 sm:pt-5 xl:pb-8">
         {/* Header del Negocio */}
         <SectionCard className="mb-4 overflow-hidden border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(247,241,233,0.96)_100%)] p-2.5 shadow-[0_18px_48px_rgba(97,72,36,0.10)] backdrop-blur-xl sm:mb-6 sm:p-5">
           <div className="grid gap-2.5 md:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)] md:items-center lg:grid-cols-[minmax(10rem,12rem)_minmax(0,1fr)]">
-            <div className="relative mx-auto w-full max-w-[5.75rem] overflow-hidden rounded-[20px] border border-[#efe3d5] bg-white/80 shadow-[0_12px_28px_rgba(97,72,36,0.08)] md:mx-0 md:max-w-none">
+            <div className="relative mx-auto w-full max-w-[4.75rem] overflow-hidden rounded-[18px] border border-[#efe3d5] bg-white/80 shadow-[0_12px_28px_rgba(97,72,36,0.08)] md:mx-0 md:max-w-none">
               <AppImage
                 src={getBusinessImage(business ?? {})}
                 alt={business?.name ? `Imagen de ${business.name}` : "Logo"}
@@ -539,16 +539,16 @@ export default function BusinessDetailPage() {
               />
             </div>
             <div className="min-w-0">
-              <div className="flex flex-col gap-2 rounded-[20px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,253,249,0.92)_0%,rgba(248,242,235,0.96)_100%)] px-3 py-3 shadow-[0_10px_28px_rgba(97,72,36,0.08)] sm:px-5 sm:py-5">
+              <div className="flex flex-col gap-2 rounded-[20px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,253,249,0.92)_0%,rgba(248,242,235,0.96)_100%)] px-3 py-2.5 shadow-[0_10px_28px_rgba(97,72,36,0.08)] sm:px-5 sm:py-5">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d96a18] sm:text-[11px] sm:tracking-[0.22em]">
                       Menú del negocio
                     </p>
-                    <h1 className="mt-1 text-[clamp(1.15rem,4vw,2.5rem)] font-black tracking-tight text-[#23170f]">
+                    <h1 className="mt-1 text-[clamp(1.05rem,3.6vw,2.5rem)] font-black tracking-tight text-[#23170f]">
                       {String(business?.name ?? "Negocio local")}
                     </h1>
-                    <p className="mt-1.5 line-clamp-2 max-w-3xl text-xs leading-4.5 text-[#6e6257] sm:text-base sm:leading-6">
+                    <p className="mt-1 line-clamp-1 max-w-3xl text-[11px] leading-4 text-[#6e6257] sm:text-base sm:leading-6">
                       {String(
                         business?.description_long ??
                           "Descubre productos destacados y arma tu pedido en segundos.",
@@ -589,7 +589,7 @@ export default function BusinessDetailPage() {
         {/* Buscador y Grid */}
         <div className="grid gap-3 xl:grid-cols-[15rem_minmax(0,1fr)] xl:items-start">
           <aside className="order-1 xl:order-none">
-            <SectionCard className="border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.86)_0%,rgba(246,239,231,0.94)_100%)] p-2.5 shadow-[0_14px_34px_rgba(97,72,36,0.08)] backdrop-blur-xl sm:p-4 xl:sticky xl:top-24">
+            <SectionCard className="sticky top-[4.4rem] z-20 border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,239,231,0.98)_100%)] p-2.5 shadow-[0_14px_34px_rgba(97,72,36,0.08)] backdrop-blur-xl sm:top-[5.2rem] sm:p-4 xl:static xl:top-auto">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a28974]" />
                 <input
@@ -653,70 +653,69 @@ export default function BusinessDetailPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 px-0 md:grid-cols-3 xl:grid-cols-4">
               {paginatedProducts.length > 0 ? (
                 paginatedProducts.map((product) => (
                   <article
                     key={product.id}
-                    className="group flex min-h-0 max-w-full flex-col overflow-hidden rounded-[18px] border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.95)_0%,rgba(248,243,236,0.98)_100%)] p-1.5 shadow-[0_10px_24px_rgba(97,72,36,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_16px_30px_rgba(255,107,0,0.10)] sm:rounded-[22px] sm:p-2.5"
+                    className="group relative flex min-h-[15.5rem] max-w-full flex-col overflow-hidden rounded-[20px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f7efe6_100%)] shadow-[0_12px_26px_rgba(97,72,36,0.09)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_18px_34px_rgba(255,107,0,0.12)]"
                   >
-                    <div className="relative h-28 overflow-hidden rounded-[14px] border border-[#efe4d8] bg-[#f6efe6] sm:h-32 sm:rounded-[18px]">
+                    <div className="relative aspect-square overflow-hidden bg-[#f6efe6]">
                       <AppImage
                         src={getProductImage(product)}
                         alt={product.name || "Producto"}
                         width={520}
                         height={390}
-                        aspectClassName="h-full"
+                        aspectClassName="aspect-square"
                         className="h-full w-full"
                         imageClassName="object-cover transition duration-500 group-hover:scale-[1.04]"
                         fallbackLabel="Producto"
                       />
+                      {Number(product.discount_price ?? 0) > 0 &&
+                      getOriginalProductPrice(product) >
+                        getProductPrice(product) ? (
+                        <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2.5 py-1 text-[10px] font-black text-white shadow-lg shadow-orange-500/25">
+                          Oferta
+                        </span>
+                      ) : null}
                     </div>
-                    <div className="flex flex-1 flex-col px-0.5 pt-2 sm:px-1 sm:pt-3">
-                      <div className="space-y-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <h3 className="line-clamp-2 text-sm font-black tracking-tight text-[#23170f] sm:text-base">
-                              {product.name}
-                            </h3>
-                            {product.category_name ? (
-                              <p className="mt-0.5 line-clamp-1 text-[9px] font-black uppercase tracking-[0.08em] text-[#d96a18] sm:text-[10px] sm:tracking-[0.14em]">
-                                {product.category_name}
-                              </p>
-                            ) : null}
-                          </div>
+                    <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5">
+                      <div className="min-w-0 space-y-1">
+                        <div className="min-w-0">
+                          <p className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#d96a18]">
+                            {product.category_name || "Menú"}
+                          </p>
+                          <h3 className="mt-0.5 line-clamp-2 text-sm font-black tracking-tight text-[#23170f] sm:text-base">
+                            {product.name}
+                          </h3>
                         </div>
-                        <p className="line-clamp-2 text-[11px] leading-4 text-[#6f6459] sm:text-xs sm:leading-5">
-                          {product.description_short ||
-                            "Disponible para entrega rápida."}
+                        <p className="line-clamp-1 text-[11px] leading-4 text-[#6f6459]">
+                          {product.description_short || "Disponible hoy"}
                         </p>
                       </div>
-                      <div className="mt-auto flex items-end justify-between gap-1.5 border-t border-[#eee3d6] pt-2 sm:gap-2 sm:pt-3">
+                      <div className="mt-auto flex items-end justify-between gap-2">
                         <div className="min-w-0">
-                          <span className="block text-xs font-black text-[#ff6b00] sm:text-base">
+                          <span className="block text-lg font-black leading-none text-[#ff6b00] sm:text-xl">
                             MX${getProductPrice(product).toFixed(2)}
                           </span>
                           {Number(product.discount_price ?? 0) > 0 &&
                           getOriginalProductPrice(product) >
                             getProductPrice(product) ? (
-                            <span className="text-[10px] text-[#a39181] line-through">
+                            <span className="mt-1 block text-[11px] text-[#a39181] line-through">
                               MX${getOriginalProductPrice(product).toFixed(2)}
                             </span>
                           ) : (
-                            <span className="text-[10px] font-medium text-[#9c8a79]">
-                              Listo
+                            <span className="mt-1 block text-[11px] font-medium text-[#9c8a79]">
+                              Listo para pedir
                             </span>
                           )}
                         </div>
                         <Button
-                          className="h-8 shrink-0 rounded-lg px-2.5 text-[11px] sm:h-9 sm:rounded-xl sm:px-3 sm:text-xs"
+                          className="h-11 w-11 shrink-0 rounded-2xl bg-orange-500 p-0 text-white shadow-[0_14px_28px_rgba(255,107,0,0.28)] hover:bg-orange-600"
                           onClick={() => openCustomizationModal(product)}
+                          aria-label={`Agregar ${product.name}`}
                         >
-                          <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          <span className="max-sm:hidden sm:inline">
-                            Agregar
-                          </span>
-                          <span className="sm:hidden">+</span>
+                          <Plus className="h-5 w-5" />
                         </Button>
                       </div>
                     </div>
