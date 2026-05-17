@@ -26,26 +26,26 @@ type TestimonialsResponse = {
 
 function TestimonialsSkeleton() {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
       {Array.from({ length: 3 }).map((_, index) => (
         <div
           key={`testimonial-skeleton-${index + 1}`}
-          className="rounded-[30px] border border-white/8 bg-[#1a1a1a] p-6 shadow-[0_22px_50px_rgba(0,0,0,0.28)]"
+          className="rounded-[24px] border border-white/8 bg-[#1a1a1a] p-4 shadow-[0_22px_50px_rgba(0,0,0,0.28)] sm:rounded-[30px] sm:p-6"
         >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="h-14 w-14 animate-pulse rounded-2xl bg-orange-500/18" />
+          <div className="flex items-start justify-between gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="h-11 w-11 animate-pulse rounded-[18px] bg-orange-500/18 sm:h-14 sm:w-14 sm:rounded-2xl" />
               <div className="space-y-2">
-                <div className="h-5 w-32 animate-pulse rounded-full bg-white/8" />
-                <div className="h-4 w-24 animate-pulse rounded-full bg-orange-500/18" />
+                <div className="h-4 w-24 animate-pulse rounded-full bg-white/8 sm:h-5 sm:w-32" />
+                <div className="h-3.5 w-20 animate-pulse rounded-full bg-orange-500/18 sm:h-4 sm:w-24" />
               </div>
             </div>
-            <div className="h-8 w-8 animate-pulse rounded-full bg-white/8" />
+            <div className="h-7 w-7 animate-pulse rounded-full bg-white/8 sm:h-8 sm:w-8" />
           </div>
-          <div className="mt-5 space-y-3">
-            <div className="h-4 w-full animate-pulse rounded-full bg-white/6" />
-            <div className="h-4 w-11/12 animate-pulse rounded-full bg-white/6" />
-            <div className="h-4 w-4/5 animate-pulse rounded-full bg-white/6" />
+          <div className="mt-4 space-y-2.5 sm:mt-5 sm:space-y-3">
+            <div className="h-3.5 w-full animate-pulse rounded-full bg-white/6 sm:h-4" />
+            <div className="h-3.5 w-11/12 animate-pulse rounded-full bg-white/6 sm:h-4" />
+            <div className="h-3.5 w-4/5 animate-pulse rounded-full bg-white/6 sm:h-4" />
           </div>
         </div>
       ))}
@@ -110,7 +110,7 @@ export function Testimonials() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0b0b0b_0%,#050505_100%)] px-4 py-14 sm:py-18">
+    <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0b0b0b_0%,#050505_100%)] px-4 py-8 sm:py-18">
       <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center">
         <div className="h-32 w-[min(64rem,88vw)] rounded-full bg-orange-500/[0.05] blur-3xl" />
       </div>
@@ -140,48 +140,48 @@ export function Testimonials() {
         ) : null}
 
         {!loading && !error && testimonials.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
             {testimonials.map((testimonial) => (
               <article
                 key={testimonial.id}
-                className="rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.98)_0%,rgba(22,22,22,0.96)_100%)] p-6 shadow-[0_22px_50px_rgba(0,0,0,0.3)]"
+                className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.98)_0%,rgba(22,22,22,0.96)_100%)] p-4 shadow-[0_22px_50px_rgba(0,0,0,0.3)] sm:rounded-[30px] sm:p-6"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500 text-lg font-black text-white shadow-lg shadow-orange-500/20">
+                <div className="flex items-start justify-between gap-3 sm:gap-4">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-[18px] bg-orange-500 text-sm font-black text-white shadow-lg shadow-orange-500/20 sm:h-14 sm:w-14 sm:rounded-2xl sm:text-lg">
                       {testimonial.initials}
                     </div>
                     <div>
-                      <h3 className="text-lg font-black text-[#f5f5f5]">
+                      <h3 className="text-base font-black text-[#f5f5f5] sm:text-lg">
                         {testimonial.name}
                       </h3>
-                      <div className="mt-2 flex items-center gap-1 text-orange-500">
+                      <div className="mt-1.5 flex items-center gap-1 text-orange-500 sm:mt-2">
                         {Array.from({ length: testimonial.rating }).map(
                           (_, index) => (
                             <Star
                               key={`${testimonial.id}-star-${index + 1}`}
-                              className="h-4 w-4 fill-current"
+                              className="h-3.5 w-3.5 fill-current sm:h-4 sm:w-4"
                             />
                           ),
                         )}
                       </div>
                     </div>
                   </div>
-                  <Quote className="h-8 w-8 text-orange-500/35" />
+                  <Quote className="h-6 w-6 text-orange-500/35 sm:h-8 sm:w-8" />
                 </div>
 
                 {testimonial.title ? (
-                  <p className="mt-5 text-sm font-black uppercase tracking-[0.14em] text-orange-300">
+                  <p className="mt-4 text-xs font-black uppercase tracking-[0.12em] text-orange-300 sm:mt-5 sm:text-sm sm:tracking-[0.14em]">
                     {testimonial.title}
                   </p>
                 ) : null}
 
-                <p className="mt-4 text-base leading-8 text-[#b3b3b3]">
+                <p className="mt-3 text-sm leading-6 text-[#b3b3b3] sm:mt-4 sm:text-base sm:leading-8">
                   {testimonial.text}
                 </p>
 
                 {testimonial.businessName ? (
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.14em] text-[#8f8f8f]">
+                  <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8f8f8f] sm:mt-4 sm:text-xs sm:tracking-[0.14em]">
                     Experiencia en {testimonial.businessName}
                   </p>
                 ) : null}

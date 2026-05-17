@@ -109,11 +109,11 @@ export function RecentActivity() {
   }, []);
 
   return (
-    <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0b0b0b_0%,#101010_100%)] px-4 py-14 sm:py-18">
+    <section className="relative overflow-hidden bg-[linear-gradient(180deg,#0b0b0b_0%,#101010_100%)] px-4 py-8 sm:py-18">
       <div className="pointer-events-none absolute inset-x-0 top-10 flex justify-center">
         <div className="h-40 w-[min(72rem,92vw)] rounded-full bg-orange-500/6 blur-3xl" />
       </div>
-      <div className="relative mx-auto max-w-7xl rounded-[36px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,18,18,0.86)_0%,rgba(12,12,12,0.9)_100%)] px-6 py-8 shadow-[0_25px_60px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:px-8 sm:py-10">
+      <div className="relative mx-auto max-w-7xl rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(18,18,18,0.86)_0%,rgba(12,12,12,0.9)_100%)] px-4 py-6 shadow-[0_25px_60px_rgba(0,0,0,0.32)] backdrop-blur-xl sm:rounded-[36px] sm:px-8 sm:py-10">
         <HomeSectionHeader
           eyebrow="Actividad reciente"
           title="La plataforma se siente en movimiento"
@@ -121,15 +121,15 @@ export function RecentActivity() {
         />
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, index) => (
               <div
                 key={`activity-skeleton-${index + 1}`}
-                className="rounded-[26px] border border-white/8 bg-white/4 p-5"
+                className="rounded-[22px] border border-white/8 bg-white/4 p-4 sm:rounded-[26px] sm:p-5"
               >
-                <div className="h-4 w-20 animate-pulse rounded-full bg-orange-500/18" />
-                <div className="mt-4 h-5 w-4/5 animate-pulse rounded-full bg-white/8" />
-                <div className="mt-3 h-4 w-1/3 animate-pulse rounded-full bg-white/6" />
+                <div className="h-3.5 w-20 animate-pulse rounded-full bg-orange-500/18" />
+                <div className="mt-3 h-4.5 w-4/5 animate-pulse rounded-full bg-white/8" />
+                <div className="mt-2.5 h-3.5 w-1/3 animate-pulse rounded-full bg-white/6" />
               </div>
             ))}
           </div>
@@ -147,21 +147,21 @@ export function RecentActivity() {
         ) : null}
 
         {!loading && activity.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
             {activity.map((item) => (
               <article
                 key={item.id}
-                className="rounded-[26px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.96),rgba(22,22,22,0.96))] p-5 shadow-[0_14px_35px_rgba(0,0,0,0.24)]"
+                className="rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.96),rgba(22,22,22,0.96))] p-4 shadow-[0_14px_35px_rgba(0,0,0,0.24)] sm:rounded-[26px] sm:p-5"
               >
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/6 px-3 py-2 text-xs font-bold uppercase tracking-[0.18em] text-orange-300 shadow-sm">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/6 px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300 shadow-sm sm:px-3 sm:py-2 sm:text-xs sm:tracking-[0.18em]">
                   <span className="h-2.5 w-2.5 rounded-full bg-orange-500" />
                   Actividad
                 </div>
-                <p className="mt-4 text-lg font-semibold leading-8 text-[#f5f5f5]">
+                <p className="mt-3 text-base font-semibold leading-6 text-[#f5f5f5] sm:mt-4 sm:text-lg sm:leading-8">
                   {item.message}
                 </p>
-                <p className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#8f8f8f]">
-                  <Clock3 className="h-4 w-4 text-orange-400" />
+                <p className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-[#8f8f8f] sm:mt-4 sm:text-sm">
+                  <Clock3 className="h-3.5 w-3.5 text-orange-400 sm:h-4 sm:w-4" />
                   {relativeTime(item.createdAt)}
                 </p>
               </article>

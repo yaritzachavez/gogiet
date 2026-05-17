@@ -637,23 +637,25 @@ export default function ShopPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_22%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)] text-slate-950">
-      <div className="section-shell flex w-full flex-col gap-4 py-4 sm:gap-5 sm:py-5">
+      <div className="section-shell flex w-full flex-col gap-3 py-3 sm:gap-5 sm:py-5">
         <header className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="inline-flex size-11 items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg shadow-orange-600/20">
-              <Store className="h-5 w-5" />
+            <span className="inline-flex size-9 items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg shadow-orange-600/20 sm:size-11">
+              <Store className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
             <div className="relative min-w-0">
               <button
                 type="button"
                 onClick={() => setLocationMenuOpen((current) => !current)}
-                className="max-w-full rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white/6"
+                className="max-w-full rounded-xl px-2 py-1 text-left transition hover:bg-white/6 sm:px-2.5 sm:py-1.5"
               >
-                <p className="text-xs font-black text-white/45">Entregar en</p>
-                <span className="inline-flex max-w-full items-center gap-1.5 truncate text-lg font-black text-white">
+                <p className="text-[10px] font-black text-white/45 sm:text-xs">
+                  Entregar en
+                </p>
+                <span className="inline-flex max-w-full items-center gap-1 truncate text-base font-black text-white sm:gap-1.5 sm:text-lg">
                   {selectedLocation}
                   <ChevronRight
-                    className={`h-4 w-4 rotate-90 transition ${
+                    className={`h-3.5 w-3.5 rotate-90 transition sm:h-4 sm:w-4 ${
                       locationMenuOpen ? "rotate-[270deg]" : ""
                     }`}
                   />
@@ -692,7 +694,7 @@ export default function ShopPage() {
           title="Descubre negocios que sí antojan"
           description="Explora aliados cercanos con entregas rápidas, promociones del día y favoritos listos para volver a pedir."
           actions={
-            <div className="w-full rounded-2xl border border-[#efcfaf] bg-[linear-gradient(180deg,#fff7ee_0%,#f8ecdf_100%)] px-4 py-3 text-sm font-bold text-[#c7641a] shadow-[0_12px_28px_rgba(255,107,0,0.10)] sm:w-auto">
+            <div className="w-full rounded-2xl border border-[#efcfaf] bg-[linear-gradient(180deg,#fff7ee_0%,#f8ecdf_100%)] px-3 py-2 text-xs font-bold text-[#c7641a] shadow-[0_12px_28px_rgba(255,107,0,0.10)] sm:w-auto sm:px-4 sm:py-3 sm:text-sm">
               {filteredBusinesses.length} aliados disponibles
             </div>
           }
@@ -706,13 +708,13 @@ export default function ShopPage() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Buscar restaurantes, comidas..."
-              className="h-12 w-full rounded-xl border border-[#e7dac8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] pl-12 pr-4 text-base font-semibold text-[#2a1d14] shadow-[0_14px_32px_rgba(0,0,0,0.18)] outline-none transition placeholder:text-[#aa9788] focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
+              className="h-11 w-full rounded-xl border border-[#e7dac8] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] pl-11 pr-4 text-sm font-semibold text-[#2a1d14] shadow-[0_14px_32px_rgba(0,0,0,0.18)] outline-none transition placeholder:text-[#aa9788] focus:border-orange-300 focus:ring-4 focus:ring-orange-100 sm:h-12 sm:pl-12 sm:text-base"
             />
           </label>
         </section>
 
-        <section className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(22,22,22,0.92)_0%,rgba(15,15,15,0.94)_100%)] px-4 py-4 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[28px] sm:py-5">
-          <div className="touch-scroll flex gap-4 overflow-x-auto pb-1 sm:gap-6">
+        <section className="rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(22,22,22,0.92)_0%,rgba(15,15,15,0.94)_100%)] px-3 py-3 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-5">
+          <div className="touch-scroll flex gap-3 overflow-x-auto pb-1 sm:gap-6">
             {categoryFilters.slice(0, 9).map((item) => {
               const isActive = selectedFilter === item;
               const staticFilter = STATIC_FILTERS.find(
@@ -726,17 +728,17 @@ export default function ShopPage() {
                   type="button"
                   onClick={() => setSelectedFilter(item)}
                   aria-pressed={isActive}
-                  className="group flex shrink-0 flex-col items-center gap-2"
+                  className="group flex shrink-0 flex-col items-center gap-1.5 sm:gap-2"
                 >
                   <span
-                    className={`inline-flex size-14 items-center justify-center rounded-full text-white shadow-md transition group-hover:-translate-y-0.5 sm:size-16 ${
+                    className={`inline-flex size-11 items-center justify-center rounded-full text-white shadow-md transition group-hover:-translate-y-0.5 sm:size-16 ${
                       staticFilter?.color ?? "bg-orange-500"
                     } ${isActive ? "ring-4 ring-orange-100" : ""}`}
                   >
-                    <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+                    <Icon className="h-[18px] w-[18px] sm:h-7 sm:w-7" />
                   </span>
                   <span
-                    className={`text-sm font-black ${
+                    className={`text-[11px] font-black sm:text-sm ${
                       isActive ? "text-white" : "text-white/58"
                     }`}
                   >
@@ -749,12 +751,12 @@ export default function ShopPage() {
         </section>
 
         {!activeOrdersLoading && activeOrders.length > 0 ? (
-          <section className="space-y-4">
+          <section className="space-y-3 sm:space-y-4">
             <div>
-              <h2 className="text-2xl font-black tracking-tight text-white">
+              <h2 className="text-xl font-black tracking-tight text-white sm:text-2xl">
                 Pedidos activos
               </h2>
-              <p className="text-sm font-semibold text-white/62">
+              <p className="text-xs font-semibold text-white/62 sm:text-sm">
                 Sigue el estado de tus pedidos en curso.
               </p>
             </div>
@@ -763,7 +765,7 @@ export default function ShopPage() {
               {activeOrders.map((order) => (
                 <article
                   key={order.id}
-                  className="min-w-[240px] shrink-0 rounded-[18px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)] sm:min-w-[280px]"
+                  className="min-w-[220px] shrink-0 rounded-[18px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] p-3.5 shadow-[0_14px_34px_rgba(0,0,0,0.18)] sm:min-w-[280px] sm:p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -796,34 +798,34 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-[22px] bg-gradient-to-r from-orange-600 to-red-500 px-5 py-5 text-white shadow-[0_20px_44px_rgba(255,107,0,0.18)] ring-1 ring-white/10 sm:px-6">
-          <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
-            <Sparkles className="h-4 w-4" />
+        <section className="overflow-hidden rounded-[22px] bg-gradient-to-r from-orange-600 to-red-500 px-4 py-4 text-white shadow-[0_20px_44px_rgba(255,107,0,0.18)] ring-1 ring-white/10 sm:px-6 sm:py-5">
+          <p className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.12em] sm:text-xs">
+            <Sparkles className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             Oferta especial
           </p>
-          <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">
+          <h1 className="mt-2 text-[clamp(1.35rem,4vw,1.9rem)] font-black tracking-tight sm:mt-3 sm:text-3xl">
             Descuentos de hasta 30%
           </h1>
-          <p className="mt-2 text-sm font-semibold text-white/90 sm:text-base">
+          <p className="mt-1.5 text-xs font-semibold text-white/90 sm:mt-2 sm:text-base">
             En restaurantes seleccionados. Válido hoy.
           </p>
           <button
             type="button"
             onClick={() => setSelectedFilter("Ofertas")}
-            className="mt-4 inline-flex h-10 items-center justify-center rounded-xl bg-white px-6 text-sm font-black text-orange-600 shadow-lg transition hover:bg-orange-50"
+            className="mt-3 inline-flex h-9 items-center justify-center rounded-xl bg-white px-4 text-xs font-black text-orange-600 shadow-lg transition hover:bg-orange-50 sm:mt-4 sm:h-10 sm:px-6 sm:text-sm"
           >
             Ver ofertas
           </button>
         </section>
 
         {favoriteBusinesses.length > 0 ? (
-          <section className="space-y-4">
+          <section className="space-y-3 sm:space-y-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                <h1 className="text-xl font-black tracking-tight text-white sm:text-3xl">
                   Tus favoritos
                 </h1>
-                <p className="mt-1 text-sm font-semibold text-white/62">
+                <p className="mt-1 text-xs font-semibold text-white/62 sm:text-sm">
                   Regresa rápido a los negocios que más te gustan.
                 </p>
               </div>
@@ -836,7 +838,7 @@ export default function ShopPage() {
               </button>
             </div>
 
-            <div className="responsive-card-grid">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
               {favoriteBusinesses.map((business, index) => (
                 <BusinessCard
                   key={`favorite-${business.id}-${index}`}
@@ -871,13 +873,13 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        <section className="space-y-4">
+        <section className="space-y-3 sm:space-y-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+              <h1 className="text-xl font-black tracking-tight text-white sm:text-3xl">
                 Más populares
               </h1>
-              <p className="mt-1 text-sm font-semibold text-white/62">
+              <p className="mt-1 text-xs font-semibold text-white/62 sm:text-sm">
                 Tiendas destacadas por velocidad, variedad y favoritos del día.
               </p>
             </div>
@@ -891,11 +893,11 @@ export default function ShopPage() {
           </div>
 
           {loading ? (
-            <div className="responsive-card-grid animate-pulse">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4 animate-pulse">
               {PLACEHOLDER_IDS.map((placeholder) => (
                 <div
                   key={placeholder}
-                  className="h-52 rounded-[18px] bg-white/10 shadow-sm sm:h-56"
+                  className="h-44 rounded-[18px] bg-white/10 shadow-sm sm:h-56"
                 />
               ))}
             </div>
@@ -906,7 +908,7 @@ export default function ShopPage() {
               description={storesWarning}
             />
           ) : filteredBusinesses.length > 0 ? (
-            <div className="responsive-card-grid">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
               {filteredBusinesses.map((business, index) => (
                 <BusinessCard
                   key={`${business.id ?? "business"}-${index}`}

@@ -402,12 +402,12 @@ export default function Navbar() {
     return (
       <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/84 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
         <div className="app-shell">
-          <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.75rem]">
+          <div className="flex h-14 items-center justify-between gap-3 sm:h-[4.75rem]">
             <Link
               href="/"
               className="group flex min-w-0 items-center gap-2 rounded-2xl transition-all duration-300 sm:gap-3"
             >
-              <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
+              <div className="relative h-9 w-9 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
                   src="/LOGO-NEW2.jpg"
                   alt="Gogi Eats"
@@ -430,13 +430,13 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/84 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
       <div className="app-shell">
-        <div className="flex h-16 items-center justify-between gap-2 sm:h-[4.75rem] sm:gap-3">
+        <div className="flex h-14 items-center justify-between gap-2 sm:h-[4.75rem] sm:gap-3">
           <div className="flex min-w-0 flex-shrink-0 items-center">
             <Link
               href="/"
               className="group flex min-w-0 items-center gap-2 rounded-2xl transition-all duration-300 sm:gap-3"
             >
-              <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_34px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
+              <div className="relative h-9 w-9 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_34px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
                   src="/LOGO-NEW2.jpg"
                   alt="Gogi Eats"
