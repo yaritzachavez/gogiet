@@ -382,12 +382,12 @@ export default function Navbar() {
 
   if (!mounted) {
     return (
-      <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/78 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
-        <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between sm:h-20">
+      <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/84 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+        <div className="app-shell">
+          <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.75rem]">
             <Link
               href="/"
-              className="group flex items-center gap-3 rounded-2xl transition-all duration-300"
+              className="group flex min-w-0 items-center gap-3 rounded-2xl transition-all duration-300"
             >
               <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
@@ -410,13 +410,13 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/78 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between sm:h-20">
-          <div className="flex flex-shrink-0 items-center">
+    <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/84 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
+      <div className="app-shell">
+        <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.75rem]">
+          <div className="flex min-w-0 flex-shrink-0 items-center">
             <Link
               href="/"
-              className="group flex items-center gap-3 rounded-2xl transition-all duration-300"
+              className="group flex min-w-0 items-center gap-3 rounded-2xl transition-all duration-300"
             >
               <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_34px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
@@ -434,17 +434,17 @@ export default function Navbar() {
             </Link>
           </div>
 
-          <div className="hidden items-center space-x-8 md:flex">
+          <div className="hidden items-center space-x-6 lg:flex">
             <Link
               href="/"
-              className="text-[#b3b3b3] transition-colors hover:text-white"
+              className="text-sm font-semibold text-[#b3b3b3] transition-colors hover:text-white"
             >
               Inicio
             </Link>
             {user && (
               <Link
                 href="/pedidos"
-                className="text-[#b3b3b3] transition-colors hover:text-white"
+                className="text-sm font-semibold text-[#b3b3b3] transition-colors hover:text-white"
               >
                 Mis pedidos
               </Link>
@@ -452,22 +452,22 @@ export default function Navbar() {
             {user && hasPanelAccess(user.roles) && (
               <Link
                 href="/pickdash"
-                className="text-[#b3b3b3] transition-colors hover:text-white"
+                className="text-sm font-semibold text-[#b3b3b3] transition-colors hover:text-white"
               >
                 Paneles
               </Link>
             )}
           </div>
 
-          <div className="hidden items-center space-x-4 md:flex">
+          <div className="hidden items-center space-x-3 lg:flex">
             {user ? (
               <>
                 <div className="relative">
                   <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="relative rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="relative rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                     onClick={() => {
                       setNotificationsOpen((current) => !current);
                     }}
@@ -485,7 +485,7 @@ export default function Navbar() {
                   </Button>
 
                   {notificationsOpen ? (
-                    <div className="absolute right-0 top-14 z-50 w-[22rem] max-w-[90vw]">
+                    <div className="absolute right-0 top-14 z-50 w-[min(24rem,calc(100vw-1.5rem))]">
                       <NotificationList
                         notifications={notifications}
                         loading={notificationsLoading}
@@ -513,7 +513,9 @@ export default function Navbar() {
                     ) : null}
                   </Link>
                 </Button>
-                <span className="text-sm text-[#b3b3b3]">Hola, {user.name}</span>
+                <span className="max-w-[10rem] truncate text-sm text-[#b3b3b3]">
+                  Hola, {user.name}
+                </span>
                 <Button
                   variant="ghost"
                   onClick={logout}
@@ -531,24 +533,21 @@ export default function Navbar() {
                 >
                   <Link href="/auth?mode=login">Iniciar Sesión</Link>
                 </Button>
-                <Button
-                  asChild
-                  className="rounded-full px-5"
-                >
+                <Button asChild className="rounded-full px-5">
                   <Link href="/auth?mode=register">Registrarse</Link>
                 </Button>
               </>
             )}
           </div>
 
-          <div className="flex items-center gap-3 md:hidden">
+          <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
             {user ? (
               <>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="relative text-white hover:bg-white/6"
+                  className="relative rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                   onClick={() => {
                     setNotificationsOpen((current) => !current);
                   }}
@@ -569,7 +568,7 @@ export default function Navbar() {
                   asChild
                   variant="ghost"
                   size="icon"
-                  className="text-white hover:bg-white/6"
+                  className="rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
                 >
                   <Link href="/carrito" aria-label="Carrito de compras">
                     <span className="relative block">
@@ -589,7 +588,7 @@ export default function Navbar() {
               variant="ghost"
               size="icon"
               onClick={toggleMobileMenu}
-              className="text-white hover:bg-white/6"
+              className="rounded-full border border-white/10 bg-white/5 text-white hover:bg-white/10"
               aria-label={mobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
               aria-expanded={mobileMenuOpen}
             >
@@ -603,7 +602,7 @@ export default function Navbar() {
         </div>
 
         {notificationsOpen && user ? (
-          <div className="pb-4 md:hidden">
+          <div className="pb-4 lg:hidden">
             <NotificationList
               notifications={notifications}
               loading={notificationsLoading}
@@ -616,73 +615,97 @@ export default function Navbar() {
         ) : null}
 
         {mobileMenuOpen && (
-          <div className="border-t border-white/10 pb-4 pt-4 md:hidden">
-            <div className="mb-4 flex flex-col space-y-3">
-              <Link
-                href="/"
-                className="px-2 py-2 text-[#b3b3b3] transition-colors hover:text-white"
-                onClick={closeMobileMenu}
-              >
-                Inicio
-              </Link>
-              {user && (
-                <Link
-                  href="/pedidos"
-                  className="px-2 py-2 text-[#b3b3b3] transition-colors hover:text-white"
-                  onClick={closeMobileMenu}
-                >
-                  Mis pedidos
-                </Link>
-              )}
-              {user && hasPanelAccess(user.roles) && (
-                <Link
-                  href="/pickdash"
-                  className="px-2 py-2 text-[#b3b3b3] transition-colors hover:text-white"
-                  onClick={closeMobileMenu}
-                >
-                  Paneles
-                </Link>
-              )}
-            </div>
+          <div className="safe-bottom fixed inset-0 top-16 z-40 lg:hidden">
+            <button
+              type="button"
+              className="absolute inset-0 bg-black/55 backdrop-blur-sm"
+              aria-label="Cerrar menú móvil"
+              onClick={closeMobileMenu}
+            />
+            <div className="relative ml-auto flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-white/10 bg-[#121212]/96 px-4 py-5 shadow-2xl shadow-black/50 touch-scroll sm:px-5">
+              <div className="mb-5 rounded-[24px] border border-white/10 bg-white/4 p-4">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">
+                  Navegación
+                </p>
+                <p className="mt-2 text-sm text-white/65">
+                  Accesos rápidos y paneles listos para móvil.
+                </p>
+              </div>
 
-            <div className="border-t border-white/10 pt-4">
-              {user ? (
-                <div className="flex flex-col space-y-2">
-                  <div className="px-2 py-2 text-sm text-white/70">
-                    Hola, {user.name}
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/"
+                  className="rounded-2xl border border-transparent px-4 py-3 text-sm font-semibold text-[#e4e4e4] transition hover:border-white/10 hover:bg-white/6 hover:text-white"
+                  onClick={closeMobileMenu}
+                >
+                  Inicio
+                </Link>
+                {user ? (
+                  <Link
+                    href="/pedidos"
+                    className="rounded-2xl border border-transparent px-4 py-3 text-sm font-semibold text-[#e4e4e4] transition hover:border-white/10 hover:bg-white/6 hover:text-white"
+                    onClick={closeMobileMenu}
+                  >
+                    Mis pedidos
+                  </Link>
+                ) : null}
+                {user && hasPanelAccess(user.roles) ? (
+                  <Link
+                    href="/pickdash"
+                    className="rounded-2xl border border-transparent px-4 py-3 text-sm font-semibold text-[#e4e4e4] transition hover:border-white/10 hover:bg-white/6 hover:text-white"
+                    onClick={closeMobileMenu}
+                  >
+                    Paneles
+                  </Link>
+                ) : null}
+                <Link
+                  href="/shop"
+                  className="rounded-2xl border border-transparent px-4 py-3 text-sm font-semibold text-[#e4e4e4] transition hover:border-white/10 hover:bg-white/6 hover:text-white"
+                  onClick={closeMobileMenu}
+                >
+                  Explorar tiendas
+                </Link>
+              </div>
+
+              <div className="mt-auto border-t border-white/10 pt-4">
+                {user ? (
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-white/70">
+                      Hola, {user.name}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        logout();
+                        closeMobileMenu();
+                      }}
+                      className="w-full justify-start rounded-2xl border border-white/10 bg-white/4 text-white hover:bg-white/10"
+                    >
+                      Cerrar sesión
+                    </Button>
                   </div>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      logout();
-                      closeMobileMenu();
-                    }}
-                    className="w-full justify-start text-white hover:bg-white/6"
-                  >
-                    Cerrar sesión
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex flex-col space-y-2">
-                  <Button
-                    variant="ghost"
-                    asChild
-                    className="w-full justify-start text-white hover:bg-white/6"
-                  >
-                    <Link href="/auth?mode=login" onClick={closeMobileMenu}>
-                      Iniciar Sesión
-                    </Link>
-                  </Button>
-                  <Button
-                    asChild
-                    className="w-full"
-                  >
-                    <Link href="/auth?mode=register" onClick={closeMobileMenu}>
-                      Registrarse
-                    </Link>
-                  </Button>
-                </div>
-              )}
+                ) : (
+                  <div className="space-y-3">
+                    <Button
+                      variant="ghost"
+                      asChild
+                      className="w-full justify-center rounded-2xl border border-white/10 bg-white/4 text-white hover:bg-white/10"
+                    >
+                      <Link href="/auth?mode=login" onClick={closeMobileMenu}>
+                        Iniciar Sesión
+                      </Link>
+                    </Button>
+                    <Button asChild className="w-full rounded-2xl">
+                      <Link
+                        href="/auth?mode=register"
+                        onClick={closeMobileMenu}
+                      >
+                        Registrarse
+                      </Link>
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

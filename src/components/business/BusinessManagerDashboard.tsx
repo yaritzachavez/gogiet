@@ -65,9 +65,7 @@ const ACTIVE_ORDER_STATUSES = new Set([
   "on_the_way",
 ]);
 
-const HISTORY_ORDER_STATUSES = new Set([
-  "delivered",
-]);
+const HISTORY_ORDER_STATUSES = new Set(["delivered"]);
 
 type OrderTicket = {
   orderId: number;
@@ -589,7 +587,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
         }
       }
     },
-    [business.name],
+    [business.id, business.name],
   );
 
   const loadTrainings = useCallback(async () => {
@@ -1083,18 +1081,18 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
 
   return (
     <>
-      <main className="min-h-screen bg-[#f5f6f5] text-slate-950">
+      <main className="min-h-screen overflow-x-hidden bg-[#f5f6f5] text-slate-950">
         <section className="bg-gradient-to-br from-orange-600 via-orange-500 to-amber-400 text-white shadow-xl shadow-orange-900/15">
-          <div className="mx-auto max-w-7xl px-4 pb-28 pt-12 sm:px-6 lg:px-8">
+          <div className="app-shell pb-24 pt-8 sm:pb-28 sm:pt-12">
             <div className="max-w-5xl space-y-6">
               <p className="text-sm font-extrabold uppercase tracking-[0.18em] text-white/85">
                 {panelLabel} - {business.name}
               </p>
               <div className="space-y-4">
-                <h1 className="max-w-4xl text-4xl font-black leading-tight sm:text-5xl">
+                <h1 className="balanced-text max-w-4xl text-[clamp(2.2rem,5vw,3.5rem)] font-black leading-tight">
                   Gestion de pedidos de {business.name}
                 </h1>
-                <p className="max-w-4xl text-lg font-semibold leading-8 text-white/90">
+                <p className="balanced-text max-w-4xl text-base font-semibold leading-7 text-white/90 sm:text-lg sm:leading-8">
                   Supervisa pedidos existentes, coordina la operacion diaria y
                   controla tu {inventoryDescription} con informacion actualizada
                   de {business.name}.
@@ -1103,11 +1101,11 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                   {business.category} · {business.location} · {business.hours}
                 </p>
               </div>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 {pathname !== backHref ? (
                   <Link
                     href={backHref}
-                    className="inline-flex items-center gap-3 rounded-2xl bg-white/15 px-7 py-4 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-white/25"
+                    className="inline-flex min-h-12 items-center justify-center gap-3 rounded-2xl bg-white/15 px-5 py-3 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-white/25 sm:px-7 sm:py-4"
                   >
                     <Store className="h-5 w-5" />
                     {backLabel}
@@ -1116,7 +1114,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                 <button
                   type="button"
                   onClick={handleOpenNewOrder}
-                  className="inline-flex items-center gap-3 rounded-2xl bg-white px-7 py-4 text-sm font-extrabold text-orange-600 shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-50"
+                  className="inline-flex min-h-12 items-center justify-center gap-3 rounded-2xl bg-white px-5 py-3 text-sm font-extrabold text-orange-600 shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-50 sm:px-7 sm:py-4"
                 >
                   <Plus className="h-5 w-5" />
                   Agregar pedido
@@ -1124,7 +1122,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                 <button
                   type="button"
                   onClick={handleManageStore}
-                  className="inline-flex items-center gap-3 rounded-2xl bg-orange-800/35 px-7 py-4 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-900/35"
+                  className="inline-flex min-h-12 items-center justify-center gap-3 rounded-2xl bg-orange-800/35 px-5 py-3 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-900/35 sm:px-7 sm:py-4"
                 >
                   <ClipboardList className="h-5 w-5" />
                   Ver pedidos
@@ -1142,7 +1140,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
 
         <div
           id="dashboard"
-          className="mx-auto -mt-16 flex max-w-7xl flex-col gap-8 px-4 pb-16 sm:px-6 lg:px-8"
+          className="app-shell -mt-14 flex flex-col gap-6 pb-16 sm:-mt-16 sm:gap-8"
         >
           {actionFeedback ? (
             <div
@@ -1168,11 +1166,11 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
             ))}
           </section>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="grid gap-3 sm:flex sm:flex-wrap">
             <button
               type="button"
               onClick={() => setActiveSection("dashboard")}
-              className={`inline-flex items-center gap-3 rounded-2xl px-6 py-4 text-sm font-extrabold shadow-sm transition hover:bg-orange-50 ${
+              className={`inline-flex min-h-12 items-center justify-center gap-3 rounded-2xl px-5 py-3 text-sm font-extrabold shadow-sm transition hover:bg-orange-50 sm:px-6 sm:py-4 ${
                 activeSection === "dashboard"
                   ? "bg-orange-600 text-white shadow-lg shadow-orange-900/15 hover:bg-orange-600"
                   : "bg-white text-slate-700"
@@ -1184,7 +1182,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
             <button
               type="button"
               onClick={() => setActiveSection("orders")}
-              className={`inline-flex items-center gap-3 rounded-2xl px-6 py-4 text-sm font-extrabold shadow-sm transition hover:bg-orange-50 ${
+              className={`inline-flex min-h-12 items-center justify-center gap-3 rounded-2xl px-5 py-3 text-sm font-extrabold shadow-sm transition hover:bg-orange-50 sm:px-6 sm:py-4 ${
                 activeSection === "orders"
                   ? "bg-orange-600 text-white shadow-lg shadow-orange-900/15 hover:bg-orange-600"
                   : "bg-white text-slate-700"
@@ -2028,8 +2026,8 @@ function NewOrderModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-2xl overflow-hidden rounded-[28px] border border-white/40 bg-white/95 shadow-2xl ring-1 ring-white/70">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[28px] border border-white/40 bg-white/95 shadow-2xl ring-1 ring-white/70">
         <div className="flex items-center justify-between bg-orange-600/10 px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-orange-800">{title}</h2>
@@ -2212,8 +2210,8 @@ function OrderDetailModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl overflow-hidden rounded-[28px] border border-white/40 bg-white shadow-2xl ring-1 ring-white/70">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4">
+      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[28px] border border-white/40 bg-white shadow-2xl ring-1 ring-white/70">
         <div className="flex items-center justify-between bg-orange-600/10 px-6 py-4">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-orange-600">

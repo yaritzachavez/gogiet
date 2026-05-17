@@ -9,7 +9,6 @@ import AddressRequiredDialog, {
 } from "@/components/address/AddressRequiredDialog";
 import { AppImage } from "@/components/ui/app-image";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/empty-state";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
 import { useAuth } from "@/context/AuthContext";
@@ -595,10 +595,13 @@ export default function CarritoPage() {
     if (cartLoading) return "Estamos actualizando tu carrito.";
     if (cartItems.length === 0) return "Tu carrito está vacío.";
     if (!hasValidItems) return "Hay productos sin precio válido en tu carrito.";
-    if (!hasValidBusiness) return "No pudimos identificar el negocio del pedido.";
+    if (!hasValidBusiness)
+      return "No pudimos identificar el negocio del pedido.";
     if (!savedAddress) return "Agrega una dirección para continuar.";
     if (shipping.requiresConfirmation)
-      return shipping.message || "No pudimos calcular el envío. Revisa tu dirección.";
+      return (
+        shipping.message || "No pudimos calcular el envío. Revisa tu dirección."
+      );
     if (commissionBreakdown.total <= 0)
       return "El total del pedido no es válido.";
     return "";
@@ -616,9 +619,7 @@ export default function CarritoPage() {
 
   const canContinueToPayment = !checkoutBlockReason && !submittingOrder;
   const canSubmitOrder =
-    !checkoutBlockReason &&
-    !submittingOrder &&
-    Boolean(selectedPaymentMethod);
+    !checkoutBlockReason && !submittingOrder && Boolean(selectedPaymentMethod);
 
   // --- Handlers ---
   const handleQuantityChange = async (id: string, delta: number) => {
@@ -757,7 +758,8 @@ export default function CarritoPage() {
 
     if (shipping.requiresConfirmation) {
       setTransferError(
-        shipping.message || "No pudimos calcular el envío. Revisa tu dirección.",
+        shipping.message ||
+          "No pudimos calcular el envío. Revisa tu dirección.",
       );
       return;
     }
@@ -767,7 +769,8 @@ export default function CarritoPage() {
   const handleConfirmOrder = async () => {
     if (!canSubmitOrder) {
       setTransferError(
-        checkoutBlockReason || "Revisa la información del pedido para continuar.",
+        checkoutBlockReason ||
+          "Revisa la información del pedido para continuar.",
       );
       return;
     }
@@ -817,7 +820,11 @@ export default function CarritoPage() {
 
         const preferenceData = await preferenceRes.json().catch(() => null);
 
-        if (!preferenceRes.ok || !preferenceData?.success || !preferenceData?.initPoint) {
+        if (
+          !preferenceRes.ok ||
+          !preferenceData?.success ||
+          !preferenceData?.initPoint
+        ) {
           throw new Error(
             formatApiError(
               preferenceRes.status,
@@ -858,7 +865,8 @@ export default function CarritoPage() {
   ) => {
     if (!canSubmitOrder) {
       setTransferError(
-        checkoutBlockReason || "Tu pedido no se pudo completar. Intenta nuevamente.",
+        checkoutBlockReason ||
+          "Tu pedido no se pudo completar. Intenta nuevamente.",
       );
       return null;
     }
@@ -1028,7 +1036,7 @@ export default function CarritoPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="container mx-auto space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+      <div className="section-shell space-y-5 py-5 sm:space-y-6 sm:py-8">
         <PageHeader
           eyebrow="Checkout"
           title="Tu pedido está casi listo"
@@ -1054,185 +1062,207 @@ export default function CarritoPage() {
             {transferError}
           </div>
         ) : null}
-        <div className="grid gap-8 lg:grid-cols-[2fr_1fr]">
-        <section className="space-y-6">
-          <h2 className="text-2xl font-black tracking-tight text-[#f5f5f5]">
-            Productos seleccionados
-          </h2>
-          {cartLoading ? (
-            <SectionCard className="p-6">
-              <p className="text-sm font-semibold text-[#b3b3b3]">
-                Actualizando tu carrito...
-              </p>
-            </SectionCard>
-          ) : null}
-          {cartItems.map((item) => (
-            <SectionCard
-              key={item.id}
-              className="flex gap-4 p-4 sm:p-5"
-            >
-              <div className="relative h-24 w-24 overflow-hidden rounded-2xl bg-slate-100">
-                <AppImage
-                  src={item.image}
-                  alt={item.nombre}
-                  width={192}
-                  height={192}
-                  aspectClassName="aspect-square"
-                  className="h-full w-full"
-                  imageClassName="object-cover"
-                  fallbackLabel="Producto"
-                />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-black tracking-tight text-[#f5f5f5]">
-                  {item.nombre}
-                </h3>
-                <p className="mt-1 text-sm font-semibold text-orange-700/80">
-                  {item.negocio}
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)] lg:gap-8">
+          <section className="space-y-6">
+            <h2 className="text-2xl font-black tracking-tight text-[#f5f5f5]">
+              Productos seleccionados
+            </h2>
+            {cartLoading ? (
+              <SectionCard className="p-6">
+                <p className="text-sm font-semibold text-[#b3b3b3]">
+                  Actualizando tu carrito...
                 </p>
-                {item.description ? (
-                  <p className="mt-2 text-sm leading-5 text-[#b3b3b3]">
-                    {item.description}
+              </SectionCard>
+            ) : null}
+            {cartItems.map((item) => (
+              <SectionCard
+                key={item.id}
+                className="flex flex-col gap-4 p-4 sm:flex-row sm:p-5"
+              >
+                <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-slate-100">
+                  <AppImage
+                    src={item.image}
+                    alt={item.nombre}
+                    width={192}
+                    height={192}
+                    aspectClassName="aspect-square"
+                    className="h-full w-full"
+                    imageClassName="object-cover"
+                    fallbackLabel="Producto"
+                  />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-black tracking-tight text-[#f5f5f5]">
+                    {item.nombre}
+                  </h3>
+                  <p className="mt-1 text-sm font-semibold text-orange-700/80">
+                    {item.negocio}
                   </p>
-                ) : null}
-                {item.customizationsSummary || item.notes ? (
-                  <div className="mt-3 space-y-1">
-                    {item.customizationsSummary ? (
-                      <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f8f8f]">
-                        {item.customizationsSummary}
-                      </p>
-                    ) : null}
-                    {item.notes ? (
-                      <p className="text-xs font-medium text-[#b3b3b3]">
-                        {item.notes}
-                      </p>
-                    ) : null}
-                  </div>
-                ) : null}
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1">
-                    <button
-                      type="button"
-                      onClick={() => handleQuantityChange(item.id, -1)}
-                      className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
-                    >
-                      −
-                    </button>
-                    <span className="min-w-[20px] text-center font-black text-[#f5f5f5]">
-                      {item.quantity}
+                  {item.description ? (
+                    <p className="mt-2 text-sm leading-5 text-[#b3b3b3]">
+                      {item.description}
+                    </p>
+                  ) : null}
+                  {item.customizationsSummary || item.notes ? (
+                    <div className="mt-3 space-y-1">
+                      {item.customizationsSummary ? (
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f8f8f]">
+                          {item.customizationsSummary}
+                        </p>
+                      ) : null}
+                      {item.notes ? (
+                        <p className="text-xs font-medium text-[#b3b3b3]">
+                          {item.notes}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1">
+                      <button
+                        type="button"
+                        onClick={() => handleQuantityChange(item.id, -1)}
+                        className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
+                      >
+                        −
+                      </button>
+                      <span className="min-w-[20px] text-center font-black text-[#f5f5f5]">
+                        {item.quantity}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleQuantityChange(item.id, 1)}
+                        className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <span className="rounded-full bg-orange-500/15 px-3 py-1 text-sm font-bold text-orange-300">
+                      {formatMoney(getCartItemUnitPrice(item))} c/u
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleQuantityChange(item.id, 1)}
-                      className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
-                    >
-                      +
-                    </button>
+                    <span className="text-base font-black text-[#f5f5f5]">
+                      {formatMoney(getCartItemSubtotal(item))}
+                    </span>
                   </div>
-                  <span className="rounded-full bg-orange-500/15 px-3 py-1 text-sm font-bold text-orange-300">
-                    {formatMoney(getCartItemUnitPrice(item))} c/u
-                  </span>
-                  <span className="text-base font-black text-[#f5f5f5]">
-                    {formatMoney(getCartItemSubtotal(item))}
+                </div>
+              </SectionCard>
+            ))}
+
+            <textarea
+              value={deliveryInstructions}
+              onChange={(e) => setDeliveryInstructions(e.target.value)}
+              placeholder="Instrucciones para el repartidor..."
+              className="w-full p-4 text-sm font-medium"
+              rows={3}
+            />
+          </section>
+
+          <aside className="space-y-6">
+            <SectionCard className="p-5 lg:sticky lg:top-24 lg:p-6">
+              <h2 className="mb-4 text-xl font-black tracking-tight text-[#f5f5f5]">
+                Resumen de compra
+              </h2>
+              {hasOnlyZeroPriceItems ? (
+                <div className="mb-4 rounded-2xl border border-orange-500/30 bg-black/60 p-4">
+                  <p className="text-sm font-semibold text-orange-300">
+                    Detectamos productos viejos sin precio en tu carrito.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleClearCart}
+                    className="mt-3 border-orange-300 text-orange-300"
+                  >
+                    Vaciar carrito
+                  </Button>
+                </div>
+              ) : null}
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between font-medium text-[#b3b3b3]">
+                  <span>Productos</span>
+                  <span className="font-bold text-[#f5f5f5]">
+                    {formatMoney(subtotal)}
                   </span>
                 </div>
+                <div className="flex justify-between font-medium text-[#b3b3b3]">
+                  <span>Servicio</span>
+                  <span className="font-bold text-[#f5f5f5]">
+                    {formatMoney(commissionBreakdown.serviceFee)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-medium text-[#b3b3b3]">
+                  <span>Envío</span>
+                  <span className="font-bold text-[#f5f5f5]">
+                    {commissionBreakdown.deliveryFee > 0
+                      ? formatMoney(commissionBreakdown.deliveryFee)
+                      : "Gratis"}
+                  </span>
+                </div>
+                <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-black text-[#f5f5f5]">
+                  <span>Total</span>
+                  <span>{formatMoney(commissionBreakdown.total)}</span>
+                </div>
               </div>
-            </SectionCard>
-          ))}
 
-          <textarea
-            value={deliveryInstructions}
-            onChange={(e) => setDeliveryInstructions(e.target.value)}
-            placeholder="Instrucciones para el repartidor..."
-            className="w-full p-4 text-sm font-medium"
-            rows={3}
-          />
-        </section>
-
-        <aside className="space-y-6">
-          <SectionCard className="p-6">
-            <h2 className="mb-4 text-xl font-black tracking-tight text-[#f5f5f5]">
-              Resumen de compra
-            </h2>
-            {hasOnlyZeroPriceItems ? (
-              <div className="mb-4 rounded-2xl border border-orange-500/30 bg-black/60 p-4">
-                <p className="text-sm font-semibold text-orange-300">
-                  Detectamos productos viejos sin precio en tu carrito.
+              <div className="mt-6 rounded-[24px] bg-black/60 p-4">
+                <p className="text-xs font-bold uppercase text-orange-300">
+                  Entrega en:
                 </p>
+                <p className="mt-1 text-sm font-semibold text-[#f5f5f5]">
+                  {savedAddress?.fullAddress || "Sin dirección"}
+                </p>
+                {shipping.message ? (
+                  <p className="mt-2 text-xs font-medium text-[#b3b3b3]">
+                    {shipping.message}
+                  </p>
+                ) : null}
                 <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleClearCart}
-                  className="mt-3 border-orange-300 text-orange-300"
+                  variant="link"
+                  onClick={() => setAddressDialogOpen(true)}
+                  className="mt-2 h-auto p-0 text-orange-600"
                 >
-                  Vaciar carrito
+                  Cambiar
                 </Button>
               </div>
-            ) : null}
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between font-medium text-[#b3b3b3]">
-                <span>Productos</span>
-                <span className="font-bold text-[#f5f5f5]">
-                  {formatMoney(subtotal)}
-                </span>
-              </div>
-              <div className="flex justify-between font-medium text-[#b3b3b3]">
-                <span>Servicio</span>
-                <span className="font-bold text-[#f5f5f5]">
-                  {formatMoney(commissionBreakdown.serviceFee)}
-                </span>
-              </div>
-              <div className="flex justify-between font-medium text-[#b3b3b3]">
-                <span>Envío</span>
-                <span className="font-bold text-[#f5f5f5]">
-                  {commissionBreakdown.deliveryFee > 0
-                    ? formatMoney(commissionBreakdown.deliveryFee)
-                    : "Gratis"}
-                </span>
-              </div>
-              <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-black text-[#f5f5f5]">
-                <span>Total</span>
-                <span>{formatMoney(commissionBreakdown.total)}</span>
-              </div>
-            </div>
 
-            <div className="mt-6 rounded-[24px] bg-black/60 p-4">
-              <p className="text-xs font-bold uppercase text-orange-300">
-                Entrega en:
-              </p>
-              <p className="mt-1 text-sm font-semibold text-[#f5f5f5]">
-                {savedAddress?.fullAddress || "Sin dirección"}
-              </p>
-              {shipping.message ? (
-                <p className="mt-2 text-xs font-medium text-[#b3b3b3]">
-                  {shipping.message}
+              <Button
+                onClick={handleCheckout}
+                size="lg"
+                className="mt-6 w-full"
+                disabled={!canContinueToPayment}
+              >
+                {submittingOrder ? "Procesando..." : "Continuar al pago"}
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+              {checkoutBlockReason ? (
+                <p className="mt-3 text-sm font-semibold text-[#b3b3b3]">
+                  {checkoutBlockReason}
                 </p>
               ) : null}
-              <Button
-                variant="link"
-                onClick={() => setAddressDialogOpen(true)}
-                className="mt-2 h-auto p-0 text-orange-600"
-              >
-                Cambiar
-              </Button>
-            </div>
+            </SectionCard>
+          </aside>
+        </div>
+      </div>
 
-            <Button
-              onClick={handleCheckout}
-              size="lg"
-              className="mt-6 w-full"
-              disabled={!canContinueToPayment}
-            >
-              {submittingOrder ? "Procesando..." : "Continuar al pago"}
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-            {checkoutBlockReason ? (
-              <p className="mt-3 text-sm font-semibold text-[#b3b3b3]">
-                {checkoutBlockReason}
-              </p>
-            ) : null}
-          </SectionCard>
-        </aside>
+      <div className="safe-bottom sticky bottom-0 z-30 border-t border-white/10 bg-black/90 px-4 py-3 backdrop-blur-xl lg:hidden">
+        <div className="section-shell flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8f8f8f]">
+              Total
+            </p>
+            <p className="truncate text-lg font-black text-white">
+              {formatMoney(commissionBreakdown.total)}
+            </p>
+          </div>
+          <Button
+            onClick={handleCheckout}
+            size="lg"
+            className="min-w-[12rem]"
+            disabled={!canContinueToPayment}
+          >
+            {submittingOrder ? "Procesando..." : "Continuar"}
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
@@ -1253,10 +1283,16 @@ export default function CarritoPage() {
               Resumen antes de confirmar
             </p>
             <p className="mt-2">
-              Productos: {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+              Productos:{" "}
+              {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
             </p>
             <p>Subtotal: {formatMoney(subtotal)}</p>
-            <p>Envío: {commissionBreakdown.deliveryFee > 0 ? formatMoney(commissionBreakdown.deliveryFee) : "Gratis"}</p>
+            <p>
+              Envío:{" "}
+              {commissionBreakdown.deliveryFee > 0
+                ? formatMoney(commissionBreakdown.deliveryFee)
+                : "Gratis"}
+            </p>
             <p>Servicio: {formatMoney(commissionBreakdown.serviceFee)}</p>
             <p className="mt-1 font-black text-[#f5f5f5]">
               Total: {formatMoney(commissionBreakdown.total)}
@@ -1349,7 +1385,9 @@ export default function CarritoPage() {
           <DialogFooter>
             <Button
               onClick={handleTransferOrder}
-              disabled={submittingOrder || !transferReceiptFile || !canSubmitOrder}
+              disabled={
+                submittingOrder || !transferReceiptFile || !canSubmitOrder
+              }
               size="lg"
               className="w-full"
             >

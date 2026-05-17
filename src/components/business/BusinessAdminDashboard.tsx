@@ -12,8 +12,8 @@ import {
   RefreshCcw,
   Search,
   Settings,
-  ShieldCheck,
   ShieldAlert,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   UserPlus,
@@ -487,8 +487,8 @@ function AdminModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-white/40 bg-white shadow-2xl ring-1 ring-white/70">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-white/40 bg-white shadow-2xl ring-1 ring-white/70">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <h3 className="text-lg font-black text-slate-950">{title}</h3>
           <button
@@ -2339,7 +2339,8 @@ export function BusinessAdminDashboard() {
               Cargando panel administrativo
             </h1>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
-              Estamos verificando tu sesión, tus permisos y la información del negocio para mostrarte el panel correcto.
+              Estamos verificando tu sesión, tus permisos y la información del
+              negocio para mostrarte el panel correcto.
             </p>
           </div>
           <div className="px-6 py-6 sm:px-8">
@@ -2354,11 +2355,11 @@ export function BusinessAdminDashboard() {
 
   return (
     <>
-      <main className="min-h-screen bg-[#f4f6f8] text-slate-950">
+      <main className="min-h-screen overflow-x-hidden bg-[#f4f6f8] text-slate-950">
         <section className="relative overflow-hidden bg-orange-700 text-white">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,214,153,0.24),transparent_30%),linear-gradient(135deg,rgba(194,65,12,0.98)_0%,rgba(234,88,12,0.96)_45%,rgba(249,115,22,0.9)_100%)]" />
           <div className="absolute inset-y-0 right-0 w-[42%] bg-[radial-gradient(circle_at_center,rgba(255,237,213,0.1),transparent_60%)]" />
-          <div className="relative z-10 mx-auto max-w-7xl px-4 pb-8 pt-8 sm:px-6 lg:px-8">
+          <div className="app-shell relative z-10 pb-8 pt-7 sm:pt-8">
             <div className="relative flex flex-col gap-5">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex items-start gap-4">
@@ -2390,11 +2391,11 @@ export function BusinessAdminDashboard() {
                     <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-orange-100/90 sm:text-sm">
                       Panel administrativo del negocio
                     </p>
-                    <h1 className="text-3xl font-black leading-tight text-white drop-shadow-[0_6px_22px_rgba(124,45,18,0.35)] sm:text-4xl">
+                    <h1 className="balanced-text text-[clamp(2rem,4.8vw,2.9rem)] font-black leading-tight text-white drop-shadow-[0_6px_22px_rgba(124,45,18,0.35)]">
                       Panel de administración de{" "}
                       {business?.name ?? "tu negocio"}
                     </h1>
-                    <p className="max-w-3xl text-sm font-semibold leading-6 text-white/92 sm:text-base">
+                    <p className="balanced-text max-w-3xl text-sm font-semibold leading-6 text-white/92 sm:text-base">
                       Gestiona vendedores, productos, ventas, promociones e
                       inventario de tu negocio.
                     </p>
@@ -2451,7 +2452,7 @@ export function BusinessAdminDashboard() {
           </div>
         </section>
 
-        <div className="mx-auto mt-8 max-w-7xl px-4 pb-16 sm:mt-10 sm:px-6 lg:px-8">
+        <div className="app-shell mt-8 pb-16 sm:mt-10">
           {feedback ? (
             <div
               className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm ${
@@ -2498,7 +2499,7 @@ export function BusinessAdminDashboard() {
           </section>
 
           <div className="mt-10 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap gap-3">
+            <div className="grid gap-3 sm:flex sm:flex-wrap">
               {sections.map((section) => {
                 const Icon = section.icon;
                 const active = activeSection === section.id;
@@ -2508,7 +2509,7 @@ export function BusinessAdminDashboard() {
                     key={section.id}
                     type="button"
                     onClick={() => setActiveSection(section.id)}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-5 py-3 text-sm font-extrabold transition ${
+                    className={`inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-extrabold transition ${
                       active
                         ? "bg-slate-950 text-white shadow-lg"
                         : "bg-white text-slate-700 shadow-sm hover:bg-slate-100"
@@ -2521,7 +2522,7 @@ export function BusinessAdminDashboard() {
               })}
             </div>
 
-            <div className="flex flex-wrap gap-2.5 xl:justify-end">
+            <div className="grid gap-2.5 sm:flex sm:flex-wrap xl:justify-end">
               <div className="inline-flex rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
                 {(
                   [
@@ -2550,7 +2551,7 @@ export function BusinessAdminDashboard() {
                     ? `/business/products/${business.id}/new`
                     : "/business"
                 }
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-800 shadow-sm transition hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-center text-xs font-extrabold uppercase tracking-wide text-slate-800 shadow-sm transition hover:bg-slate-50"
               >
                 <PackagePlus className="h-4 w-4" />
                 Agregar producto
@@ -2558,7 +2559,7 @@ export function BusinessAdminDashboard() {
               <button
                 type="button"
                 onClick={() => setShowPromotionModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-orange-500 px-3.5 py-2 text-xs font-extrabold uppercase tracking-wide text-white shadow-sm transition hover:bg-orange-600"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-orange-500 px-3.5 py-2 text-center text-xs font-extrabold uppercase tracking-wide text-white shadow-sm transition hover:bg-orange-600"
               >
                 <Megaphone className="h-4 w-4" />
                 Crear promoción
@@ -2566,7 +2567,7 @@ export function BusinessAdminDashboard() {
               <button
                 type="button"
                 onClick={() => setShowSellerModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-center text-xs font-extrabold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <UserPlus className="h-4 w-4" />
                 Agregar vendedor
@@ -2574,7 +2575,7 @@ export function BusinessAdminDashboard() {
               <button
                 type="button"
                 onClick={() => setShowTrainingModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-extrabold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-center text-xs font-extrabold uppercase tracking-wide text-slate-700 shadow-sm transition hover:bg-slate-50"
               >
                 <Sparkles className="h-4 w-4" />
                 Capacitación

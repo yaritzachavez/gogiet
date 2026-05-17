@@ -20,7 +20,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col gap-4 rounded-[30px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.96)_0%,rgba(18,18,18,0.96)_100%)] px-5 py-6 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-7 sm:py-7 lg:flex-row lg:items-end lg:justify-between",
+        "flex flex-col gap-4 rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(32,32,32,0.96)_0%,rgba(18,18,18,0.96)_100%)] px-4 py-5 shadow-[0_20px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-6 sm:py-6 lg:flex-row lg:items-end lg:justify-between lg:px-7 lg:py-7",
         className,
       )}
     >
@@ -30,16 +30,18 @@ export function PageHeader({
             {eyebrow}
           </p>
         ) : null}
-        <h1 className="mt-2 text-3xl font-black tracking-tight text-[#f5f5f5] sm:text-4xl">
+        <h1 className="balanced-text mt-2 text-[clamp(1.9rem,4vw,2.75rem)] font-black tracking-tight text-[#f5f5f5]">
           {title}
         </h1>
         {description ? (
-          <p className="mt-3 max-w-3xl text-sm font-medium leading-6 text-[#b3b3b3] sm:text-base">
+          <p className="balanced-text mt-3 max-w-3xl text-sm font-medium leading-6 text-[#b3b3b3] sm:text-base">
             {description}
           </p>
         ) : null}
       </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
+      {actions ? (
+        <div className="min-w-0 shrink-0 max-sm:w-full">{actions}</div>
+      ) : null}
     </div>
   );
 }

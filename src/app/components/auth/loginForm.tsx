@@ -79,15 +79,13 @@ export default function LoginForm() {
         }),
       });
 
-      const data = (await res.json().catch(() => null)) as
-        | {
-            success?: boolean;
-            error?: string;
-            token?: string;
-            redirectTo?: string;
-            user?: { id: number; name: string; roles?: string[] };
-          }
-        | null;
+      const data = (await res.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        token?: string;
+        redirectTo?: string;
+        user?: { id: number; name: string; roles?: string[] };
+      } | null;
 
       if (res.ok && data?.success && data?.token && data?.user) {
         localStorage.setItem("token", data.token);
@@ -118,12 +116,12 @@ export default function LoginForm() {
   };
 
   return (
-    <div className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.10),transparent_28%),linear-gradient(180deg,rgba(26,26,26,0.96)_0%,rgba(18,18,18,0.96)_100%)] p-8 shadow-[0_32px_80px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-      <div className="mb-8">
+    <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.10),transparent_28%),linear-gradient(180deg,rgba(26,26,26,0.96)_0%,rgba(18,18,18,0.96)_100%)] p-5 shadow-[0_32px_80px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:rounded-[32px] sm:p-8">
+      <div className="mb-6 sm:mb-8">
         <p className="text-center text-xs font-extrabold uppercase tracking-[0.32em] text-orange-300">
           Bienvenido
         </p>
-        <h1 className="mt-3 text-center text-3xl font-black text-[#f5f5f5]">
+        <h1 className="mt-3 text-center text-2xl font-black text-[#f5f5f5] sm:text-3xl">
           Inicia sesión
         </h1>
         <p className="mt-3 text-center text-sm text-[#b3b3b3]">
@@ -132,7 +130,7 @@ export default function LoginForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
         {/* Mensaje de error */}
         {errorMessage && (
           <p className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">

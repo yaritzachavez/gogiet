@@ -11,7 +11,7 @@ export function SectionCard({ children, className }: SectionCardProps) {
   return (
     <section
       className={cn(
-        "rounded-[28px] border border-white/10 bg-black/70 shadow-[0_18px_45px_rgba(0,0,0,0.35)] backdrop-blur",
+        "rounded-[24px] border border-white/10 bg-black/70 shadow-[0_18px_45px_rgba(0,0,0,0.35)] backdrop-blur sm:rounded-[28px]",
         className,
       )}
     >

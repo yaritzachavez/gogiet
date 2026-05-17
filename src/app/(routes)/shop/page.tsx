@@ -313,7 +313,7 @@ export default function ShopPage() {
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
   const [favoriteBusinessIds, setFavoriteBusinessIds] = useState<number[]>([]);
   const [storesWarning, setStoresWarning] = useState("");
-  const [activeOrdersWarning, setActiveOrdersWarning] = useState("");
+  const [_activeOrdersWarning, setActiveOrdersWarning] = useState("");
 
   useEffect(() => {
     async function fetchData() {
@@ -322,12 +322,9 @@ export default function ShopPage() {
         setStoresWarning("");
         const query = searchQuery.trim();
         const url = `/api/stores${query ? `?q=${encodeURIComponent(query)}` : ""}`;
-        const result = await fetchJsonSafely<{ stores?: ApiBusiness[] }>(
-          url,
-          {
-            cache: "no-store",
-          },
-        );
+        const result = await fetchJsonSafely<{ stores?: ApiBusiness[] }>(url, {
+          cache: "no-store",
+        });
 
         if (!result.success) {
           setBusinesses([]);
@@ -349,7 +346,9 @@ export default function ShopPage() {
             const profileImageUrl = normalizeBusinessImageCandidate(
               business.profile_image_url,
             );
-            const photoUrl = normalizeBusinessImageCandidate(business.photo_url);
+            const photoUrl = normalizeBusinessImageCandidate(
+              business.photo_url,
+            );
             const avatarUrl = normalizeBusinessImageCandidate(
               business.avatar_url,
             );
@@ -638,20 +637,20 @@ export default function ShopPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_22%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)] text-slate-950">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 sm:px-6">
-        <header className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
+      <div className="section-shell flex w-full flex-col gap-4 py-4 sm:gap-5 sm:py-5">
+        <header className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <span className="inline-flex size-11 items-center justify-center rounded-xl bg-orange-600 text-white shadow-lg shadow-orange-600/20">
               <Store className="h-5 w-5" />
             </span>
-            <div className="relative">
+            <div className="relative min-w-0">
               <button
                 type="button"
                 onClick={() => setLocationMenuOpen((current) => !current)}
-                className="rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white/6"
+                className="max-w-full rounded-xl px-2.5 py-1.5 text-left transition hover:bg-white/6"
               >
                 <p className="text-xs font-black text-white/45">Entregar en</p>
-                <span className="inline-flex items-center gap-1.5 text-lg font-black text-white">
+                <span className="inline-flex max-w-full items-center gap-1.5 truncate text-lg font-black text-white">
                   {selectedLocation}
                   <ChevronRight
                     className={`h-4 w-4 rotate-90 transition ${
@@ -662,7 +661,7 @@ export default function ShopPage() {
               </button>
 
               {locationMenuOpen ? (
-                <div className="absolute left-0 top-full z-20 mt-2 w-64 overflow-hidden rounded-2xl border border-white/10 bg-[#181818]/96 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                <div className="absolute left-0 top-full z-20 mt-2 w-[min(18rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/10 bg-[#181818]/96 shadow-2xl shadow-black/40 backdrop-blur-xl">
                   <div className="max-h-72 overflow-y-auto p-2">
                     {DELIVERY_LOCATIONS.map((location) => (
                       <button
@@ -693,7 +692,7 @@ export default function ShopPage() {
           title="Descubre negocios que sí antojan"
           description="Explora aliados cercanos con entregas rápidas, promociones del día y favoritos listos para volver a pedir."
           actions={
-            <div className="rounded-2xl border border-[#efcfaf] bg-[linear-gradient(180deg,#fff7ee_0%,#f8ecdf_100%)] px-4 py-3 text-sm font-bold text-[#c7641a] shadow-[0_12px_28px_rgba(255,107,0,0.10)]">
+            <div className="w-full rounded-2xl border border-[#efcfaf] bg-[linear-gradient(180deg,#fff7ee_0%,#f8ecdf_100%)] px-4 py-3 text-sm font-bold text-[#c7641a] shadow-[0_12px_28px_rgba(255,107,0,0.10)] sm:w-auto">
               {filteredBusinesses.length} aliados disponibles
             </div>
           }
@@ -712,40 +711,40 @@ export default function ShopPage() {
           </label>
         </section>
 
-        <section className="rounded-[28px] border border-white/8 bg-[linear-gradient(180deg,rgba(22,22,22,0.92)_0%,rgba(15,15,15,0.94)_100%)] px-4 py-5 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl">
-          <div className="flex gap-6 overflow-x-auto pb-1">
-          {categoryFilters.slice(0, 9).map((item) => {
-            const isActive = selectedFilter === item;
-            const staticFilter = STATIC_FILTERS.find(
-              (filter) => filter.label === item,
-            );
-            const Icon = staticFilter?.icon ?? Store;
+        <section className="rounded-[24px] border border-white/8 bg-[linear-gradient(180deg,rgba(22,22,22,0.92)_0%,rgba(15,15,15,0.94)_100%)] px-4 py-4 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[28px] sm:py-5">
+          <div className="touch-scroll flex gap-4 overflow-x-auto pb-1 sm:gap-6">
+            {categoryFilters.slice(0, 9).map((item) => {
+              const isActive = selectedFilter === item;
+              const staticFilter = STATIC_FILTERS.find(
+                (filter) => filter.label === item,
+              );
+              const Icon = staticFilter?.icon ?? Store;
 
-            return (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setSelectedFilter(item)}
-                aria-pressed={isActive}
-                className="group flex shrink-0 flex-col items-center gap-2"
-              >
-                <span
-                  className={`inline-flex size-14 items-center justify-center rounded-full text-white shadow-md transition group-hover:-translate-y-0.5 sm:size-16 ${
-                    staticFilter?.color ?? "bg-orange-500"
-                  } ${isActive ? "ring-4 ring-orange-100" : ""}`}
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setSelectedFilter(item)}
+                  aria-pressed={isActive}
+                  className="group flex shrink-0 flex-col items-center gap-2"
                 >
-                  <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
-                </span>
-                <span
-                  className={`text-sm font-black ${
-                    isActive ? "text-white" : "text-white/58"
-                  }`}
-                >
-                  {item}
-                </span>
-              </button>
-            );
-          })}
+                  <span
+                    className={`inline-flex size-14 items-center justify-center rounded-full text-white shadow-md transition group-hover:-translate-y-0.5 sm:size-16 ${
+                      staticFilter?.color ?? "bg-orange-500"
+                    } ${isActive ? "ring-4 ring-orange-100" : ""}`}
+                  >
+                    <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+                  </span>
+                  <span
+                    className={`text-sm font-black ${
+                      isActive ? "text-white" : "text-white/58"
+                    }`}
+                  >
+                    {item}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -760,11 +759,11 @@ export default function ShopPage() {
               </p>
             </div>
 
-            <div className="flex gap-3 overflow-x-auto pb-1">
+            <div className="touch-scroll flex gap-3 overflow-x-auto pb-1">
               {activeOrders.map((order) => (
                 <article
                   key={order.id}
-                  className="min-w-[280px] shrink-0 rounded-[18px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)]"
+                  className="min-w-[240px] shrink-0 rounded-[18px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)] sm:min-w-[280px]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -797,7 +796,7 @@ export default function ShopPage() {
           </section>
         ) : null}
 
-        <section className="overflow-hidden rounded-[18px] bg-gradient-to-r from-orange-600 to-red-500 px-6 py-5 text-white shadow-[0_20px_44px_rgba(255,107,0,0.18)] ring-1 ring-white/10">
+        <section className="overflow-hidden rounded-[22px] bg-gradient-to-r from-orange-600 to-red-500 px-5 py-5 text-white shadow-[0_20px_44px_rgba(255,107,0,0.18)] ring-1 ring-white/10 sm:px-6">
           <p className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em]">
             <Sparkles className="h-4 w-4" />
             Oferta especial
@@ -819,17 +818,17 @@ export default function ShopPage() {
 
         {favoriteBusinesses.length > 0 ? (
           <section className="space-y-4">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-                Tus favoritos
-              </h1>
-              <p className="mt-1 text-sm font-semibold text-white/62">
-                Regresa rápido a los negocios que más te gustan.
-              </p>
-            </div>
-            <button
-              type="button"
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  Tus favoritos
+                </h1>
+                <p className="mt-1 text-sm font-semibold text-white/62">
+                  Regresa rápido a los negocios que más te gustan.
+                </p>
+              </div>
+              <button
+                type="button"
                 className="inline-flex items-center gap-1.5 text-sm font-black text-orange-600 transition hover:text-orange-700"
               >
                 {favoriteBusinesses.length} guardados
@@ -837,7 +836,7 @@ export default function ShopPage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="responsive-card-grid">
               {favoriteBusinesses.map((business, index) => (
                 <BusinessCard
                   key={`favorite-${business.id}-${index}`}
@@ -892,11 +891,11 @@ export default function ShopPage() {
           </div>
 
           {loading ? (
-            <div className="grid animate-pulse grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="responsive-card-grid animate-pulse">
               {PLACEHOLDER_IDS.map((placeholder) => (
                 <div
                   key={placeholder}
-                  className="h-48 rounded-[18px] bg-white/10 shadow-sm"
+                  className="h-52 rounded-[18px] bg-white/10 shadow-sm sm:h-56"
                 />
               ))}
             </div>
@@ -907,7 +906,7 @@ export default function ShopPage() {
               description={storesWarning}
             />
           ) : filteredBusinesses.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="responsive-card-grid">
               {filteredBusinesses.map((business, index) => (
                 <BusinessCard
                   key={`${business.id ?? "business"}-${index}`}

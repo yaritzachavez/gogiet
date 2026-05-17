@@ -126,6 +126,7 @@ export function AppImage({
             alt={alt}
             fill
             priority={priority}
+            loading={priority ? "eager" : "lazy"}
             sizes={sizes}
             unoptimized={shouldBypassNextImage(optimizedSrc)}
             className={cn(

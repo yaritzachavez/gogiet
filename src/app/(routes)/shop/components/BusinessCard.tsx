@@ -91,7 +91,7 @@ export default function BusinessCard({
     <CardShell
       href={href}
       onClick={onClick}
-      className="group relative flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-slate-200/90 bg-white text-left shadow-[0_16px_40px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400"
+      className="group relative flex min-h-0 h-full flex-col overflow-hidden rounded-[22px] border border-slate-200/90 bg-white text-left shadow-[0_16px_40px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(15,23,42,0.12)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-orange-400 sm:rounded-[24px]"
     >
       <div className="relative overflow-hidden bg-slate-100">
         <div className="relative aspect-[4/3] w-full">
@@ -129,9 +129,9 @@ export default function BusinessCard({
         </button>
       </div>
 
-      <div className="flex flex-1 flex-col px-4 py-4">
+      <div className="flex flex-1 flex-col px-3.5 py-3.5 sm:px-4 sm:py-4">
         <div className="min-w-0">
-          <h2 className="truncate text-base font-black tracking-tight text-slate-950 sm:text-lg">
+          <h2 className="truncate text-[0.95rem] font-black tracking-tight text-slate-950 sm:text-lg">
             {normalizedName}
           </h2>
           <p className="mt-1 truncate text-sm font-semibold text-slate-500">

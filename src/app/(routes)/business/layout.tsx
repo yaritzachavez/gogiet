@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
-import type { RowDataPacket } from "mysql2/promise";
 import { Building2, LockKeyhole, ShieldAlert } from "lucide-react";
-import Link from "next/link";
+import type { RowDataPacket } from "mysql2/promise";
 import { cookies } from "next/headers";
+import Link from "next/link";
 
 import { isSessionTokenActive } from "@/lib/auth-security";
 import pool from "@/lib/db";
@@ -37,8 +37,8 @@ function BusinessAccessCard(props: {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.14),transparent_28%),linear-gradient(180deg,#0b0b0b_0%,#111111_48%,#151515_100%)] px-4 py-12 text-white sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[72vh] max-w-3xl items-center">
-        <section className="w-full overflow-hidden rounded-[34px] border border-white/10 bg-[#121212]/92 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-          <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(255,115,0,0.18),rgba(255,115,0,0.04)_55%,transparent)] px-6 py-6 sm:px-8">
+        <section className="w-full overflow-hidden rounded-[28px] border border-white/10 bg-[#121212]/92 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl sm:rounded-[34px]">
+          <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(255,115,0,0.18),rgba(255,115,0,0.04)_55%,transparent)] px-5 py-6 sm:px-8">
             <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-orange-400/25 bg-orange-500/10 text-orange-200 shadow-[0_12px_35px_rgba(255,115,0,0.18)]">
               {props.icon}
             </div>
@@ -53,16 +53,16 @@ function BusinessAccessCard(props: {
             </p>
           </div>
 
-          <div className="flex flex-col gap-4 px-6 py-6 sm:flex-row sm:px-8 sm:py-7">
+          <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:px-8 sm:py-7">
             <Link
               href={props.primaryHref}
-              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 via-orange-500 to-orange-400 px-5 text-sm font-bold text-white shadow-[0_18px_45px_rgba(255,115,0,0.24)] transition hover:scale-[1.01] hover:from-orange-400 hover:to-orange-500"
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 via-orange-500 to-orange-400 px-5 text-center text-sm font-bold text-white shadow-[0_18px_45px_rgba(255,115,0,0.24)] transition hover:scale-[1.01] hover:from-orange-400 hover:to-orange-500"
             >
               {props.primaryLabel}
             </Link>
             <Link
               href={props.secondaryHref}
-              className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-5 text-sm font-semibold text-neutral-100 transition hover:border-orange-300/30 hover:bg-orange-500/8"
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-5 text-center text-sm font-semibold text-neutral-100 transition hover:border-orange-300/30 hover:bg-orange-500/8"
             >
               {props.secondaryLabel}
             </Link>

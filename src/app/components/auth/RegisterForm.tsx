@@ -1,13 +1,13 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   isValidEmail,
   normalizePhone,
@@ -62,24 +62,18 @@ export default function RegisterForm() {
         },
       );
 
-      const data = (await response.json().catch(() => null)) as
-        | {
-            success?: boolean;
-            error?: string;
-            message?: string;
-          }
-        | null;
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+      } | null;
 
       if (response.ok && data?.success) {
         setCodeSent(true);
-        setSuccessMessage(
-          data?.message || "Código enviado correctamente.",
-        );
+        setSuccessMessage(data?.message || "Código enviado correctamente.");
       } else {
         setErrorMessage(
-          data?.error ||
-            data?.message ||
-            "No se pudo enviar el código.",
+          data?.error || data?.message || "No se pudo enviar el código.",
         );
       }
     } catch (err) {
@@ -157,16 +151,14 @@ export default function RegisterForm() {
         }),
       });
 
-      const data = (await response.json().catch(() => null)) as
-        | {
-            success?: boolean;
-            error?: string;
-            message?: string;
-            email?: string;
-            requiresVerification?: boolean;
-            user?: { email?: string };
-          }
-        | null;
+      const data = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        email?: string;
+        requiresVerification?: boolean;
+        user?: { email?: string };
+      } | null;
 
       if (response.ok && data?.success) {
         setSuccessMessage("Cuenta creada correctamente.");
@@ -196,12 +188,12 @@ export default function RegisterForm() {
   };
 
   return (
-    <div className="rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.10),transparent_28%),linear-gradient(180deg,rgba(26,26,26,0.96)_0%,rgba(18,18,18,0.96)_100%)] p-8 shadow-[0_32px_80px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-      <div className="mb-8">
+    <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.10),transparent_28%),linear-gradient(180deg,rgba(26,26,26,0.96)_0%,rgba(18,18,18,0.96)_100%)] p-5 shadow-[0_32px_80px_rgba(0,0,0,0.4)] backdrop-blur-xl sm:rounded-[32px] sm:p-8">
+      <div className="mb-6 sm:mb-8">
         <p className="text-center text-xs font-extrabold uppercase tracking-[0.32em] text-orange-300">
           Crear cuenta
         </p>
-        <h1 className="mt-3 text-center text-3xl font-black text-[#f5f5f5]">
+        <h1 className="mt-3 text-center text-2xl font-black text-[#f5f5f5] sm:text-3xl">
           Registro
         </h1>
         <p className="mt-3 text-center text-sm text-[#b3b3b3]">
@@ -210,7 +202,7 @@ export default function RegisterForm() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
         {/* 👇 mensaje de error */}
         {errorMessage && (
           <p className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-center text-sm text-red-300">

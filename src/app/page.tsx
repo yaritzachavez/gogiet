@@ -29,18 +29,18 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-r from-black/92 via-black/74 to-black/48" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_28%,rgba(255,107,0,0.18),transparent_28%)]" />
 
-          <div className="relative mx-auto grid min-h-[calc(100vh-5rem)] max-w-7xl items-center gap-10 px-6 py-16 lg:grid-cols-[0.95fr_1.05fr] lg:px-10 xl:px-4">
+          <div className="section-shell relative grid min-h-[calc(100vh-5rem)] items-center gap-8 py-12 sm:gap-10 sm:py-16 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="max-w-3xl">
               <Badge className="mb-8 rounded-full border border-orange-500/30 bg-black/40 px-6 py-3 text-sm font-extrabold uppercase tracking-[0.15em] text-orange-300 shadow-sm">
                 Apoyando aliados locales
               </Badge>
 
-              <h1 className="max-w-3xl text-5xl font-black leading-[1.05] tracking-normal text-white sm:text-6xl lg:text-7xl">
+              <h1 className="balanced-text max-w-3xl text-[clamp(2.8rem,8vw,4.8rem)] font-black leading-[1.02] tracking-normal text-white">
                 Tu comida favorita,{" "}
                 <span className="text-orange-600">al instante</span>
               </h1>
 
-              <p className="mt-7 max-w-2xl text-xl leading-9 text-white/80 md:text-2xl">
+              <p className="balanced-text mt-6 max-w-2xl text-lg leading-8 text-white/80 md:text-2xl md:leading-9">
                 Desde Mazamitla para sus alrededores: sabores hechos en casa,
                 negocios con identidad local y entregas que se sienten cercanas
                 desde el primer clic.
@@ -71,7 +71,7 @@ export default function Home() {
           <div className="pointer-events-none absolute inset-x-0 top-8 flex justify-center">
             <div className="h-32 w-[min(66rem,90vw)] rounded-full bg-orange-500/8 blur-3xl" />
           </div>
-          <div className="relative mx-auto max-w-6xl rounded-[36px] border border-orange-500/12 bg-[linear-gradient(180deg,rgba(21,21,21,0.98)_0%,rgba(11,11,11,0.98)_100%)] px-6 py-10 shadow-[0_28px_64px_rgba(0,0,0,0.42)] sm:px-8 sm:py-12">
+          <div className="section-shell relative rounded-[30px] border border-orange-500/12 bg-[linear-gradient(180deg,rgba(21,21,21,0.98)_0%,rgba(11,11,11,0.98)_100%)] px-5 py-8 shadow-[0_28px_64px_rgba(0,0,0,0.42)] sm:rounded-[36px] sm:px-8 sm:py-12">
             <div className="mb-8 text-center sm:mb-10">
               <h2 className="font-serif text-4xl text-[#f5f5f5]">
                 ¿Por qué elegir Gogi Eats?
