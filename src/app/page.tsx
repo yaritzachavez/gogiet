@@ -12,9 +12,9 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
   return (
-    <div className="relative min-h-screen overflow-hidden bg-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),transparent_18%),radial-gradient(circle_at_18%_16%,rgba(255,140,26,0.08),transparent_18%),linear-gradient(180deg,#ffffff_0%,#fbfbfb_32%,#f6f6f6_68%,#f2f2f2_100%)]" />
-      <div className="pointer-events-none absolute inset-x-0 top-[26rem] h-[34rem] bg-[radial-gradient(circle,rgba(255,255,255,0.72),transparent_62%)] blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden bg-[#0b0b0b]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,115,0,0.08),transparent_18%),radial-gradient(circle_at_20%_18%,rgba(255,255,255,0.03),transparent_20%),linear-gradient(180deg,#050505_0%,#090909_34%,#0f1012_68%,#111315_100%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-[26rem] h-[34rem] bg-[radial-gradient(circle,rgba(255,255,255,0.025),transparent_62%)] blur-3xl" />
       <main className="relative z-10 pb-16">
         {/* HERO SECTION */}
         <section className="relative min-h-[calc(100dvh-4.5rem)] overflow-hidden">
@@ -22,29 +22,29 @@ export default function Home() {
             src="/fondo.png"
             alt=""
             fill
-            className="scale-[1.03] object-cover object-center saturate-[0.62] brightness-[0.92] contrast-[0.9]"
+            className="scale-[1.03] object-cover object-center saturate-[0.82] brightness-[0.42] contrast-[1.05]"
             priority
           />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(250,250,250,0.82)_28%,rgba(243,243,243,0.90)_68%,rgba(238,238,238,0.96)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.96)_0%,rgba(250,250,250,0.84)_34%,rgba(244,244,244,0.62)_62%,rgba(239,239,239,0.46)_100%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_22%,rgba(255,255,255,0.72),transparent_20%),radial-gradient(circle_at_76%_24%,rgba(255,140,26,0.10),transparent_22%),radial-gradient(circle_at_74%_74%,rgba(255,255,255,0.28),transparent_18%)]" />
-          <div className="absolute inset-0 opacity-20 [background-image:linear-gradient(rgba(120,120,120,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(120,120,120,0.05)_1px,transparent_1px)] [background-size:140px_140px]" />
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(180deg,transparent_0%,rgba(245,245,245,0.92)_68%,#ffffff_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(4,4,5,0.68)_0%,rgba(5,5,6,0.78)_26%,rgba(7,8,10,0.92)_78%,rgba(10,12,15,0.98)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(3,3,4,0.94)_0%,rgba(6,7,9,0.82)_34%,rgba(9,10,12,0.68)_62%,rgba(14,15,18,0.58)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_14%_22%,rgba(255,255,255,0.045),transparent_20%),radial-gradient(circle_at_78%_24%,rgba(255,115,0,0.12),transparent_22%),radial-gradient(circle_at_72%_72%,rgba(255,255,255,0.03),transparent_18%)]" />
+          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px)] [background-size:140px_140px]" />
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(180deg,transparent_0%,rgba(8,9,11,0.9)_68%,#0b0b0b_100%)]" />
 
           <div className="section-shell relative grid min-h-[calc(100dvh-4.5rem)] items-center gap-6 py-8 sm:gap-10 sm:py-16 lg:grid-cols-[0.95fr_1.05fr]">
             <div className="max-w-3xl">
-              <Badge className="mb-5 rounded-full border border-[#e8e8e8] bg-white/80 px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#a85a16] shadow-[0_18px_40px_rgba(15,23,42,0.06)] backdrop-blur-md sm:mb-8 sm:px-6 sm:py-3 sm:text-sm sm:tracking-[0.15em]">
+              <Badge className="mb-5 rounded-full border border-white/12 bg-white/[0.06] px-4 py-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-orange-200 shadow-[0_18px_40px_rgba(0,0,0,0.24)] backdrop-blur-md sm:mb-8 sm:px-6 sm:py-3 sm:text-sm sm:tracking-[0.15em]">
                 Apoyando aliados locales
               </Badge>
 
-              <h1 className="balanced-text max-w-3xl text-[clamp(2.25rem,7vw,4.8rem)] font-black leading-[1.02] tracking-normal text-[#17120d]">
+              <h1 className="balanced-text max-w-3xl text-[clamp(2.25rem,7vw,4.8rem)] font-black leading-[1.02] tracking-normal text-white">
                 Tu comida favorita,{" "}
                 <span className="bg-[linear-gradient(180deg,#ffb36b_0%,#ff7a1a_58%,#ff5c00_100%)] bg-clip-text text-transparent">
                   al instante
                 </span>
               </h1>
 
-              <p className="balanced-text mt-4 max-w-xl text-sm leading-6 text-[#555555] sm:mt-6 sm:text-lg sm:leading-8 md:text-2xl md:leading-9">
+              <p className="balanced-text mt-4 max-w-xl text-sm leading-6 text-white/78 sm:mt-6 sm:text-lg sm:leading-8 md:text-2xl md:leading-9">
                 Desde Mazamitla para sus alrededores: sabores hechos en casa,
                 negocios con identidad local y entregas que se sienten cercanas
                 desde el primer clic.
@@ -54,10 +54,10 @@ export default function Home() {
             </div>
 
             <div className="relative">
-              <div className="absolute -inset-4 rounded-[1.75rem] bg-[radial-gradient(circle_at_50%_50%,rgba(255,140,26,0.14),transparent_58%)] blur-2xl sm:-inset-5 sm:rounded-[2rem]" />
-              <div className="absolute inset-x-[14%] -top-4 h-20 rounded-full bg-white/60 blur-3xl" />
-              <div className="relative aspect-[1.2/1] overflow-hidden rounded-[1.75rem] border border-[#ececec] bg-[linear-gradient(180deg,rgba(255,255,255,0.74)_0%,rgba(250,250,250,0.42)_100%)] shadow-[0_26px_70px_rgba(15,23,42,0.10)] ring-1 ring-white/70 backdrop-blur-sm sm:aspect-[1.55/1] sm:rounded-[2rem] sm:shadow-[0_34px_90px_rgba(15,23,42,0.12)]">
-                <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.24)_0%,transparent_18%,rgba(15,23,42,0.04)_100%)]" />
+              <div className="absolute -inset-4 rounded-[1.75rem] bg-[radial-gradient(circle_at_50%_50%,rgba(255,115,0,0.14),transparent_58%)] blur-2xl sm:-inset-5 sm:rounded-[2rem]" />
+              <div className="absolute inset-x-[14%] -top-4 h-20 rounded-full bg-white/10 blur-3xl" />
+              <div className="relative aspect-[1.2/1] overflow-hidden rounded-[1.75rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_100%)] shadow-[0_28px_70px_rgba(0,0,0,0.46)] ring-1 ring-white/8 backdrop-blur-sm sm:aspect-[1.55/1] sm:rounded-[2rem] sm:shadow-[0_34px_90px_rgba(0,0,0,0.52)]">
+                <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,transparent_18%,rgba(0,0,0,0.16)_100%)]" />
                 <Image
                   src="/repartidor.png"
                   alt="Repartidor de Gogi Eats en bicicleta"
