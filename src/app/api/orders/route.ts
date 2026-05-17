@@ -1162,7 +1162,7 @@ export async function POST(req: NextRequest) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
       `,
       [
         userId,
@@ -1190,7 +1190,7 @@ export async function POST(req: NextRequest) {
         requestFingerprint,
         JSON.stringify(orderSnapshot),
         paymentProvider,
-        normalizedPaymentStatus,
+        normalizedPaymentStatus ?? "PENDING",
       ],
     );
 
