@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowRight,
   Clock3,
   Loader2,
   Minus,
@@ -522,11 +521,11 @@ export default function BusinessDetailPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,107,0,0.08),transparent_22%),linear-gradient(180deg,#0b0b0b_0%,#111111_42%,#151515_100%)]">
-      <main className="section-shell pb-28 pt-3 sm:pt-5 xl:pb-8">
+      <main className="section-shell overflow-x-hidden pb-36 pt-3 sm:pb-32 sm:pt-5 xl:pb-10">
         {/* Header del Negocio */}
-        <SectionCard className="mb-4 overflow-hidden border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(247,241,233,0.96)_100%)] p-2.5 shadow-[0_18px_48px_rgba(97,72,36,0.10)] backdrop-blur-xl sm:mb-6 sm:p-5">
-          <div className="grid gap-2.5 md:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)] md:items-center lg:grid-cols-[minmax(10rem,12rem)_minmax(0,1fr)]">
-            <div className="relative mx-auto w-full max-w-[4.75rem] overflow-hidden rounded-[18px] border border-[#efe3d5] bg-white/80 shadow-[0_12px_28px_rgba(97,72,36,0.08)] md:mx-0 md:max-w-none">
+        <SectionCard className="mb-3 overflow-hidden border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.88)_0%,rgba(247,241,233,0.96)_100%)] p-2.5 shadow-[0_18px_48px_rgba(97,72,36,0.10)] backdrop-blur-xl sm:mb-6 sm:p-5">
+          <div className="grid gap-3 md:grid-cols-[minmax(7rem,9rem)_minmax(0,1fr)] md:items-center lg:grid-cols-[minmax(10rem,12rem)_minmax(0,1fr)]">
+            <div className="relative mx-auto w-full max-w-[5rem] overflow-hidden rounded-[18px] border border-[#efe3d5] bg-white/80 shadow-[0_12px_28px_rgba(97,72,36,0.08)] md:mx-0 md:max-w-none">
               <AppImage
                 src={getBusinessImage(business ?? {})}
                 alt={business?.name ? `Imagen de ${business.name}` : "Logo"}
@@ -539,16 +538,16 @@ export default function BusinessDetailPage() {
               />
             </div>
             <div className="min-w-0">
-              <div className="flex flex-col gap-2 rounded-[20px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,253,249,0.92)_0%,rgba(248,242,235,0.96)_100%)] px-3 py-2.5 shadow-[0_10px_28px_rgba(97,72,36,0.08)] sm:px-5 sm:py-5">
+              <div className="flex flex-col gap-2 rounded-[20px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,253,249,0.92)_0%,rgba(248,242,235,0.96)_100%)] px-3 py-3 shadow-[0_10px_28px_rgba(97,72,36,0.08)] sm:px-5 sm:py-5">
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d96a18] sm:text-[11px] sm:tracking-[0.22em]">
                       Menú del negocio
                     </p>
-                    <h1 className="mt-1 text-[clamp(1.05rem,3.6vw,2.5rem)] font-black tracking-tight text-[#23170f]">
+                    <h1 className="mt-1 text-[clamp(1.2rem,4vw,2.5rem)] font-black tracking-tight text-[#23170f]">
                       {String(business?.name ?? "Negocio local")}
                     </h1>
-                    <p className="mt-1 line-clamp-1 max-w-3xl text-[11px] leading-4 text-[#6e6257] sm:text-base sm:leading-6">
+                    <p className="mt-1 line-clamp-2 max-w-3xl text-xs leading-5 text-[#6e6257] sm:text-base sm:leading-6">
                       {String(
                         business?.description_long ??
                           "Descubre productos destacados y arma tu pedido en segundos.",
@@ -556,12 +555,12 @@ export default function BusinessDetailPage() {
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap gap-1.5 lg:max-w-[17rem] lg:justify-end">
-                    <Badge className="rounded-full border border-[#f0d7bf] bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] px-2.5 py-1 text-[11px] font-bold text-[#b85a18] hover:bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] sm:px-3 sm:py-1.5 sm:text-sm">
-                      <Clock3 className="mr-1 h-4 w-4" />
+                    <Badge className="rounded-full border border-[#f0d7bf] bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] px-2.5 py-1 text-[10px] font-bold text-[#b85a18] hover:bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] sm:px-3 sm:py-1.5 sm:text-sm">
+                      <Clock3 className="mr-1 h-3.5 w-3.5 sm:h-4 sm:w-4" />
                       {business?.estimated_delivery_minutes || 30} min
                     </Badge>
                     <Badge
-                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold sm:px-3 sm:py-1.5 sm:text-sm ${
+                      className={`rounded-full border px-2.5 py-1 text-[10px] font-bold sm:px-3 sm:py-1.5 sm:text-sm ${
                         business?.is_open_now
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50"
                           : "border-red-200 bg-red-50 text-red-700 hover:bg-red-50"
@@ -572,12 +571,12 @@ export default function BusinessDetailPage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-[#eadccb] bg-white/72 px-2.5 py-1 text-[11px] font-semibold text-[#5d5145] sm:px-3 sm:py-1.5 sm:text-sm">
-                    <Store className="h-4 w-4 text-[#d96a18]" />
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-[#eadccb] bg-white/72 px-2.5 py-1 text-[10px] font-semibold text-[#5d5145] sm:px-3 sm:py-1.5 sm:text-sm">
+                    <Store className="h-3.5 w-3.5 text-[#d96a18] sm:h-4 sm:w-4" />
                     {products.length} productos disponibles
                   </div>
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-[#eadccb] bg-white/72 px-2.5 py-1 text-[11px] font-semibold text-[#5d5145] sm:px-3 sm:py-1.5 sm:text-sm">
-                    <Search className="h-4 w-4 text-[#d96a18]" />
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-[#eadccb] bg-white/72 px-2.5 py-1 text-[10px] font-semibold text-[#5d5145] sm:px-3 sm:py-1.5 sm:text-sm">
+                    <Search className="h-3.5 w-3.5 text-[#d96a18] sm:h-4 sm:w-4" />
                     {availableCategories.length || 1} categorías
                   </div>
                 </div>
@@ -586,176 +585,174 @@ export default function BusinessDetailPage() {
           </div>
         </SectionCard>
 
-        {/* Buscador y Grid */}
-        <div className="grid gap-3 xl:grid-cols-[15rem_minmax(0,1fr)] xl:items-start">
-          <aside className="order-1 xl:order-none">
-            <SectionCard className="sticky top-[4.4rem] z-20 border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,239,231,0.98)_100%)] p-2.5 shadow-[0_14px_34px_rgba(97,72,36,0.08)] backdrop-blur-xl sm:top-[5.2rem] sm:p-4 xl:static xl:top-auto">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a28974]" />
-                <input
-                  className="h-11 w-full rounded-2xl border border-[#eadfce] bg-white/80 pl-10 pr-4 text-sm font-semibold text-[#2a1d14] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] outline-none transition-all duration-300 placeholder:text-[#a18e7e] focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
-                  placeholder="Buscar en el menú..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
+        <section className="sticky top-[3.45rem] z-20 mb-3 sm:top-[4.2rem] sm:mb-4 xl:top-[4.8rem]">
+          <SectionCard className="border border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,239,231,0.98)_100%)] p-2.5 shadow-[0_14px_34px_rgba(97,72,36,0.08)] backdrop-blur-xl sm:p-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#a28974]" />
+              <input
+                className="h-10 w-full rounded-2xl border border-[#eadfce] bg-white/80 pl-10 pr-4 text-sm font-semibold text-[#2a1d14] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] outline-none transition-all duration-300 placeholder:text-[#a18e7e] focus:border-orange-300 focus:ring-4 focus:ring-orange-100 sm:h-11"
+                placeholder="Buscar en el menú..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="mt-2.5">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <h3 className="text-sm font-bold text-[#221811]">Categorías</h3>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9a8674] sm:text-xs sm:tracking-[0.18em]">
+                  {availableCategories.length || 1}
+                </span>
               </div>
-              <div className="mt-3">
-                <div className="mb-3 flex items-center justify-between px-1">
-                  <h3 className="font-bold text-[#221811]">Categorías</h3>
-                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[#9a8674]">
-                    {availableCategories.length || 1}
-                  </span>
-                </div>
-                <nav className="touch-scroll flex gap-1.5 overflow-x-auto pb-1 xl:flex-col xl:overflow-visible">
+              <nav className="touch-scroll flex gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveCategory("all")}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-left text-[11px] font-bold transition-all duration-300 ${
+                    activeCategory === "all"
+                      ? "border-orange-200 bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] text-[#c7641a] shadow-[0_10px_24px_rgba(255,107,0,0.10)]"
+                      : "border-transparent bg-white/72 text-[#6a5f55] hover:border-orange-100 hover:bg-white"
+                  }`}
+                >
+                  Todo el menú
+                </button>
+                {availableCategories.map((category) => (
                   <button
+                    key={category.id}
                     type="button"
-                    onClick={() => setActiveCategory("all")}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-left text-[11px] font-bold transition-all duration-300 xl:w-full xl:rounded-2xl xl:px-4 xl:py-3 xl:text-sm ${
-                      activeCategory === "all"
+                    onClick={() => setActiveCategory(category.id)}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 text-left text-[11px] font-bold transition-all duration-300 ${
+                      activeCategory === category.id
                         ? "border-orange-200 bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] text-[#c7641a] shadow-[0_10px_24px_rgba(255,107,0,0.10)]"
                         : "border-transparent bg-white/72 text-[#6a5f55] hover:border-orange-100 hover:bg-white"
                     }`}
                   >
-                    Todo el menú
+                    {category.name}
                   </button>
-                  {availableCategories.map((category) => (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => setActiveCategory(category.id)}
-                      className={`shrink-0 rounded-full border px-3 py-1.5 text-left text-[11px] font-bold transition-all duration-300 xl:w-full xl:rounded-2xl xl:px-4 xl:py-3 xl:text-sm ${
-                        activeCategory === category.id
-                          ? "border-orange-200 bg-[linear-gradient(180deg,#fff8ef_0%,#f8ebdd_100%)] text-[#c7641a] shadow-[0_10px_24px_rgba(255,107,0,0.10)]"
-                          : "border-transparent bg-white/72 text-[#6a5f55] hover:border-orange-100 hover:bg-white"
-                      }`}
-                    >
-                      {category.name}
-                    </button>
-                  ))}
-                </nav>
-              </div>
-            </SectionCard>
-          </aside>
-
-          <section className="order-2 min-w-0">
-            <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-base font-black tracking-tight text-white sm:text-2xl">
-                  Productos del menú
-                </h2>
-                <p className="mt-1 text-xs leading-4 text-white/64 sm:text-sm sm:leading-6">
-                  Explora opciones rápidas, filtra por categoría y agrega al
-                  carrito sin salir de la vista.
-                </p>
-              </div>
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadccb] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] px-2.5 py-1 text-[11px] font-semibold text-[#5d5145] shadow-[0_12px_28px_rgba(0,0,0,0.18)] sm:px-3 sm:py-1.5 sm:text-sm">
-                {filteredProducts.length} resultados
-              </div>
+                ))}
+              </nav>
             </div>
+          </SectionCard>
+        </section>
 
-            <div className="grid grid-cols-2 gap-3 px-0 md:grid-cols-3 xl:grid-cols-4">
-              {paginatedProducts.length > 0 ? (
-                paginatedProducts.map((product) => (
-                  <article
-                    key={product.id}
-                    className="group relative flex min-h-[15.5rem] max-w-full flex-col overflow-hidden rounded-[20px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f7efe6_100%)] shadow-[0_12px_26px_rgba(97,72,36,0.09)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_18px_34px_rgba(255,107,0,0.12)]"
-                  >
-                    <div className="relative aspect-square overflow-hidden bg-[#f6efe6]">
-                      <AppImage
-                        src={getProductImage(product)}
-                        alt={product.name || "Producto"}
-                        width={520}
-                        height={390}
-                        aspectClassName="aspect-square"
-                        className="h-full w-full"
-                        imageClassName="object-cover transition duration-500 group-hover:scale-[1.04]"
-                        fallbackLabel="Producto"
-                      />
-                      {Number(product.discount_price ?? 0) > 0 &&
-                      getOriginalProductPrice(product) >
-                        getProductPrice(product) ? (
-                        <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2.5 py-1 text-[10px] font-black text-white shadow-lg shadow-orange-500/25">
-                          Oferta
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5">
-                      <div className="min-w-0 space-y-1">
-                        <div className="min-w-0">
-                          <p className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#d96a18]">
-                            {product.category_name || "Menú"}
-                          </p>
-                          <h3 className="mt-0.5 line-clamp-2 text-sm font-black tracking-tight text-[#23170f] sm:text-base">
-                            {product.name}
-                          </h3>
-                        </div>
-                        <p className="line-clamp-1 text-[11px] leading-4 text-[#6f6459]">
-                          {product.description_short || "Disponible hoy"}
+        <section className="min-w-0">
+          <div className="mb-3 flex flex-col gap-2 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-black tracking-tight text-white sm:text-2xl">
+                Productos del menú
+              </h2>
+              <p className="mt-1 text-xs leading-5 text-white/64 sm:text-sm sm:leading-6">
+                Explora opciones rápidas, filtra por categoría y agrega al
+                carrito sin salir de la vista.
+              </p>
+            </div>
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadccb] bg-[linear-gradient(180deg,#fffdfa_0%,#f6efe6_100%)] px-2.5 py-1 text-[11px] font-semibold text-[#5d5145] shadow-[0_12px_28px_rgba(0,0,0,0.18)] sm:px-3 sm:py-1.5 sm:text-sm">
+              {filteredProducts.length} resultados
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
+            {paginatedProducts.length > 0 ? (
+              paginatedProducts.map((product) => (
+                <article
+                  key={product.id}
+                  className="group relative flex min-h-0 min-w-0 max-w-full flex-col overflow-hidden rounded-[20px] border border-[#eadfce] bg-[linear-gradient(180deg,#fffdfa_0%,#f7efe6_100%)] shadow-[0_12px_26px_rgba(97,72,36,0.09)] transition-all duration-300 hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-[0_18px_34px_rgba(255,107,0,0.12)]"
+                >
+                  <div className="relative aspect-[4/3] overflow-hidden bg-[#f6efe6]">
+                    <AppImage
+                      src={getProductImage(product)}
+                      alt={product.name || "Producto"}
+                      width={520}
+                      height={390}
+                      aspectClassName="aspect-[4/3]"
+                      className="h-full w-full"
+                      imageClassName="object-cover transition duration-500 group-hover:scale-[1.04]"
+                      sizes="(max-width: 768px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                      fallbackLabel="Producto"
+                    />
+                    {Number(product.discount_price ?? 0) > 0 &&
+                    getOriginalProductPrice(product) >
+                      getProductPrice(product) ? (
+                      <span className="absolute left-2 top-2 rounded-full bg-orange-500 px-2 py-1 text-[10px] font-black text-white shadow-lg shadow-orange-500/25">
+                        Oferta
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2 px-3 pb-3 pt-2.5">
+                    <div className="min-w-0 space-y-1">
+                      <div className="min-w-0">
+                        <p className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#d96a18]">
+                          {product.category_name || "Menú"}
                         </p>
+                        <h3 className="mt-0.5 line-clamp-2 text-sm font-black leading-5 tracking-tight text-[#23170f] sm:text-base">
+                          {product.name}
+                        </h3>
                       </div>
-                      <div className="mt-auto flex items-end justify-between gap-2">
-                        <div className="min-w-0">
-                          <span className="block text-lg font-black leading-none text-[#ff6b00] sm:text-xl">
-                            MX${getProductPrice(product).toFixed(2)}
-                          </span>
-                          {Number(product.discount_price ?? 0) > 0 &&
-                          getOriginalProductPrice(product) >
-                            getProductPrice(product) ? (
-                            <span className="mt-1 block text-[11px] text-[#a39181] line-through">
-                              MX${getOriginalProductPrice(product).toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="mt-1 block text-[11px] font-medium text-[#9c8a79]">
-                              Listo para pedir
-                            </span>
-                          )}
-                        </div>
-                        <Button
-                          className="h-11 w-11 shrink-0 rounded-2xl bg-orange-500 p-0 text-white shadow-[0_14px_28px_rgba(255,107,0,0.28)] hover:bg-orange-600"
-                          onClick={() => openCustomizationModal(product)}
-                          aria-label={`Agregar ${product.name}`}
-                        >
-                          <Plus className="h-5 w-5" />
-                        </Button>
-                      </div>
+                      <p className="line-clamp-1 text-[11px] leading-4 text-[#6f6459]">
+                        {product.description_short || "Disponible hoy"}
+                      </p>
                     </div>
-                  </article>
-                ))
-              ) : (
-                <EmptyState
-                  className="col-span-full border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,239,231,0.96)_100%)]"
-                  icon={Search}
-                  title="No encontramos productos"
-                  description="Prueba con otra búsqueda o cambia la categoría para descubrir más opciones del negocio."
-                  actionLabel="Ver todo el menú"
-                  onAction={() => {
-                    setActiveCategory("all");
-                    setSearchQuery("");
-                  }}
-                />
-              )}
-            </div>
-          </section>
-        </div>
+                    <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+                      <div className="min-w-0">
+                        <span className="block text-lg font-black leading-none text-[#ff6b00] sm:text-xl">
+                          MX${getProductPrice(product).toFixed(2)}
+                        </span>
+                        {Number(product.discount_price ?? 0) > 0 &&
+                        getOriginalProductPrice(product) >
+                          getProductPrice(product) ? (
+                          <span className="mt-1 block text-[11px] text-[#a39181] line-through">
+                            MX${getOriginalProductPrice(product).toFixed(2)}
+                          </span>
+                        ) : (
+                          <span className="mt-1 block text-[11px] font-medium text-[#9c8a79]">
+                            Listo para pedir
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        className="h-11 w-11 shrink-0 rounded-2xl bg-orange-500 p-0 text-white shadow-[0_14px_28px_rgba(255,107,0,0.28)] hover:bg-orange-600"
+                        onClick={() => openCustomizationModal(product)}
+                        aria-label={`Agregar ${product.name}`}
+                      >
+                        <Plus className="h-5 w-5" />
+                      </Button>
+                    </div>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <EmptyState
+                className="col-span-full border-[#eadfce] bg-[linear-gradient(180deg,rgba(255,255,255,0.92)_0%,rgba(246,239,231,0.96)_100%)]"
+                icon={Search}
+                title="No encontramos productos"
+                description="Prueba con otra búsqueda o cambia la categoría para descubrir más opciones del negocio."
+                actionLabel="Ver todo el menú"
+                onAction={() => {
+                  setActiveCategory("all");
+                  setSearchQuery("");
+                }}
+              />
+            )}
+          </div>
+        </section>
       </main>
 
       {/* Modal de Personalización */}
       <Dialog open={customizeModalOpen} onOpenChange={setCustomizeModalOpen}>
-        <DialogContent className="max-w-2xl rounded-[28px]">
+        <DialogContent className="max-w-2xl rounded-[24px] sm:rounded-[28px] max-sm:bottom-0 max-sm:top-auto max-sm:translate-y-0 max-sm:rounded-b-none max-sm:px-4">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-extrabold">
+            <DialogTitle className="text-xl font-extrabold sm:text-2xl">
               {selectedProduct?.name}
             </DialogTitle>
-            <DialogDescription className="text-slate-500">
+            <DialogDescription className="text-sm text-slate-500">
               {selectedProduct?.description_long}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-[60vh] overflow-y-auto space-y-6 py-4 pr-2">
+          <div className="max-h-[60dvh] overflow-y-auto space-y-4 py-3 pr-1 sm:max-h-[60vh] sm:space-y-6 sm:py-4 sm:pr-2">
             {loadingCustomizations ? (
-              <div className="py-10 flex flex-col items-center">
+              <div className="flex flex-col items-center py-10">
                 <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
-                <p className="text-sm text-slate-500 mt-2">
+                <p className="mt-2 text-sm text-slate-500">
                   Cargando opciones...
                 </p>
               </div>
@@ -763,7 +760,7 @@ export default function BusinessDetailPage() {
               customizationGroups.map((group) => (
                 <div
                   key={group.id}
-                  className="space-y-3 bg-slate-50 p-4 rounded-2xl"
+                  className="space-y-3 rounded-2xl bg-slate-50 p-3.5 sm:p-4"
                 >
                   <h4 className="font-bold text-slate-900">{group.name}</h4>
                   {group.options.map((opt) => {
@@ -772,12 +769,12 @@ export default function BusinessDetailPage() {
                     return (
                       <label
                         key={opt.id}
-                        className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-orange-200 transition"
+                        className="flex items-center justify-between rounded-xl border border-slate-100 bg-white p-3 text-sm transition hover:border-orange-200"
                       >
                         <div className="flex items-center gap-3">
                           <input
                             type="checkbox"
-                            className="w-5 h-5 accent-orange-600 rounded"
+                            className="h-5 w-5 rounded accent-orange-600"
                           />
                           <span className="font-medium">{opt.name}</span>
                         </div>
@@ -802,21 +799,21 @@ export default function BusinessDetailPage() {
             )}
           </div>
 
-          <DialogFooter className="flex-col gap-4 border-t pt-4 sm:flex-row">
+          <DialogFooter className="flex-col gap-3 border-t pt-4 sm:flex-row sm:gap-4">
             <div className="flex h-12 items-center justify-between gap-4 rounded-2xl border border-slate-200 px-4 py-2">
               <button
                 type="button"
-                className="h-8 w-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-600"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
                 onClick={() => setModalQuantity(Math.max(1, modalQuantity - 1))}
               >
                 <Minus className="h-4 w-4" />
               </button>
-              <span className="font-bold text-lg min-w-[20px] text-center">
+              <span className="min-w-[20px] text-center text-lg font-bold">
                 {modalQuantity}
               </span>
               <button
                 type="button"
-                className="h-8 w-8 flex items-center justify-center hover:bg-slate-100 rounded-lg text-slate-600"
+                className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100"
                 onClick={() => setModalQuantity(modalQuantity + 1)}
               >
                 <Plus className="h-4 w-4" />
@@ -828,7 +825,7 @@ export default function BusinessDetailPage() {
               className="h-12 flex-1 rounded-2xl bg-orange-600 text-base font-bold hover:bg-orange-700 sm:text-lg"
             >
               {addingProductId ? (
-                <Loader2 className="animate-spin h-5 w-5" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 `Agregar por MX$${(
                   getProductPrice(selectedProduct ?? {}) * modalQuantity
@@ -847,12 +844,12 @@ export default function BusinessDetailPage() {
       />
 
       <div className="safe-bottom fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-[#0f0f10]/92 px-4 py-3 backdrop-blur-xl xl:hidden">
-        <div className="section-shell flex items-center justify-between gap-3">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/45">
               Carrito
             </p>
-            <p className="truncate text-sm font-semibold text-white">
+            <p className="truncate text-xs font-semibold text-white sm:text-sm">
               {cartCount > 0
                 ? `${cartCount} producto${cartCount === 1 ? "" : "s"} listos`
                 : "Agrega algo para continuar"}
@@ -861,12 +858,12 @@ export default function BusinessDetailPage() {
           <Button
             type="button"
             size="sm"
-            className="h-11 shrink-0 rounded-2xl px-4"
+            className="h-11 w-full rounded-2xl text-sm sm:ml-auto sm:w-auto sm:px-3"
             onClick={() => router.push("/carrito")}
+            aria-label={cartCount > 0 ? "Ver carrito" : "Ir al carrito"}
           >
             <ShoppingCart className="h-4 w-4" />
             {cartCount > 0 ? "Ver carrito" : "Ir al carrito"}
-            <ArrowRight className="h-4 w-4" />
           </Button>
         </div>
       </div>
