@@ -8,7 +8,6 @@ import {
   PhoneCall,
 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -62,64 +61,111 @@ export function LocationCard({ order }: LocationCardProps) {
   )}`;
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border-0 bg-[#006b3f] text-white shadow-2xl shadow-emerald-950/15">
-      <CardHeader className="border-b border-white/10 bg-transparent pb-5 text-white">
+    <Card className="overflow-hidden rounded-[24px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-2xl shadow-[#cbb090]/15">
+      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5 text-[#2f2419]">
         <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 text-emerald-50 shadow-inner">
+          <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f7ebdc] text-[#c56f2d] shadow-inner">
             <MapPin className="h-5 w-5" />
           </span>
           <div>
             <CardTitle className="text-xl font-extrabold">
               Ubicación y referencias
             </CardTitle>
-            <CardDescription className="text-sm text-white/80">
+            <CardDescription className="text-sm text-[#6f5d4c]">
               Usa las acciones rápidas para navegar y contactar al cliente.
             </CardDescription>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 p-5 text-white/90">
-        <div className="rounded-2xl bg-white/12 p-4 backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/70">
+      <CardContent className="space-y-4 p-5 text-[#5a4a3a]">
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl bg-[#f7efe3] p-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
+              Negocio
+            </p>
+            <p className="mt-2 text-base font-extrabold text-[#2f2419]">
+              {order.businessName || "Negocio"}
+            </p>
+            <p className="mt-1 text-sm text-[#6f5d4c]">
+              {order.businessAddress || "Dirección del negocio no disponible."}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#f7efe3] p-4">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
+              Cliente
+            </p>
+            <p className="mt-2 text-base font-extrabold text-[#2f2419]">
+              {order.contact.name}
+            </p>
+            <p className="mt-1 text-sm text-[#6f5d4c]">
+              {order.contact.phone || "Sin teléfono"}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-[#f7efe3] p-4">
+          <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
             Dirección de entrega
           </p>
-          <p className="mt-2 text-base font-extrabold text-white">
+          <p className="mt-2 text-base font-extrabold text-[#2f2419]">
             {order.address.street}
           </p>
-          <p className="mt-1 text-sm text-white/80">
+          <p className="mt-1 text-sm text-[#6f5d4c]">
             {[order.address.neighborhood, order.address.city]
               .filter(Boolean)
               .join(", ")}
           </p>
         </div>
 
-        <div className="space-y-2 rounded-2xl bg-white/12 p-4 shadow-inner backdrop-blur">
-          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-orange-50">
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+            <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
+              Zona
+            </p>
+            <p className="mt-2 font-semibold text-[#2f2419]">
+              {order.zoneName || "Sin zona"}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+            <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
+              Costo de envío
+            </p>
+            <p className="mt-2 font-semibold text-[#2f2419]">
+              {new Intl.NumberFormat("es-MX", {
+                style: "currency",
+                currency: "MXN",
+                maximumFractionDigits: 2,
+              }).format(order.shippingFee ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+            <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
+              Total del pedido
+            </p>
+            <p className="mt-2 font-semibold text-[#2f2419]">
+              {new Intl.NumberFormat("es-MX", {
+                style: "currency",
+                currency: "MXN",
+                maximumFractionDigits: 2,
+              }).format(order.amount)}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2 rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#b36a2b]">
             <NotebookPen className="h-4 w-4" />
             Referencias
           </div>
-          <p className="text-sm leading-relaxed text-white/85">
-            {order.address.references || "Sin referencias adicionales."}
+          <p className="text-sm leading-relaxed text-[#5a4a3a]">
+            {order.customerReference ||
+              order.address.references ||
+              "Sin referencias adicionales."}
           </p>
         </div>
 
-        <div className="rounded-2xl bg-white/12 p-4 shadow-lg backdrop-blur">
-          <p className="text-xs uppercase tracking-[0.3em] text-white/70">
-            Contacto del cliente
-          </p>
-          <p className="mt-2 text-sm font-semibold text-white">
-            {order.contact.name}
-          </p>
-          <Badge
-            variant="outline"
-            className="mt-1 w-fit rounded-full border border-white/40 bg-white/20 text-xs text-white/80 backdrop-blur"
-          >
-            {order.contact.phone}
-          </Badge>
-        </div>
-
-        <div className="flex flex-wrap gap-3 text-white">
+        <div className="flex flex-wrap gap-3 text-[#2f2419]">
           <Button
             type="button"
             size="sm"
@@ -130,8 +176,8 @@ export function LocationCard({ order }: LocationCardProps) {
             className={cn(
               "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-lg transition backdrop-blur",
               copiedField === "address"
-                ? "border-white bg-white/80 text-orange-700 hover:bg-white"
-                : "border-white/40 bg-white/15 text-white hover:bg-white/30",
+                ? "border-[#d7b089] bg-white text-[#b36a2b] hover:bg-white"
+                : "border-[#dfcfbe] bg-[#f7efe3] text-[#5a4a3a] hover:bg-[#f3e6d8]",
             )}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -146,8 +192,8 @@ export function LocationCard({ order }: LocationCardProps) {
             className={cn(
               "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-lg transition backdrop-blur",
               copiedField === "references"
-                ? "border-white bg-white/80 text-orange-700 hover:bg-white"
-                : "border-white/40 bg-white/15 text-white hover:bg-white/30",
+                ? "border-[#d7b089] bg-white text-[#b36a2b] hover:bg-white"
+                : "border-[#dfcfbe] bg-[#f7efe3] text-[#5a4a3a] hover:bg-[#f3e6d8]",
             )}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -159,7 +205,7 @@ export function LocationCard({ order }: LocationCardProps) {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full border border-white/40 bg-white/20 text-xs font-semibold text-white backdrop-blur hover:bg-white/40"
+            className="rounded-full border border-[#dfcfbe] bg-[#f7efe3] text-xs font-semibold text-[#5a4a3a] hover:bg-[#f3e6d8]"
             asChild
           >
             <a
@@ -174,7 +220,7 @@ export function LocationCard({ order }: LocationCardProps) {
           <Button
             size="sm"
             variant="outline"
-            className="rounded-full border border-white/40 bg-white/20 text-xs font-semibold text-white backdrop-blur hover:bg-white/40"
+            className="rounded-full border border-[#dfcfbe] bg-[#f7efe3] text-xs font-semibold text-[#5a4a3a] hover:bg-[#f3e6d8]"
             asChild
           >
             <a
@@ -184,14 +230,14 @@ export function LocationCard({ order }: LocationCardProps) {
               className="flex items-center gap-2"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              Abrir en Google Maps
+              Ver ruta
             </a>
           </Button>
         </div>
 
-        <div className="rounded-2xl border border-dashed border-white/20 bg-white/10 p-4 text-xs text-white/80 shadow-inner backdrop-blur">
-          Nota: sin mapa en tiempo real. Usa la dirección, referencias y
-          acciones rápidas para contactar al cliente.
+        <div className="rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-4 text-xs text-[#6f5d4c] shadow-inner">
+          Usa esta vista para revisar recogida, dirección de entrega,
+          referencias y navegación antes de confirmar el pedido como entregado.
         </div>
       </CardContent>
     </Card>

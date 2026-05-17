@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { isSessionTokenActive, touchSessionToken } from "@/lib/auth-security";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 export function OPTIONS(req: Request) {
@@ -37,6 +38,24 @@ export async function GET(req: Request) {
       ),
     );
   }
+
+  const activeSession = await isSessionTokenActive(authUser.token);
+
+  if (!activeSession) {
+    return withCors(
+      req,
+      NextResponse.json(
+        {
+          success: false,
+          valid: false,
+          error: "Tu sesión ya no está activa.",
+        },
+        { status: 401 },
+      ),
+    );
+  }
+
+  await touchSessionToken(authUser.token);
 
   return withCors(
     req,

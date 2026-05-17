@@ -21,6 +21,10 @@ type DeliveryDashboardRow = RowDataPacket & {
   delivered_at: string | null;
 };
 
+type AvailableCountRow = RowDataPacket & {
+  total: number | string | null;
+};
+
 const ACTIVE_DELIVERY_STATUSES = new Set([
   "pendiente",
   "pendiente_aceptacion",
@@ -140,6 +144,48 @@ export async function GET(req: NextRequest) {
       `,
       [userId],
     );
+    const [availableCountRows] = await pool.query<AvailableCountRow[]>(
+      `
+        SELECT COUNT(*) AS total
+        FROM delivery d
+        INNER JOIN orders o ON o.id = d.order_id
+        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
+        LEFT JOIN delivery_status_catalog dsc ON dsc.id = d.delivery_status_id
+        WHERE d.driver_user_id IS NULL
+          AND COALESCE(dsc.is_final, 0) = 0
+          AND LOWER(
+            REPLACE(
+              REPLACE(
+                REPLACE(
+                  REPLACE(COALESCE(dsc.name, ''), 'á', 'a'),
+                  'é',
+                  'e'
+                ),
+                'í',
+                'i'
+              ),
+              ' ',
+              '_'
+            )
+          ) IN ('pending_driver', 'disponible', 'available')
+          AND LOWER(
+            REPLACE(
+              REPLACE(
+                REPLACE(
+                  REPLACE(COALESCE(osc.name, ''), 'á', 'a'),
+                  'é',
+                  'e'
+                ),
+                'í',
+                'i'
+              ),
+              ' ',
+              '_'
+            )
+          ) IN ('listo_para_recoger', 'ready_for_pickup')
+      `,
+    );
+    const availableDeliveriesCount = Number(availableCountRows[0]?.total ?? 0);
 
     const activeAssignments = rows.filter((row) => {
       const deliveryStatus = normalizeStatus(row.delivery_status);
@@ -213,7 +259,7 @@ export async function GET(req: NextRequest) {
       stats: {
         activeDeliveries: activeAssignments.length,
         completedDeliveries: completedTodayAssignments.length,
-        availableDeliveries: 0,
+        availableDeliveries: availableDeliveriesCount,
         earnings: 0,
       },
     });

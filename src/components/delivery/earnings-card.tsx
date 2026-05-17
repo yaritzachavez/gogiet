@@ -62,61 +62,64 @@ export function EarningsCard({
       : `${comparisonToYesterday}% vs ayer`;
 
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-white/20 bg-white/10 text-[#1f2d27] shadow-xl backdrop-blur-lg">
-      <CardHeader className="border-b border-white/10 bg-gradient-to-r from-orange-400/30 via-orange-600/25 to-orange-900/25 pb-6 text-white">
+    <Card className="overflow-hidden rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
+      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-6 text-[#2f2419]">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <Wallet className="h-5 w-5" />
           Ganancias
         </CardTitle>
-        <CardDescription className="text-sm text-white/80">
+        <CardDescription className="text-sm text-[#6f5d4c]">
           Seguimiento rápido de tus ingresos diarios, propinas y avance semanal.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 pt-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-orange-200/60 bg-white/70 p-4 shadow-inner">
-            <p className="text-xs uppercase tracking-[0.3em] text-orange-900/60">
+          <div className="rounded-2xl border border-[#e8d8c6] bg-[#fffdf9] p-4 shadow-inner">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Hoy
             </p>
-            <p className="mt-2 flex items-baseline gap-2 text-3xl font-semibold text-orange-700">
+            <p className="mt-2 flex items-baseline gap-2 text-3xl font-semibold text-[#b36a2b]">
               {formatCurrency(earnings.today, earnings.currency)}
             </p>
-            <p className="mt-1 flex items-center gap-2 text-xs text-orange-700">
+            <p className="mt-1 flex items-center gap-2 text-xs text-[#9a6d42]">
               <TrendingUp className="h-3 w-3" />
               {comparisonLabel}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-white/30 bg-white/70 p-4 shadow-lg backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.3em] text-orange-900/60">
+          <div className="rounded-2xl border border-[#e8d8c6] bg-[#fffdf9] p-4 shadow-lg backdrop-blur">
+            <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Propinas
             </p>
-            <p className="mt-2 flex items-baseline gap-2 text-2xl font-semibold text-orange-900">
+            <p className="mt-2 flex items-baseline gap-2 text-2xl font-semibold text-[#2f2419]">
               {formatCurrency(earnings.tips, earnings.currency)}
             </p>
-            <p className="mt-1 flex items-center gap-2 text-xs text-orange-800/70">
-              <PiggyBank className="h-3 w-3 text-amber-500" />
+            <p className="mt-1 flex items-center gap-2 text-xs text-[#6f5d4c]">
+              <PiggyBank className="h-3 w-3 text-[#d08b48]" />
               Acumulado semana
             </p>
           </div>
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs text-orange-800/70">
+          <div className="flex items-center justify-between text-xs text-[#6f5d4c]">
             <span>Semana actual</span>
             <span>
-              {formatCurrency(earnings.weekToDate, earnings.currency)} /{" "}
-              {formatCurrency(earnings.goal, earnings.currency)}
+              {earnings.goal > 0
+                ? `${formatCurrency(earnings.weekToDate, earnings.currency)} / ${formatCurrency(earnings.goal, earnings.currency)}`
+                : `${formatCurrency(earnings.weekToDate, earnings.currency)} · sin meta configurada`}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full border border-white/30 bg-white/40 shadow-inner">
+          <div className="h-2 overflow-hidden rounded-full border border-[#e8d8c6] bg-[#f5ebde] shadow-inner">
             <div
-              className="h-full rounded-full bg-orange-500/90 transition-all"
+              className="h-full rounded-full bg-[linear-gradient(90deg,#d36a1f_0%,#f0a35a_100%)] transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="text-xs text-orange-800/70">
-            Objetivo semanal alcanzado al {progress}%.
+          <p className="text-xs text-[#6f5d4c]">
+            {earnings.goal > 0
+              ? `Objetivo semanal alcanzado al ${progress}%.`
+              : "Tus ganancias semanales se muestran con datos reales, sin metas falsas."}
           </p>
         </div>
 
@@ -124,7 +127,7 @@ export function EarningsCard({
           type="button"
           onClick={onViewHistory}
           disabled={isHistoryLoading}
-          className="w-full rounded-full border border-orange-500/60 bg-orange-500/80 text-sm font-semibold text-white shadow-lg backdrop-blur hover:bg-orange-500"
+          className="w-full rounded-full border border-[#d17d3b]/40 bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] text-sm font-semibold text-white shadow-lg shadow-[#d97a37]/20 hover:opacity-95"
         >
           {isHistoryLoading ? "Cargando historial..." : "Ver historial"}
         </Button>

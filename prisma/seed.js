@@ -83,39 +83,81 @@ const DELIVERY_STATUS_SEEDS = [
 
 const ORDER_STATUS_SEEDS = [
   {
+    name: "pending_payment",
+    description: "Pedido pendiente de pago",
+    sort_order: 1,
+    is_final: false,
+  },
+  {
     name: "pending",
     description: "Pedido pendiente",
-    sort_order: 1,
+    sort_order: 2,
+    is_final: false,
+  },
+  {
+    name: "paid",
+    description: "Pedido pagado",
+    sort_order: 3,
     is_final: false,
   },
   {
     name: "confirmed",
     description: "Pedido confirmado",
-    sort_order: 2,
+    sort_order: 4,
+    is_final: false,
+  },
+  {
+    name: "accepted",
+    description: "Pedido aceptado por el negocio",
+    sort_order: 5,
     is_final: false,
   },
   {
     name: "preparing",
     description: "Pedido en preparacion",
-    sort_order: 3,
+    sort_order: 6,
+    is_final: false,
+  },
+  {
+    name: "ready_for_pickup",
+    description: "Pedido listo para recoger",
+    sort_order: 7,
+    is_final: false,
+  },
+  {
+    name: "delivery_requested",
+    description: "Pedido en espera de repartidor",
+    sort_order: 8,
+    is_final: false,
+  },
+  {
+    name: "driver_assigned",
+    description: "Pedido asignado a repartidor",
+    sort_order: 9,
     is_final: false,
   },
   {
     name: "on_the_way",
     description: "Pedido en camino",
-    sort_order: 4,
+    sort_order: 10,
     is_final: false,
   },
   {
     name: "delivered",
     description: "Pedido entregado",
-    sort_order: 5,
+    sort_order: 11,
     is_final: true,
   },
   {
     name: "cancelled",
     description: "Pedido cancelado",
-    sort_order: 6,
+    sort_order: 12,
+    is_final: true,
+  },
+  {
+    name: "payment_failed",
+    description: "Pago no completado",
+    sort_order: 13,
     is_final: true,
   },
 ];
@@ -137,6 +179,12 @@ const PAYMENT_METHOD_SEEDS = [
     name: "transfer",
     description: "Transferencia bancaria",
     requires_verification: true,
+    is_active: true,
+  },
+  {
+    name: "mercadopago",
+    description: "Mercado Pago Checkout Pro",
+    requires_verification: false,
     is_active: true,
   },
 ];

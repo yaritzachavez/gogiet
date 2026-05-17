@@ -27,11 +27,11 @@ interface DeliveryHeaderProps {
 
 export function DeliveryHeader({
   driverName = "Repartidor",
-  serviceArea = "Zona Norte",
+  serviceArea = "Sin zona configurada",
   isAvailable = true,
   pendingOrders = 0,
   completedToday = 0,
-  lastSync = "Hace 2 min",
+  lastSync = "Actualizado ahora",
   onLogout,
   onOpenSettings,
   onReportIncident,
@@ -91,51 +91,53 @@ export function DeliveryHeader({
   };
 
   return (
-    <header className="relative isolate overflow-hidden rounded-[24px] bg-[#006b3f] p-5 text-white shadow-2xl shadow-emerald-950/20 sm:p-6">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(25,190,104,0.5)_0%,rgba(0,107,63,0.82)_42%,rgba(0,75,45,1)_100%)]" />
+    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#e1d0bc] bg-[#fffaf3] p-5 text-[#2f2419] shadow-2xl shadow-[#cbb090]/15 sm:p-6">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,247,237,0.96)_0%,rgba(247,236,221,0.98)_42%,rgba(241,227,209,1)_100%)]" />
       <button
         type="button"
         onClick={onOpenSettings}
-        className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-lg backdrop-blur transition hover:bg-white/20"
+        className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e4d5c5] bg-white/80 text-[#7c5b3c] shadow-lg transition hover:bg-white"
         aria-label="Abrir configuración del repartidor"
       >
         <Settings className="h-5 w-5" />
       </button>
       <div className="relative z-10 grid gap-5 lg:grid-cols-[1.25fr,1fr]">
         <div className="space-y-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-100/75">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#b36a2b]">
             Repartidor autorizado
           </p>
           <div>
             <h1 className="text-2xl font-extrabold leading-tight sm:text-3xl">
               Hola, {driverName}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-50/85 sm:text-base">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6e5d4b] sm:text-base">
               Revisa entregas asignadas, confirma ubicaciones y mantén tu estado
               de servicio al día durante el turno.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl bg-white/12 p-4 backdrop-blur">
-              <p className="text-xs font-semibold text-emerald-100/70">
+            <div className="rounded-2xl bg-[#f7efe3] p-4">
+              <p className="text-xs font-semibold text-[#8d755b]">
                 Entregas actuales
               </p>
-              <p className="mt-2 text-3xl font-extrabold">{pendingOrders}</p>
-              <p className="mt-2 text-xs font-semibold text-emerald-100/70">
+              <p className="mt-2 text-3xl font-extrabold text-[#2f2419]">
+                {pendingOrders}
+              </p>
+              <p className="mt-2 text-xs font-semibold text-[#8d755b]">
                 Completadas hoy: {completedToday}
               </p>
             </div>
-            <div className="rounded-2xl bg-white/12 p-4 backdrop-blur">
-              <p className="text-xs font-semibold text-emerald-100/70">Zona</p>
-              <p className="mt-2 text-base font-extrabold">{serviceArea}</p>
-              <p className="text-xs text-emerald-50/65">{lastSync}</p>
+            <div className="rounded-2xl bg-[#f7efe3] p-4">
+              <p className="text-xs font-semibold text-[#8d755b]">Zona</p>
+              <p className="mt-2 text-base font-extrabold text-[#2f2419]">{serviceArea}</p>
+              <p className="text-xs text-[#8d755b]">{lastSync}</p>
             </div>
-            <div className="rounded-2xl bg-white/12 p-4 backdrop-blur">
-              <p className="text-xs font-semibold text-emerald-100/70">
+            <div className="rounded-2xl bg-[#f7efe3] p-4">
+              <p className="text-xs font-semibold text-[#8d755b]">
                 Estado
               </p>
-              <p className="mt-2 flex items-center gap-2 text-base font-extrabold">
+              <p className="mt-2 flex items-center gap-2 text-base font-extrabold text-[#2f2419]">
                 <span
                   className={cn(
                     "h-2.5 w-2.5 rounded-full",
@@ -156,7 +158,7 @@ export function DeliveryHeader({
             className={cn(
               "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-5 text-sm font-extrabold shadow-lg transition",
               isActive
-                ? "bg-[#00c853] text-white hover:bg-[#00b84c]"
+                ? "bg-[#2f7a48] text-white hover:bg-[#28673c]"
                 : "bg-rose-500 text-white hover:bg-rose-600",
             )}
           >
@@ -170,8 +172,8 @@ export function DeliveryHeader({
               className={cn(
                 "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-white shadow-lg transition",
                 isPaused
-                  ? "bg-amber-500 hover:bg-amber-600"
-                  : "bg-amber-400 hover:bg-amber-500",
+                  ? "bg-[#d6904c] hover:bg-[#c27a36]"
+                  : "bg-[#d6904c] hover:bg-[#c27a36]",
               )}
               onClick={handlePauseToggle}
             >

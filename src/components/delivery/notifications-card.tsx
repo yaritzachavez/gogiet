@@ -243,32 +243,31 @@ export function NotificationsCard({
 
   return (
     <>
-      <Card className="overflow-hidden rounded-[26px] border border-white/20 bg-white/10 text-[#1f2d27] shadow-xl backdrop-blur-lg">
-        <CardHeader className="border-b border-white/10 bg-gradient-to-r from-orange-400/30 via-orange-600/25 to-orange-900/25 pb-6 text-white">
+      <Card className="overflow-hidden rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
+        <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-6 text-[#2f2419]">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Bell className="h-5 w-5" />
             Notificaciones
           </CardTitle>
-          <CardDescription className="text-sm text-white/80">
-            Actualizaciones importantes de tus pedidos y recordatorios del
-            turno.
+          <CardDescription className="text-sm text-[#6f5d4c]">
+            Actualizaciones reales de tus pedidos y mensajes de soporte.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4 pt-6">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-orange-300/60 bg-orange-50/60 p-6 text-center text-sm text-orange-800/80 shadow-inner">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945] shadow-inner">
               <CheckCircle2 className="h-5 w-5" />
               Cargando notificaciones...
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-amber-300/60 bg-amber-50/70 p-6 text-center text-sm text-amber-900 shadow-inner">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#efc8b0] bg-[#fff1e8] p-6 text-center text-sm text-[#9a5b36] shadow-inner">
               <AlertTriangle className="h-5 w-5" />
               {error}
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-orange-300/60 bg-orange-50/60 p-6 text-center text-sm text-orange-800/80 shadow-inner">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945] shadow-inner">
               <CheckCircle2 className="h-5 w-5" />
-              Sin notificaciones.
+              No tienes notificaciones nuevas.
             </div>
           ) : (
             <ul className="space-y-3">

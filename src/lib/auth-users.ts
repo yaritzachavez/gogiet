@@ -11,6 +11,9 @@ type AuthUserRow = RowDataPacket & {
   email: string;
   password: string;
   statusId: number;
+  email_verified?: number | boolean | null;
+  login_attempts?: number | null;
+  locked_until?: Date | string | null;
 };
 
 type CreatedAuthUserRow = RowDataPacket & {
@@ -100,7 +103,10 @@ export async function findAuthUserByEmail(email: string) {
         last_name AS lastName,
         email,
         \`${passwordColumn}\` AS password,
-        status_id AS statusId
+        status_id AS statusId,
+        email_verified,
+        login_attempts,
+        locked_until
       FROM users
       WHERE email = ?
       LIMIT 1
@@ -122,7 +128,10 @@ export async function findAuthUserById(id: number) {
         last_name AS lastName,
         email,
         \`${passwordColumn}\` AS password,
-        status_id AS statusId
+        status_id AS statusId,
+        email_verified,
+        login_attempts,
+        locked_until
       FROM users
       WHERE id = ?
       LIMIT 1

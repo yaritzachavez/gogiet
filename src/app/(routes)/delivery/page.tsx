@@ -7,36 +7,23 @@ import { EarningsCard } from "@/components/delivery/earnings-card";
 import { DeliveryHeader } from "@/components/delivery/header";
 import { LocationCard } from "@/components/delivery/location-card";
 import { NotificationsCard } from "@/components/delivery/notifications-card";
-import { ScheduleCard } from "@/components/delivery/schedule-card";
 import type {
   DeliveryEarnings,
   DeliveryHistoryEntry,
   DeliveryNotification,
   DeliveryOrder,
-  DeliverySchedule,
   DeliveryStatus,
 } from "@/components/delivery/types";
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { SupportChatWidget } from "@/components/support/SupportChatWidget";
 import { useAuth } from "@/context/AuthContext";
 
-const nextSchedule: DeliverySchedule = {
-  shiftLabel: "Turno matutino",
-  shiftWindow: "09:00 - 17:00",
-  startTime: "08:00 a.m.",
-  endTime: "06:00 p.m.",
-  hoursWorked: "5h 20m",
-  breakWindow: "Descanso sugerido: 13:30 - 14:00",
-  nextCheckIn: "12:45 en Hub Mazamitla",
-  coverageZone: "Mazamitla Centro y colonias cercanas",
-};
-
 const EMPTY_EARNINGS: DeliveryEarnings = {
   currency: "MXN",
   today: 0,
   weekToDate: 0,
   tips: 0,
-  goal: 4500,
+  goal: 0,
   percentageToGoal: 0,
   comparisonToYesterday: 0,
 };
@@ -66,6 +53,13 @@ type DeliveryProfile = {
   vehicle_plate: string;
   delivery_notes: string;
   is_available: boolean;
+};
+
+type DeliveryEvidenceDraft = {
+  orderId: string;
+  note: string;
+  photo: File | null;
+  error: string;
 };
 
 const EMPTY_PROFILE: DeliveryProfile = {
@@ -198,6 +192,7 @@ function parseDeliveryOrders(
       paymentMethod: String(safeOrder.paymentMethod ?? "Sin método"),
       amount: Number(safeOrder.total ?? 0),
       businessName: String(safeOrder.businessName ?? ""),
+      businessAddress: String(safeOrder.businessAddress ?? ""),
       fullAddress: String(safeOrder.address ?? ""),
       address: {
         street: String(
@@ -245,6 +240,8 @@ function parseDeliveryOrders(
         phone: String(safeOrder.customerPhone ?? ""),
       },
       notes: String(safeOrder.deliveryNotes ?? ""),
+      shippingFee: Number(safeOrder.shippingFee ?? 0),
+      customerReference: String(safeOrder.customerReference ?? ""),
       zoneName: String(safeOrder.zoneName ?? ""),
       assignmentStatus: String(safeOrder.assignmentStatus ?? ""),
       canRespond: Boolean(safeOrder.canRespond),
@@ -305,10 +302,26 @@ export default function DeliveryDashboardPage() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState("");
+  const [deliveryEvidenceOpen, setDeliveryEvidenceOpen] = useState(false);
+  const [deliveryEvidence, setDeliveryEvidence] = useState<DeliveryEvidenceDraft>(
+    {
+      orderId: "",
+      note: "",
+      photo: null,
+      error: "",
+    },
+  );
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const driverName = profile.name || user?.name || "Repartidor Gogi";
+  const normalizedRoles = Array.isArray(user?.roles)
+    ? user.roles.map((role) => String(role).toLowerCase())
+    : [];
+  const canAccessDelivery =
+    normalizedRoles.length === 0 ||
+    normalizedRoles.includes("repartidor") ||
+    normalizedRoles.includes("admin_general");
 
   const fetchDriverProfile = useCallback(async () => {
     const token = getStoredToken();
@@ -416,7 +429,7 @@ export default function DeliveryDashboardPage() {
         today: Number(rawEarnings.today ?? 0),
         weekToDate: Number(rawEarnings.weekToDate ?? 0),
         tips: Number(rawEarnings.tips ?? 0),
-        goal: Number(rawEarnings.goal ?? 4500),
+        goal: Number(rawEarnings.goal ?? 0),
         percentageToGoal: Number(rawEarnings.percentageToGoal ?? 0),
         comparisonToYesterday: Number(rawEarnings.comparisonToYesterday ?? 0),
       });
@@ -591,7 +604,7 @@ export default function DeliveryDashboardPage() {
             ? ""
             : (typeof ordersPayload.error === "string" &&
                 ordersPayload.error) ||
-                "No se pudieron cargar tus entregas.",
+                "No se pudieron cargar tus entregas. Intenta de nuevo.",
         );
         visibleOrders = parsedAvailableOrders;
       }
@@ -667,7 +680,10 @@ export default function DeliveryDashboardPage() {
           status: toDeliveryStatus(activeOrderData.status),
           eta: "Por confirmar",
           paymentMethod: String(activeOrderData.paymentMethod ?? "Sin método"),
-          amount: 0,
+          amount: Number(activeOrderData.amount ?? 0),
+          shippingFee: Number(activeOrderData.shippingFee ?? 0),
+          businessName: String(activeOrderData.businessName ?? ""),
+          businessAddress: String(activeOrderData.businessAddress ?? ""),
           fullAddress: String(activeOrderData.fullAddress ?? ""),
           address: {
             street: String(activeOrderData.fullAddress ?? ""),
@@ -690,6 +706,7 @@ export default function DeliveryDashboardPage() {
           },
           zoneName: String(activeOrderData.zoneName ?? ""),
           notes: String(activeOrderData.references ?? ""),
+          customerReference: String(activeOrderData.references ?? ""),
         });
 
         setActiveOrderError("");
@@ -714,7 +731,7 @@ export default function DeliveryDashboardPage() {
           payload: notificationsPayload,
         });
         setDeliveryNotifications([]);
-        setNotificationsError("");
+        setNotificationsError("Tu sesión expiró o no tienes permisos.");
       } else {
         const parsedNotifications = Array.isArray(
           notificationsPayload.notifications,
@@ -768,9 +785,11 @@ export default function DeliveryDashboardPage() {
       setDeliveryNotifications([]);
       setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
       setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
-      setOrdersError("No se pudieron cargar tus entregas.");
+      setOrdersError("No se pudieron cargar tus entregas. Intenta de nuevo.");
       setActiveOrderError("No se pudo cargar tu entrega activa.");
-      setNotificationsError("");
+      setNotificationsError(
+        "No se pudieron cargar tus notificaciones. Intenta de nuevo.",
+      );
     } finally {
       setOrdersLoading(false);
       setActiveOrderLoading(false);
@@ -841,6 +860,8 @@ export default function DeliveryDashboardPage() {
             tip: Number(entry.tip ?? 0),
             deliveredAt: String(entry.deliveredAt ?? ""),
             status: String(entry.status ?? "Pedido entregado"),
+            businessAddress: String(entry.businessAddress ?? ""),
+            earningStatus: String(entry.earningStatus ?? "pending"),
           }))
         : [];
 
@@ -955,29 +976,50 @@ export default function DeliveryDashboardPage() {
     [refreshDeliveryPanel],
   );
 
-  const handleMarkDelivered = useCallback(
-    async (orderId: string) => {
-      if (typeof window === "undefined") return;
+  const handleMarkDelivered = useCallback((orderId: string) => {
+    setDeliveryEvidence({
+      orderId,
+      note: "",
+      photo: null,
+      error: "",
+    });
+    setDeliveryEvidenceOpen(true);
+  }, []);
 
-      const token = getStoredToken();
+  const handleConfirmDelivered = useCallback(async () => {
+    if (typeof window === "undefined") return;
 
-      if (!token) {
-        setOrdersError("Debes iniciar sesión para completar la entrega.");
-        return;
-      }
+    const token = getStoredToken();
 
-      try {
-        setAssignmentActionOrderId(orderId);
+    if (!token) {
+      setDeliveryEvidence((current) => ({
+        ...current,
+        error: "Debes iniciar sesión para completar la entrega.",
+      }));
+      return;
+    }
 
-        const response = await fetch("/api/delivery/complete", {
+    if (!deliveryEvidence.photo) {
+      setDeliveryEvidence((current) => ({
+        ...current,
+        error: "Agrega una foto de evidencia antes de confirmar.",
+      }));
+      return;
+    }
+
+    try {
+      setAssignmentActionOrderId(deliveryEvidence.orderId);
+      const formData = new FormData();
+      formData.append("order_id", deliveryEvidence.orderId);
+      formData.append("note", deliveryEvidence.note.trim());
+      formData.append("photo", deliveryEvidence.photo);
+
+      const response = await fetch("/api/delivery/complete", {
           method: "POST",
           headers: {
-            "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            order_id: Number(orderId),
-          }),
+          body: formData,
         });
         const responseText = await response.text();
         let payload: Record<string, unknown> = {};
@@ -989,9 +1031,10 @@ export default function DeliveryDashboardPage() {
         }
 
         if (isAuthErrorStatus(response.status)) {
-          setOrdersError(
-            "Tu sesión expiró o no tienes permisos de repartidor.",
-          );
+          setDeliveryEvidence((current) => ({
+            ...current,
+            error: "Tu sesión expiró o no tienes permisos de repartidor.",
+          }));
           return;
         }
 
@@ -1000,8 +1043,10 @@ export default function DeliveryDashboardPage() {
             (typeof payload.error === "string" && payload.error) ||
             (typeof payload.message === "string" && payload.message) ||
             "No se pudo marcar el pedido como entregado.";
-
-          setOrdersError(message);
+          setDeliveryEvidence((current) => ({
+            ...current,
+            error: message,
+          }));
           return;
         }
 
@@ -1011,18 +1056,28 @@ export default function DeliveryDashboardPage() {
 
         setOrdersError("");
         console.log("[delivery-panel] pedido entregado, refrescando panel:", {
-          orderId,
+          orderId: deliveryEvidence.orderId,
+        });
+        setDeliveryEvidenceOpen(false);
+        setDeliveryEvidence({
+          orderId: "",
+          note: "",
+          photo: null,
+          error: "",
         });
         await refreshDeliveryPanel();
         setOrdersError(successMessage);
       } catch (error) {
         console.error("Error completando entrega:", error);
-        setOrdersError("No se pudo marcar el pedido como entregado.");
+        setDeliveryEvidence((current) => ({
+          ...current,
+          error: "No se pudo marcar el pedido como entregado.",
+        }));
       } finally {
         setAssignmentActionOrderId(null);
       }
     },
-    [refreshDeliveryPanel],
+    [deliveryEvidence, refreshDeliveryPanel],
   );
 
   const handleDeliveryStatusUpdate = useCallback(
@@ -1229,17 +1284,36 @@ export default function DeliveryDashboardPage() {
     }
   }, [avatarFile, avatarPreview, driverName, profileForm]);
 
+  if (user && !canAccessDelivery) {
+    return (
+      <main className="min-h-screen bg-[#f3ede3] px-4 py-12 text-[#2b221a]">
+        <div className="mx-auto max-w-3xl rounded-[28px] border border-[#e4d5c5] bg-[#fffaf3] p-8 shadow-xl shadow-[#c9ab88]/20">
+          <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]">
+            Acceso restringido
+          </p>
+          <h1 className="mt-3 text-3xl font-black text-[#2f2419]">
+            Este panel es solo para repartidores
+          </h1>
+          <p className="mt-3 text-base leading-7 text-[#6e5d4b]">
+            Tu cuenta no tiene el rol de repartidor activo. Solicita la
+            asignación correcta desde administración antes de operar entregas.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-[#f4f6f3] text-[#17231d]">
-      <div className="min-h-screen bg-[linear-gradient(180deg,#e9f3ed_0%,#f8faf7_38%,#f4f6f3_100%)]">
+    <main className="min-h-screen bg-[#f3ede3] text-[#2b221a]">
+      <div className="min-h-screen bg-[linear-gradient(180deg,#fbf6ef_0%,#f4ede3_38%,#efe6da_100%)]">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
           <DeliveryHeader
             driverName={driverName}
-            serviceArea={profile.delivery_zone || "Zona Centro"}
+            serviceArea={profile.delivery_zone || "Sin zona configurada"}
             isAvailable={profile.is_available}
             pendingOrders={activeDeliveriesCount}
             completedToday={completedTodayCount}
-            lastSync="Hace 3 min"
+            lastSync="Actualizado ahora"
             onLogout={logout}
             onOpenSettings={() => {
               setProfileForm(profile);
@@ -1275,19 +1349,47 @@ export default function DeliveryDashboardPage() {
               {activeOrder ? (
                 <LocationCard order={activeOrder} />
               ) : activeOrderLoading ? (
-                <div className="rounded-[26px] border border-dashed border-white/30 bg-white/10 p-6 text-sm text-white/80 shadow-inner backdrop-blur">
+                <div className="rounded-[26px] border border-dashed border-[#ddcfbf] bg-[#fff8ef] p-6 text-sm text-[#6c5a49] shadow-inner">
                   Cargando entrega activa...
                 </div>
               ) : activeOrderError ? (
-                <div className="rounded-[26px] border border-dashed border-amber-200 bg-amber-50 p-6 text-sm text-amber-900 shadow-inner">
+                <div className="rounded-[26px] border border-dashed border-[#efcfb9] bg-[#fff2e8] p-6 text-sm text-[#975731] shadow-inner">
                   {activeOrderError}
                 </div>
               ) : (
-                <div className="rounded-[26px] border border-dashed border-white/30 bg-white/10 p-6 text-sm text-white/80 shadow-inner backdrop-blur">
-                  No tienes una entrega activa en este momento.
+                <div className="rounded-[26px] border border-dashed border-[#ddcfbf] bg-[#fff8ef] p-6 text-sm text-[#6c5a49] shadow-inner">
+                  No tienes entregas asignadas por ahora.
                 </div>
               )}
-              <ScheduleCard schedule={nextSchedule} />
+              <div className="rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] p-5 shadow-lg shadow-[#d8c1a6]/15">
+                <p className="text-xs font-extrabold uppercase tracking-[0.26em] text-[#b36a2b]">
+                  Perfil operativo
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl bg-[#f7efe3] p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
+                      Zona activa
+                    </p>
+                    <p className="mt-2 font-semibold text-[#2f2419]">
+                      {profile.delivery_zone || "Sin zona configurada"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-[#f7efe3] p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
+                      Vehículo
+                    </p>
+                    <p className="mt-2 font-semibold text-[#2f2419]">
+                      {profile.vehicle_type || "Sin vehículo configurado"}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-4 text-sm text-[#6c5a49]">
+                  Máximo permitido: <span className="font-semibold">5 entregas activas</span>.
+                  {activeDeliveriesCount >= 5
+                    ? " Ya tienes el máximo de entregas activas permitidas."
+                    : " Puedes aceptar más entregas si están disponibles."}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1343,7 +1445,7 @@ export default function DeliveryDashboardPage() {
                 </div>
               ) : deliveryHistory.length === 0 ? (
                 <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm font-medium text-slate-500">
-                  Aun no tienes pedidos entregados.
+                  No tienes entregas completadas por ahora.
                 </div>
               ) : (
                 <div className="grid gap-4">
@@ -1360,6 +1462,11 @@ export default function DeliveryDashboardPage() {
                           <h3 className="mt-2 text-xl font-black text-slate-900">
                             {entry.businessName}
                           </h3>
+                          {entry.businessAddress ? (
+                            <p className="mt-1 text-sm text-slate-500">
+                              Recogida: {entry.businessAddress}
+                            </p>
+                          ) : null}
                           <p className="mt-1 text-sm text-slate-600">
                             Cliente: {entry.customerName}
                             {entry.customerPhone
@@ -1407,6 +1514,14 @@ export default function DeliveryDashboardPage() {
                               earnings.currency,
                             )}
                           </p>
+                          <p className="mt-1 text-xs text-green-700/80">
+                            Estado:{" "}
+                            {entry.earningStatus === "paid"
+                              ? "Pagado"
+                              : entry.earningStatus === "settled"
+                                ? "Liquidado"
+                                : "Pendiente"}
+                          </p>
                         </div>
                       </div>
 
@@ -1443,6 +1558,95 @@ export default function DeliveryDashboardPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {deliveryEvidenceOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2b2119]/50 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-xl rounded-[28px] border border-[#e1d0bc] bg-[#fffaf3] p-6 shadow-2xl shadow-[#b78b5d]/20">
+            <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]">
+              Confirmar entrega
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-[#2f2419]">
+              Sube evidencia antes de marcar entregado
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-[#6e5d4b]">
+              Agrega una foto de evidencia y una nota opcional para dejar la
+              entrega validada y trazable para soporte.
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div>
+                <label className="text-sm font-semibold text-[#3d3025]">
+                  Foto de evidencia
+                </label>
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                  className="mt-2 block w-full rounded-2xl border border-[#dcc7b0] bg-[#fdf7ef] px-4 py-3 text-sm text-[#3d3025]"
+                  onChange={(event) =>
+                    setDeliveryEvidence((current) => ({
+                      ...current,
+                      photo: event.target.files?.[0] ?? null,
+                      error: "",
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-[#3d3025]">
+                  Nota opcional
+                </label>
+                <textarea
+                  rows={4}
+                  value={deliveryEvidence.note}
+                  onChange={(event) =>
+                    setDeliveryEvidence((current) => ({
+                      ...current,
+                      note: event.target.value,
+                    }))
+                  }
+                  placeholder="Ej. Se entregó en mano al cliente o se dejó en recepción."
+                  className="mt-2 w-full rounded-2xl border border-[#dcc7b0] bg-[#fdf7ef] px-4 py-3 text-sm text-[#3d3025] outline-none focus:border-[#d97a37]"
+                />
+              </div>
+
+              {deliveryEvidence.error ? (
+                <div className="rounded-2xl border border-[#efc8b0] bg-[#fff1e8] px-4 py-3 text-sm font-medium text-[#9a5b36]">
+                  {deliveryEvidence.error}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeliveryEvidenceOpen(false);
+                  setDeliveryEvidence({
+                    orderId: "",
+                    note: "",
+                    photo: null,
+                    error: "",
+                  });
+                }}
+                className="rounded-full border border-[#dcc7b0] bg-white px-5 py-2.5 text-sm font-bold text-[#6e5d4b] transition hover:bg-[#faf2e8]"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelivered}
+                disabled={assignmentActionOrderId === deliveryEvidence.orderId}
+                className="rounded-full bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#d97a37]/25 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {assignmentActionOrderId === deliveryEvidence.orderId
+                  ? "Guardando evidencia..."
+                  : "Confirmar entrega"}
+              </button>
             </div>
           </div>
         </div>

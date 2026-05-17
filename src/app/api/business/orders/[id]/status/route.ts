@@ -4,7 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
-import { createNotification } from "@/lib/notifications";
+import { createNotificationSafely } from "@/lib/notifications";
 import {
   applyValidatedOrderStatusTransition,
   OrderStatusTransitionError,
@@ -138,7 +138,7 @@ export async function PATCH(
       },
     });
 
-    await createNotification(
+    await createNotificationSafely(
       {
         userId: Number(orderRows[0].customer_user_id),
         type: "pedido",

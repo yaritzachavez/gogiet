@@ -9,6 +9,7 @@ import {
   findAvailableCourier,
   resolveBusinessAccess,
 } from "@/lib/business-panel";
+import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import {
   createNotification,
@@ -659,6 +660,24 @@ export async function respondToCourierAssignment(params: {
         connection,
       );
 
+      await recordAuditLog(
+        {
+          userId: params.userId,
+          action: "DRIVER_ACCEPT_DELIVERY",
+          resourceType: "order",
+          resourceId: params.orderId,
+          oldValue: {
+            deliveryStatus: delivery.delivery_status_name,
+            orderStatus: order.order_status_name,
+          },
+          newValue: {
+            deliveryStatus: "aceptado",
+            orderStatus: "driver_assigned",
+          },
+        },
+        connection,
+      );
+
       await connection.commit();
 
       return {
@@ -716,6 +735,24 @@ export async function respondToCourierAssignment(params: {
         message:
           "El repartidor rechazo esta asignacion. Puedes solicitar otro repartidor desde el panel del negocio.",
         relatedId: params.orderId,
+      },
+      connection,
+    );
+
+    await recordAuditLog(
+      {
+        userId: params.userId,
+        action: "DRIVER_REJECT_DELIVERY",
+        resourceType: "order",
+        resourceId: params.orderId,
+        oldValue: {
+          deliveryStatus: delivery.delivery_status_name,
+          orderStatus: order.order_status_name,
+        },
+        newValue: {
+          deliveryStatus: "rechazado",
+          orderStatus: order.order_status_name,
+        },
       },
       connection,
     );

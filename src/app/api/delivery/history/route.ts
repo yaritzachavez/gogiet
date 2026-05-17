@@ -10,6 +10,7 @@ import {
   SHIPPING_FEE_COLUMN_CANDIDATES,
   TIP_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
+import { requireDriverAccess } from "@/lib/permissions";
 
 type UserInfoRow = RowDataPacket & {
   email: string;
@@ -23,6 +24,9 @@ type TableExistsRow = RowDataPacket & {
 type HistoryRow = RowDataPacket & {
   order_id: number;
   business_name: string;
+  business_address: string | null;
+  business_district: string | null;
+  business_city: string | null;
   customer_name: string | null;
   customer_phone: string | null;
   street: string | null;
@@ -39,6 +43,7 @@ type HistoryRow = RowDataPacket & {
   delivered_at: string | null;
   order_status: string | null;
   delivery_status: string | null;
+  earning_status: string | null;
 };
 
 function isNonEmptyString(value: string | null): value is string {
@@ -66,22 +71,24 @@ function buildAddress(row: HistoryRow) {
 export async function GET(req: NextRequest) {
   try {
     const authUser = getAuthUser(req);
-
-    if (!authUser?.token) {
+    const access = await requireDriverAccess(
+      req,
+      authUser?.user?.id ?? null,
+      "VIEW_ASSIGNED_DELIVERIES",
+      "No puedes ver pedidos de otro repartidor.",
+    );
+    if (!access.ok) {
       return NextResponse.json(
-        { success: false, error: "Token faltante", history: [] },
-        { status: 401 },
+        {
+          success: false,
+          error: "No autorizado para acceder al historial de repartidor",
+          history: [],
+        },
+        { status: access.response.status },
       );
     }
 
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido", history: [] },
-        { status: 401 },
-      );
-    }
-
-    const userId = authUser.user.id;
+    const userId = access.access.userId;
 
     const [userInfoRows] = await pool.query<UserInfoRow[]>(
       `
@@ -173,6 +180,9 @@ export async function GET(req: NextRequest) {
         SELECT
           o.id AS order_id,
           b.name AS business_name,
+          b.address AS business_address,
+          b.district AS business_district,
+          b.city AS business_city,
           TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS customer_name,
           COALESCE(a.phone, u.phone) AS customer_phone,
           a.street,
@@ -188,7 +198,8 @@ export async function GET(req: NextRequest) {
           ${tipExpression} AS tip_amount,
           ${completedAtExpression} AS delivered_at,
           osc.name AS order_status,
-          dsc.name AS delivery_status
+          dsc.name AS delivery_status,
+          de.earning_status
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
         INNER JOIN business b ON b.id = o.business_id
@@ -197,6 +208,7 @@ export async function GET(req: NextRequest) {
         LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         LEFT JOIN delivery_status_catalog dsc ON dsc.id = d.delivery_status_id
+        LEFT JOIN driver_earnings de ON de.delivery_id = d.id
         ${tipJoin}
         WHERE d.driver_user_id = ?
           AND ${completedAtExpression} IS NOT NULL
@@ -226,6 +238,9 @@ export async function GET(req: NextRequest) {
         id: String(row.order_id),
         folio: `FG-${String(row.order_id).padStart(4, "0")}`,
         businessName: row.business_name,
+        businessAddress: [row.business_address, row.business_district, row.business_city]
+          .filter(Boolean)
+          .join(", "),
         customerName: row.customer_name ?? "Cliente",
         customerPhone: row.customer_phone ?? "",
         fullAddress: buildAddress(row),
@@ -236,6 +251,7 @@ export async function GET(req: NextRequest) {
         tip: toNumber(row.tip_amount),
         deliveredAt: String(row.delivered_at ?? ""),
         status: "Pedido entregado",
+        earningStatus: row.earning_status ?? "pending",
       })),
     });
   } catch (error) {

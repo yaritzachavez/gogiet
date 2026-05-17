@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
-import { createNotificationForBusiness } from "@/lib/notifications";
+import { createNotificationForBusinessSafely } from "@/lib/notifications";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
 import {
   applyValidatedOrderStatusTransition,
@@ -196,7 +196,7 @@ export async function PATCH(
       );
 
       if (action === "approve") {
-        await createNotificationForBusiness(
+        await createNotificationForBusinessSafely(
           Number(order.business_id),
           {
             type: "pago",

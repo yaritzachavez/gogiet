@@ -1,15 +1,17 @@
-import bcrypt from "bcrypt";
-import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import {
+  ensureAuthSecuritySchema,
+  hashPassword,
+  invalidateUserSessions,
+  markPasswordResetTokenUsed,
+  recordAuthAuditLog,
+  validatePasswordResetToken,
+  validatePasswordStrength,
+} from "@/lib/auth-security";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
-
-type UserRow = RowDataPacket & {
-  id: number;
-  verification_code?: string | null;
-  verification_expires_at?: Date | string | null;
-};
 
 type UserColumnRow = RowDataPacket & {
   Field?: string;
@@ -23,24 +25,8 @@ type SqlLikeError = {
   stack?: string;
 };
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim().toLowerCase());
-}
-
-function validatePasswordStrength(password: string) {
-  if (password.length < 8) {
-    return "La contraseña debe tener al menos 8 caracteres.";
-  }
-
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "La contraseña debe incluir al menos una letra y un número.";
-  }
-
-  return "";
-}
-
-async function getUserColumns(connection: PoolConnection) {
-  const [rows] = await connection.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
+async function getUserColumns() {
+  const [rows] = await pool.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
   return new Set(rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean));
 }
 
@@ -54,23 +40,17 @@ export async function POST(req: Request) {
 
   try {
     const body = (await req.json()) as {
-      email?: string;
-      code?: string;
+      token?: string;
       password?: string;
       confirmPassword?: string;
     };
 
-    const email = String(body.email ?? "").trim().toLowerCase();
-    const code = String(body.code ?? "").trim();
+    const token = String(body.token ?? "").trim();
     const password = String(body.password ?? "");
     const confirmPassword = String(body.confirmPassword ?? "");
 
-    if (!email || !isValidEmail(email)) {
-      return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
-    }
-
-    if (!/^\d{6}$/.test(code)) {
-      return json({ success: false, error: "Ingresa un código válido." }, { status: 400 });
+    if (!token) {
+      return json({ success: false, error: "El enlace de recuperación no es válido." }, { status: 400 });
     }
 
     const passwordError = validatePasswordStrength(password);
@@ -82,94 +62,55 @@ export async function POST(req: Request) {
       return json({ success: false, error: "Las contraseñas no coinciden." }, { status: 400 });
     }
 
-    const connection = await pool.getConnection();
+    await ensureAuthSecuritySchema();
 
-    try {
-      const userColumns = await getUserColumns(connection);
-      const passwordColumn = userColumns.has("password_hash")
-        ? "password_hash"
-        : userColumns.has("password")
-          ? "password"
-          : null;
-
-      if (!passwordColumn || !userColumns.has("verification_code")) {
-        return json(
-          { success: false, error: "La base no tiene soporte para recuperar contraseña." },
-          { status: 500 },
-        );
-      }
-
-      const [rows] = await connection.query<UserRow[]>(
-        `
-          SELECT id, verification_code
-          ${userColumns.has("verification_expires_at") ? ", verification_expires_at" : ""}
-          FROM users
-          WHERE LOWER(TRIM(email)) = ?
-          LIMIT 1
-        `,
-        [email],
-      );
-
-      const user = rows[0];
-
-      if (!user || String(user.verification_code ?? "").trim() !== code) {
-        return json({ success: false, error: "El código no es correcto." }, { status: 400 });
-      }
-
-      if (userColumns.has("verification_expires_at") && user.verification_expires_at) {
-        const expiresAt = new Date(user.verification_expires_at).getTime();
-        if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
-          return json({ success: false, error: "El código ya expiró." }, { status: 400 });
-        }
-      }
-
-      const configuredSaltRounds = Number(process.env.SALT_ROUNDS ?? 12);
-      const saltRounds =
-        Number.isFinite(configuredSaltRounds) && configuredSaltRounds > 0
-          ? configuredSaltRounds
-          : 12;
-      const pepper = process.env.PASSWORD_PEPPER ?? "";
-      const passwordHash = await bcrypt.hash(password + pepper, saltRounds);
-
-      await connection.beginTransaction();
-
-      const updateAssignments = [
-        `\`${passwordColumn}\` = ?`,
-        "verification_code = NULL",
-      ];
-      const updateValues: Array<string | number> = [passwordHash, user.id];
-
-      if (userColumns.has("verification_expires_at")) {
-        updateAssignments.push("verification_expires_at = NULL");
-      }
-
-      if (userColumns.has("updated_at")) {
-        updateAssignments.push("updated_at = NOW()");
-      }
-
-      await connection.query<ResultSetHeader>(
-        `
-          UPDATE users
-          SET ${updateAssignments.join(", ")}
-          WHERE id = ?
-        `,
-        updateValues,
-      );
-
-      await connection.commit();
-
-      return json({
-        success: true,
-        message: "Tu contraseña fue actualizada correctamente.",
-      });
-    } catch (error) {
-      try {
-        await connection.rollback();
-      } catch {}
-      throw error;
-    } finally {
-      connection.release();
+    const validation = await validatePasswordResetToken(token);
+    if (!validation.ok) {
+      return json({ success: false, error: validation.message }, { status: validation.status });
     }
+
+    const userColumns = await getUserColumns();
+    const passwordColumn = userColumns.has("password_hash")
+      ? "password_hash"
+      : userColumns.has("password")
+        ? "password"
+        : null;
+
+    if (!passwordColumn) {
+      return json(
+        { success: false, error: "La base no tiene soporte para actualizar contraseña." },
+        { status: 500 },
+      );
+    }
+
+    const passwordHash = await hashPassword(password);
+
+    await pool.query<ResultSetHeader>(
+      `
+        UPDATE users
+        SET
+          \`${passwordColumn}\` = ?,
+          verification_code = NULL,
+          verification_expires_at = NULL,
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [passwordHash, validation.tokenRow.user_id],
+    );
+
+    await markPasswordResetTokenUsed(validation.tokenRow.id);
+    await invalidateUserSessions(validation.tokenRow.user_id);
+    await recordAuthAuditLog({
+      userId: validation.tokenRow.user_id,
+      action: "password_reset_completed",
+      email: validation.tokenRow.email,
+      metadata: { tokenId: validation.tokenRow.id },
+    });
+
+    return json({
+      success: true,
+      message: "Tu contraseña fue actualizada correctamente.",
+    });
   } catch (error) {
     const sqlError =
       typeof error === "object" && error !== null ? (error as SqlLikeError) : null;

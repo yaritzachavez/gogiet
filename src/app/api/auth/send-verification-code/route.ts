@@ -1,23 +1,31 @@
-import bcrypt from "bcrypt";
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 import pool from "@/lib/db";
-
-export const runtime = "nodejs";
+import {
+  consumeRateLimit,
+  ensureAuthSecuritySchema,
+  generateSixDigitCode,
+  getRequestIp,
+  getRequestUserAgent,
+  hashPassword,
+  isValidEmail,
+  maskEmailForLogs,
+  normalizeEmail,
+  recordAuthAuditLog,
+  sanitizeName,
+} from "@/lib/auth-security";
+import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type ExistingUserRow = RowDataPacket & {
   id: number;
   email_verified?: number | boolean | null;
+  verification_sent_at?: Date | string | null;
 };
 
 type StatusRow = RowDataPacket & {
   id: number;
-};
-
-type UserColumnRow = RowDataPacket & {
-  Field?: string;
 };
 
 type SqlLikeError = {
@@ -28,13 +36,9 @@ type SqlLikeError = {
   stack?: string;
 };
 
-function generateCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
+type UserColumnRow = RowDataPacket & {
+  Field?: string;
+};
 
 async function getUserColumns(connection: PoolConnection) {
   const [rows] = await connection.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
@@ -48,7 +52,7 @@ async function getActiveStatusId(connection: PoolConnection) {
       FROM status_catalog
       WHERE LOWER(TRIM(name)) IN ('active', 'activo', 'pending', 'pendiente')
       ORDER BY CASE
-        WHEN LOWER(TRIM(name)) IN ('active', 'activo') THEN 0
+        WHEN LOWER(TRIM(name)) IN ('pending', 'pendiente') THEN 0
         ELSE 1
       END, id ASC
       LIMIT 1
@@ -56,6 +60,12 @@ async function getActiveStatusId(connection: PoolConnection) {
   );
 
   return Number(rows[0]?.id ?? 1) || 1;
+}
+
+export const runtime = "nodejs";
+
+export function OPTIONS(req: Request) {
+  return handleCorsPreflight(req);
 }
 
 export async function POST(req: Request) {
@@ -67,41 +77,72 @@ export async function POST(req: Request) {
       phone?: string;
     };
 
-    const cleanEmail = String(body.email || "").trim().toLowerCase();
-    const firstName = String(body.firstName || "").trim();
-    const lastName = String(body.lastName || "").trim();
-    const phone = String(body.phone || "").trim() || null;
+    const cleanEmail = normalizeEmail(body.email ?? "");
+    const firstName = sanitizeName(body.firstName ?? "");
+    const lastName = sanitizeName(body.lastName ?? "");
+    const phone = String(body.phone ?? "").replace(/[^\d]/g, "").slice(0, 15) || null;
+    const ip = getRequestIp(req);
+    const userAgent = getRequestUserAgent(req);
 
-    if (!cleanEmail) {
+    if (!cleanEmail || !isValidEmail(cleanEmail)) {
       return NextResponse.json(
-        { success: false, error: "Correo requerido." },
+        { success: false, error: "Ingresa un correo válido." },
         { status: 400 },
       );
     }
 
-    if (!isValidEmail(cleanEmail)) {
+    const ipRateLimit = await consumeRateLimit({
+      action: "send_verification_code_ip",
+      identifier: ip,
+      limit: 5,
+      windowSeconds: 10 * 60,
+      blockSeconds: 20 * 60,
+    });
+
+    if (!ipRateLimit.allowed) {
       return NextResponse.json(
-        { success: false, error: "Correo inválido." },
-        { status: 400 },
+        {
+          success: false,
+          error: "Has solicitado demasiados códigos. Intenta nuevamente en unos minutos.",
+        },
+        { status: 429 },
+      );
+    }
+
+    const emailRateLimit = await consumeRateLimit({
+      action: "send_verification_code_email",
+      identifier: cleanEmail,
+      limit: 3,
+      windowSeconds: 10 * 60,
+      blockSeconds: 10 * 60,
+    });
+
+    if (!emailRateLimit.allowed) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Debes esperar un momento antes de reenviar el código.",
+        },
+        { status: 429 },
       );
     }
 
     const resendApiKey = process.env.RESEND_API_KEY?.trim();
-    if (!resendApiKey) {
-      console.error("[send-verification-code] Falta RESEND_API_KEY", {
-        hasEmailFrom: Boolean(process.env.EMAIL_FROM?.trim()),
-        environment: process.env.NODE_ENV ?? "development",
+    const emailFrom = process.env.EMAIL_FROM?.trim();
+
+    if (!resendApiKey || !emailFrom) {
+      console.error("[send-verification-code] configuración incompleta", {
+        hasResendApiKey: Boolean(resendApiKey),
+        hasEmailFrom: Boolean(emailFrom),
       });
 
       return NextResponse.json(
-        {
-          success: false,
-          error: "No se pudo enviar el código de verificación.",
-        },
+        { success: false, error: "No se pudo enviar el código de verificación." },
         { status: 500 },
       );
     }
 
+    await ensureAuthSecuritySchema();
     const resend = new Resend(resendApiKey);
     const connection = await pool.getConnection();
 
@@ -111,14 +152,18 @@ export async function POST(req: Request) {
         ? "password_hash"
         : userColumns.has("password")
           ? "password"
-          : "password_hash";
-      const activeStatusId = userColumns.has("status_id")
-        ? await getActiveStatusId(connection)
-        : null;
+          : null;
+
+      if (!passwordColumn) {
+        return NextResponse.json(
+          { success: false, error: "La base no soporta verificación por correo." },
+          { status: 500 },
+        );
+      }
 
       const [existingUsers] = await connection.query<ExistingUserRow[]>(
         `
-          SELECT id, email_verified
+          SELECT id, email_verified, verification_sent_at
           FROM users
           WHERE LOWER(TRIM(email)) = ?
           LIMIT 1
@@ -128,128 +173,93 @@ export async function POST(req: Request) {
 
       const existingUser = existingUsers[0] ?? null;
 
-      if (existingUser && Boolean(existingUser.email_verified)) {
+      if (existingUser && (existingUser.email_verified === true || existingUser.email_verified === 1)) {
         return NextResponse.json(
-          {
-            success: false,
-            error: "Este correo ya está registrado.",
-          },
+          { success: false, error: "Este correo ya está registrado." },
           { status: 409 },
         );
       }
 
-      const code = generateCode();
+      if (existingUser?.verification_sent_at) {
+        const sentAt = new Date(existingUser.verification_sent_at).getTime();
+        if (Number.isFinite(sentAt) && Date.now() - sentAt < 60 * 1000) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Espera al menos 1 minuto antes de solicitar otro código.",
+            },
+            { status: 429 },
+          );
+        }
+      }
+
+      const code = generateSixDigitCode();
 
       await connection.beginTransaction();
 
       if (existingUser) {
-        const updateAssignments: string[] = [
-          "verification_code = ?",
-        ];
-        const updateValues: Array<string | number | boolean | null> = [code];
-
-        if (userColumns.has("email_verified")) {
-          updateAssignments.push("email_verified = ?");
-          updateValues.push(false);
-        }
-
-        if (userColumns.has("verification_expires_at")) {
-          updateAssignments.push("verification_expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)");
-        }
-
-        if (userColumns.has("first_name") && firstName) {
-          updateAssignments.push("first_name = ?");
-          updateValues.push(firstName);
-        }
-
-        if (userColumns.has("last_name") && lastName) {
-          updateAssignments.push("last_name = ?");
-          updateValues.push(lastName);
-        }
-
-        if (userColumns.has("phone") && phone) {
-          updateAssignments.push("phone = ?");
-          updateValues.push(phone);
-        }
-
-        if (userColumns.has("updated_at")) {
-          updateAssignments.push("updated_at = NOW()");
-        }
-
-        updateValues.push(existingUser.id);
-
         await connection.query<ResultSetHeader>(
           `
             UPDATE users
-            SET ${updateAssignments.join(", ")}
+            SET
+              verification_code = ?,
+              verification_expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE),
+              verification_sent_at = NOW(),
+              email_verified = 0,
+              updated_at = NOW()
             WHERE id = ?
           `,
-          updateValues,
+          [code, existingUser.id],
         );
       } else {
-        const configuredSaltRounds = Number(process.env.SALT_ROUNDS ?? 12);
-        const saltRounds =
-          Number.isFinite(configuredSaltRounds) && configuredSaltRounds > 0
-            ? configuredSaltRounds
-            : 12;
-        const pepper = process.env.PASSWORD_PEPPER ?? "";
-        const temporaryPasswordHash = await bcrypt.hash(
-          `${cleanEmail}:${Date.now()}:${pepper || "gogi-temp"}`,
-          saltRounds,
+        const temporaryPasswordHash = await hashPassword(
+          `${cleanEmail}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
         );
+        const statusId = userColumns.has("status_id")
+          ? await getActiveStatusId(connection)
+          : null;
 
-        const insertColumns = ["email"];
-        const insertValues: Array<string | number | boolean | Date | null> = [
+        const insertColumns = ["email", passwordColumn, "verification_code", "email_verified"];
+        const placeholders = ["?", "?", "?", "?"];
+        const values: Array<string | number | boolean | null> = [
           cleanEmail,
+          temporaryPasswordHash,
+          code,
+          false,
         ];
-        const placeholders = ["?"];
 
         if (userColumns.has("first_name")) {
           insertColumns.push("first_name");
-          insertValues.push(firstName);
           placeholders.push("?");
+          values.push(firstName);
         }
 
         if (userColumns.has("last_name")) {
           insertColumns.push("last_name");
-          insertValues.push(lastName);
           placeholders.push("?");
+          values.push(lastName);
         }
 
         if (userColumns.has("phone")) {
           insertColumns.push("phone");
-          insertValues.push(phone);
           placeholders.push("?");
-        }
-
-        if (userColumns.has(passwordColumn)) {
-          insertColumns.push(passwordColumn);
-          insertValues.push(temporaryPasswordHash);
-          placeholders.push("?");
-        }
-
-        if (userColumns.has("email_verified")) {
-          insertColumns.push("email_verified");
-          insertValues.push(false);
-          placeholders.push("?");
-        }
-
-        if (userColumns.has("verification_code")) {
-          insertColumns.push("verification_code");
-          insertValues.push(code);
-          placeholders.push("?");
+          values.push(phone);
         }
 
         if (userColumns.has("verification_expires_at")) {
           insertColumns.push("verification_expires_at");
-          insertValues.push(new Date(Date.now() + 10 * 60 * 1000));
-          placeholders.push("?");
+          placeholders.push("DATE_ADD(NOW(), INTERVAL 10 MINUTE)");
+        }
+
+        if (userColumns.has("verification_sent_at")) {
+          insertColumns.push("verification_sent_at");
+          placeholders.push("NOW()");
         }
 
         if (userColumns.has("status_id")) {
           insertColumns.push("status_id");
-          insertValues.push(activeStatusId);
           placeholders.push("?");
+          values.push(statusId);
         }
 
         await connection.query<ResultSetHeader>(
@@ -257,14 +267,12 @@ export async function POST(req: Request) {
             INSERT INTO users (${insertColumns.join(", ")})
             VALUES (${placeholders.join(", ")})
           `,
-          insertValues,
+          values,
         );
       }
 
-      await connection.commit();
-
       const resendResponse = await resend.emails.send({
-        from: process.env.EMAIL_FROM!,
+        from: emailFrom,
         to: cleanEmail,
         subject: "Código de verificación - Gogi Eats",
         html: `
@@ -276,40 +284,48 @@ export async function POST(req: Request) {
                 ${code}
               </div>
               <p style="color:#666;">Este código expira en 10 minutos.</p>
-              <p style="color:#999; font-size:12px;">Si tú no solicitaste este código, ignora este mensaje.</p>
+              <p style="color:#999; font-size:12px;">Si no solicitaste este código, ignora este mensaje.</p>
             </div>
           </div>
         `,
       });
 
       if (resendResponse.error) {
-        console.error("[send-verification-code] Resend rechazó el envío", {
-          code: (resendResponse.error as SqlLikeError).code ?? null,
-          errno: (resendResponse.error as SqlLikeError).errno ?? null,
-          sqlMessage: (resendResponse.error as SqlLikeError).sqlMessage ?? null,
+        await connection.rollback();
+        console.error("[send-verification-code] resend error", {
           message: resendResponse.error.message,
+          email: maskEmailForLogs(cleanEmail),
         });
 
         return NextResponse.json(
-          {
-            success: false,
-            error: "No se pudo enviar el código de verificación.",
-          },
+          { success: false, error: "No se pudo enviar el código de verificación." },
           { status: 500 },
         );
       }
 
+      await connection.commit();
+      await recordAuthAuditLog({
+        action: "verification_code_sent",
+        email: cleanEmail,
+        ip,
+        userAgent,
+      });
+
       return NextResponse.json({
         success: true,
+        message: "Código enviado correctamente.",
       });
+    } catch (error) {
+      try {
+        await connection.rollback();
+      } catch {}
+      throw error;
     } finally {
       connection.release();
     }
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null
-        ? (error as SqlLikeError)
-        : null;
+      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
 
     console.error("SEND VERIFICATION CODE ERROR:", {
       code: sqlError?.code ?? null,
@@ -320,10 +336,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo enviar el código de verificación.",
-      },
+      { success: false, error: "No se pudo enviar el código de verificación." },
       { status: 500 },
     );
   }

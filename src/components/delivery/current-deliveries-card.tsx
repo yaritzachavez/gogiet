@@ -49,31 +49,31 @@ function getVisualStatus(order: DeliveryOrder) {
     normalized === "completado"
   ) {
     return {
-      cardClass: "border-green-400 bg-green-50 shadow-green-100/80",
-      badgeClass: "bg-green-100 text-green-700 border border-green-300",
+      cardClass: "border-[#d9c3a6] bg-[#fff8ef] shadow-[#ead8c2]/70",
+      badgeClass: "border border-[#d8c1a2] bg-[#f7ebdc] text-[#7d5633]",
       label: "PEDIDO ENTREGADO",
     };
   }
 
   if (normalized === "pendiente" || normalized === "pendiente_aceptacion") {
     return {
-      cardClass: "border-yellow-300 bg-yellow-50 shadow-yellow-100/70",
-      badgeClass: "bg-yellow-100 text-yellow-700 border border-yellow-300",
+      cardClass: "border-[#e5cfb3] bg-[#fff8ef] shadow-[#ead8c2]/70",
+      badgeClass: "border border-[#e2c49e] bg-[#fbefdf] text-[#9b6430]",
       label: "PENDIENTE",
     };
   }
 
   if (normalized === "listo_para_recoger") {
     return {
-      cardClass: "border-red-300 bg-red-50 shadow-red-100/70",
-      badgeClass: "bg-red-100 text-red-600 border border-red-200",
+      cardClass: "border-[#e5c5b0] bg-[#fff5ee] shadow-[#ecd4c6]/70",
+      badgeClass: "border border-[#e9c7ae] bg-[#fae6d8] text-[#a35b2b]",
       label: "LISTO PARA RECOGER",
     };
   }
 
   return {
-    cardClass: "border-slate-200 bg-white shadow-slate-200/70",
-    badgeClass: "bg-slate-100 text-slate-600 border border-slate-200",
+    cardClass: "border-[#dfd0bf] bg-[#fffaf3] shadow-[#e8d8c9]/70",
+    badgeClass: "border border-[#e2d3c3] bg-[#f6eee4] text-[#6d5945]",
     label: String(order.status).replaceAll("_", " ").toUpperCase(),
   };
 }
@@ -93,27 +93,27 @@ export function CurrentDeliveriesCard({
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-slate-200 bg-white text-[#17231d] shadow-xl shadow-slate-900/5">
-      <CardHeader className="border-b border-orange-200 bg-orange-50/80 pb-5">
+    <Card className="overflow-hidden rounded-[24px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
+      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-start gap-3">
-            <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-100 text-orange-600">
+            <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f6ead8] text-[#c56f2d]">
               <Package className="h-5 w-5" />
             </span>
             <div>
-              <CardTitle className="text-xl font-extrabold text-orange-900">
+              <CardTitle className="text-xl font-extrabold text-[#2f2419]">
                 Entregas actuales
               </CardTitle>
-              <CardDescription className="text-sm text-orange-800/75">
-                Pedidos asignados hoy y próximos pasos de ruta.
+              <CardDescription className="text-sm text-[#715f4d]">
+                Entregas reales asignadas, disponibles y listas para operar.
               </CardDescription>
             </div>
           </div>
           <div className="rounded-2xl bg-white px-5 py-3 text-center shadow-sm">
-            <p className="text-3xl font-extrabold text-orange-600">
+            <p className="text-3xl font-extrabold text-[#c56f2d]">
               {deliveriesCount}
             </p>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#8d755b]">
               entregas
             </p>
           </div>
@@ -121,36 +121,26 @@ export function CurrentDeliveriesCard({
       </CardHeader>
       <CardContent className="space-y-4 p-4 sm:p-5">
         {isLoading ? (
-          <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
-            Cargando entregas asignadas...
+          <p className="rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945]">
+            Cargando entregas...
           </p>
         ) : error ? (
-          <p className="rounded-2xl border border-dashed border-rose-200 bg-rose-50 p-6 text-center text-sm text-rose-700">
+          <p className="rounded-2xl border border-dashed border-[#efc8b0] bg-[#fff1e8] p-6 text-center text-sm text-[#9a5b36]">
             {error}
           </p>
         ) : orders.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center text-sm text-slate-600">
-            No tienes entregas asignadas en este momento.
+          <p className="rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945]">
+            No tienes entregas asignadas por ahora.
           </p>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <p className="text-sm font-bold text-slate-700">Ruta de hoy</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  className="h-9 rounded-full bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600"
-                >
-                  Pausar 30 min
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-9 rounded-full bg-slate-100 px-4 text-xs font-bold text-slate-700 hover:bg-slate-200"
-                >
-                  Ver detalle
-                </Button>
-              </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ead7c3] bg-[#f8f0e5] px-4 py-3">
+              <p className="text-sm font-bold text-[#3d3025]">
+                Límite operativo del repartidor
+              </p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#9b6430]">
+                {deliveriesCount}/5 activas
+              </p>
             </div>
             <ul className="space-y-3">
               {orders.map((order) => {
@@ -222,53 +212,53 @@ export function CurrentDeliveriesCard({
                     </div>
 
                     <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-[1.2fr,0.8fr,0.8fr]">
-                      <div className="rounded-xl bg-white/70 p-3 shadow-inner">
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                          Direccion
+                      <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
+                          Entrega
                         </p>
-                        <p className="mt-2 flex items-start gap-2 font-medium text-slate-700">
-                          <MapPin className="mt-0.5 h-4 w-4 flex-none text-orange-500" />
+                        <p className="mt-2 flex items-start gap-2 font-medium text-[#4c3c2f]">
+                          <MapPin className="mt-0.5 h-4 w-4 flex-none text-[#c56f2d]" />
                           <span>
                             {order.address.street}
                             <br />
-                            <span className="text-slate-500">
+                            <span className="text-[#7b6a58]">
                               {order.address.neighborhood}, {order.address.city}
                             </span>
                           </span>
                         </p>
                       </div>
-                      <div className="rounded-xl bg-white/70 p-3 shadow-inner">
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                          Hora
+                      <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
+                          Cliente
                         </p>
-                        <p className="mt-2 font-semibold text-slate-800">
-                          {order.eta}
+                        <p className="mt-2 font-semibold text-[#4c3c2f]">
+                          {order.contact.name}
                         </p>
-                        <p className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                        <p className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Telefono
                         </p>
-                        <p className="mt-2 font-semibold text-slate-800">
+                        <p className="mt-2 font-semibold text-[#4c3c2f]">
                           {order.contact.phone || "Sin telefono"}
                         </p>
                       </div>
-                      <div className="rounded-xl bg-white/70 p-3 shadow-inner">
-                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
+                      <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Total
                         </p>
-                        <p className="mt-2 text-xl font-bold text-slate-950">
+                        <p className="mt-2 text-xl font-bold text-[#2f2419]">
                           {amountFormatter.format(order.amount)}
                         </p>
-                        <p className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-400">
-                          Pago
+                        <p className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
+                          Envío
                         </p>
-                        <p className="mt-2 font-semibold text-slate-800">
-                          {order.paymentMethod}
+                        <p className="mt-2 font-semibold text-[#4c3c2f]">
+                          {amountFormatter.format(order.shippingFee ?? 0)}
                         </p>
                       </div>
                     </div>
 
                     {order.notes ? (
-                      <div className="mt-3 rounded-xl bg-white/60 p-3 text-sm text-slate-600 shadow-inner">
+                      <div className="mt-3 rounded-xl bg-[#fffdf9] p-3 text-sm text-[#6d5945] shadow-inner">
                         {order.notes}
                       </div>
                     ) : null}
@@ -310,7 +300,7 @@ export function CurrentDeliveriesCard({
                           rel="noopener noreferrer"
                         >
                           <Navigation className="h-3.5 w-3.5" />
-                          Navegar
+                          Ver ruta
                         </a>
                       </Button>
                       <Button
@@ -357,7 +347,7 @@ export function CurrentDeliveriesCard({
                       <Button
                         type="button"
                         variant="secondary"
-                        className="ml-auto h-10 rounded-lg bg-white/80 px-4 text-xs font-bold text-slate-700 hover:bg-white"
+                        className="ml-auto h-10 rounded-lg bg-white/80 px-4 text-xs font-bold text-[#5d4b3a] hover:bg-white"
                       >
                         Ver resumen
                       </Button>

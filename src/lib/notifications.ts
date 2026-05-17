@@ -382,6 +382,110 @@ export async function createNotificationsForAdminGeneral(
   await createNotificationsForUsers(adminIds, payload, executor);
 }
 
+function serializeNotificationError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
+
+  return {
+    message: String(error),
+  };
+}
+
+export async function createNotificationSafely(
+  payload: NotificationPayload,
+  executor: Queryable = pool,
+) {
+  try {
+    await createNotification(payload, executor);
+    return true;
+  } catch (error) {
+    console.error("[notifications] no se pudo guardar la notificación:", {
+      payload: {
+        userId: normalizeId(payload.userId),
+        businessId: normalizeId(payload.businessId),
+        role: normalizeRole(payload.role),
+        type: payload.type,
+        title: payload.title,
+        relatedId: normalizeId(payload.relatedId),
+      },
+      error: serializeNotificationError(error),
+    });
+    return false;
+  }
+}
+
+export async function createNotificationsForUsersSafely(
+  userIds: number[],
+  payload: Omit<NotificationPayload, "userId" | "businessId" | "role">,
+  executor: Queryable = pool,
+) {
+  try {
+    await createNotificationsForUsers(userIds, payload, executor);
+    return true;
+  } catch (error) {
+    console.error(
+      "[notifications] no se pudieron guardar notificaciones para usuarios:",
+      {
+        userIds: Array.from(new Set(userIds.map((userId) => normalizeId(userId)).filter(Boolean))),
+        type: payload.type,
+        title: payload.title,
+        relatedId: normalizeId(payload.relatedId),
+        error: serializeNotificationError(error),
+      },
+    );
+    return false;
+  }
+}
+
+export async function createNotificationForBusinessSafely(
+  businessId: number,
+  payload: Omit<NotificationPayload, "userId" | "businessId" | "role">,
+  executor: Queryable = pool,
+) {
+  try {
+    await createNotificationForBusiness(businessId, payload, executor);
+    return true;
+  } catch (error) {
+    console.error(
+      "[notifications] no se pudo guardar notificación para negocio:",
+      {
+        businessId: normalizeId(businessId),
+        type: payload.type,
+        title: payload.title,
+        relatedId: normalizeId(payload.relatedId),
+        error: serializeNotificationError(error),
+      },
+    );
+    return false;
+  }
+}
+
+export async function createNotificationsForAdminGeneralSafely(
+  payload: Omit<NotificationPayload, "userId" | "businessId" | "role">,
+  executor: Queryable = pool,
+) {
+  try {
+    await createNotificationsForAdminGeneral(payload, executor);
+    return true;
+  } catch (error) {
+    console.error(
+      "[notifications] no se pudieron guardar notificaciones para admin_general:",
+      {
+        type: payload.type,
+        title: payload.title,
+        relatedId: normalizeId(payload.relatedId),
+        error: serializeNotificationError(error),
+      },
+    );
+    return false;
+  }
+}
+
 function buildActorFilter(actor: NotificationActor) {
   const filters: string[] = ["user_id = ?"];
   const values: Array<number | string> = [actor.userId];

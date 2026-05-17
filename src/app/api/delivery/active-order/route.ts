@@ -3,10 +3,22 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import {
+  getExistingColumns,
+  getShippingFeeSqlExpression,
+  pickFirstExistingColumn,
+  SHIPPING_FEE_COLUMN_CANDIDATES,
+} from "@/lib/delivery-fees";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 
 type ActiveOrderRow = RowDataPacket & {
   order_id: number;
+  business_name: string | null;
+  business_address: string | null;
+  business_district: string | null;
+  business_city: string | null;
+  total_amount: string | number | null;
+  shipping_fee_amount: string | number | null;
   customer_name: string | null;
   customer_phone: string | null;
   street: string | null;
@@ -140,11 +152,27 @@ export async function GET(req: NextRequest) {
       email: access.email,
       role: access.roles,
     });
+    const orderColumns = await getExistingColumns(
+      pool,
+      "orders",
+      SHIPPING_FEE_COLUMN_CANDIDATES,
+    );
+    const shippingFeeColumn = pickFirstExistingColumn(
+      orderColumns,
+      SHIPPING_FEE_COLUMN_CANDIDATES,
+    );
+    const shippingFeeExpression = getShippingFeeSqlExpression(shippingFeeColumn);
 
     const [orderRows] = await pool.query<ActiveOrderRow[]>(
       `
         SELECT
           o.id AS order_id,
+          b.name AS business_name,
+          b.address AS business_address,
+          b.district AS business_district,
+          b.city AS business_city,
+          o.total_amount,
+          ${shippingFeeExpression} AS shipping_fee_amount,
           CONCAT(u.first_name, ' ', COALESCE(u.last_name, '')) AS customer_name,
           COALESCE(a.phone, u.phone) AS customer_phone,
           a.street,
@@ -165,6 +193,7 @@ export async function GET(req: NextRequest) {
           dsc.name AS delivery_status
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
+        INNER JOIN business b ON b.id = o.business_id
         INNER JOIN users u ON u.id = o.user_id
         INNER JOIN addresses a ON a.id = o.address_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
@@ -198,8 +227,18 @@ export async function GET(req: NextRequest) {
     const payload = {
       id: Number(activeOrder.order_id),
       folio: `FG-${String(activeOrder.order_id).padStart(4, "0")}`,
+      businessName: activeOrder.business_name ?? "Negocio",
+      businessAddress: [
+        activeOrder.business_address,
+        activeOrder.business_district,
+        activeOrder.business_city,
+      ]
+        .filter(Boolean)
+        .join(", "),
       customerName: activeOrder.customer_name ?? "Cliente",
       customerPhone: activeOrder.customer_phone ?? "",
+      amount: Number(activeOrder.total_amount ?? 0),
+      shippingFee: Number(activeOrder.shipping_fee_amount ?? 0),
       fullAddress: buildFullAddress(activeOrder),
       zoneName: activeOrder.neighborhood ?? "Sin zona",
       city: [activeOrder.city, activeOrder.state].filter(Boolean).join(", "),

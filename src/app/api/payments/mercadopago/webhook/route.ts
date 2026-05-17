@@ -15,8 +15,8 @@ import {
 } from "@/lib/order-status-guard";
 import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
 import {
-  createNotificationForBusiness,
-  createNotificationsForAdminGeneral,
+  createNotificationForBusinessSafely,
+  createNotificationsForAdminGeneralSafely,
 } from "@/lib/notifications";
 
 type OrderRow = RowDataPacket & {
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (paymentStatus === "approved") {
-      await createNotificationForBusiness(
+      await createNotificationForBusinessSafely(
         Number(order.business_id),
         {
           type: "pago",
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
         conn,
       );
 
-      await createNotificationsForAdminGeneral(
+      await createNotificationsForAdminGeneralSafely(
         {
           type: "pago",
           title: `Pago aprobado #${orderId}`,

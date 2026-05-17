@@ -32,7 +32,7 @@ type DeliveredEarningRow = RowDataPacket & {
   courier_tip: string | number | null;
 };
 
-const WEEKLY_GOAL = 4500;
+const WEEKLY_GOAL = 0;
 
 function toNumber(value: unknown) {
   const parsed = Number(value ?? 0);

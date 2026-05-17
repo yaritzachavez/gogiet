@@ -6,7 +6,9 @@ import type {
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { recordAuditLog } from "@/lib/audit-log";
 import { ensureDeliveryStatus } from "@/lib/business-panel";
+import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import pool from "@/lib/db";
 import {
   COURIER_EARNING_RATE,
@@ -18,12 +20,16 @@ import {
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
 import { saveDriverEarning } from "@/lib/driver-earnings";
-import { createNotificationsForUsers } from "@/lib/notifications";
+import { createNotificationsForUsersSafely } from "@/lib/notifications";
 import {
   applyValidatedOrderStatusTransition,
   OrderStatusTransitionError,
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
+import {
+  uploadImageToCloudinary,
+  validateImageFile,
+} from "@/lib/server-image-upload";
 
 type AssignedOrderRow = RowDataPacket & {
   delivery_id: number;
@@ -42,6 +48,57 @@ type AssignedOrderRow = RowDataPacket & {
 type BusinessUserRow = RowDataPacket & {
   user_id: number;
 };
+
+type DeliveryEvidenceColumnRow = RowDataPacket & {
+  Field: string;
+};
+
+async function ensureDeliveryEvidenceTable(connection: PoolConnection) {
+  await connection.query(
+    `
+      CREATE TABLE IF NOT EXISTS delivery_evidence (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        delivery_id INT NOT NULL,
+        order_id INT NOT NULL,
+        driver_user_id INT NOT NULL,
+        photo_url TEXT NOT NULL,
+        note TEXT NULL,
+        latitude DECIMAL(10,7) NULL,
+        longitude DECIMAL(10,7) NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_delivery_evidence_delivery_id (delivery_id),
+        KEY idx_delivery_evidence_order_id (order_id),
+        KEY idx_delivery_evidence_driver_user_id (driver_user_id)
+      )
+    `,
+  );
+
+  const [columns] = await connection.query<DeliveryEvidenceColumnRow[]>(
+    "SHOW COLUMNS FROM delivery_evidence",
+  );
+  const columnNames = new Set(columns.map((column) => String(column.Field)));
+
+  if (!columnNames.has("latitude")) {
+    await connection.query(
+      `
+        ALTER TABLE delivery_evidence
+        ADD COLUMN latitude DECIMAL(10,7) NULL
+        AFTER note
+      `,
+    );
+  }
+
+  if (!columnNames.has("longitude")) {
+    await connection.query(
+      `
+        ALTER TABLE delivery_evidence
+        ADD COLUMN longitude DECIMAL(10,7) NULL
+        AFTER latitude
+      `,
+    );
+  }
+}
 
 async function getBusinessUserIds(
   connection: PoolConnection,
@@ -90,13 +147,89 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const body = await req.json().catch(() => null);
-    const orderId = Number(body?.order_id);
+    const contentType = req.headers.get("content-type") ?? "";
+    let orderId = 0;
+    let evidenceNote = "";
+    let evidenceLatitude: number | null = null;
+    let evidenceLongitude: number | null = null;
+    let evidenceFile: File | null = null;
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      orderId = Number(formData.get("order_id"));
+      evidenceNote = String(formData.get("note") ?? "").trim();
+      const latitudeValue = String(formData.get("latitude") ?? "").trim();
+      const longitudeValue = String(formData.get("longitude") ?? "").trim();
+      evidenceLatitude = latitudeValue ? Number(latitudeValue) : null;
+      evidenceLongitude = longitudeValue ? Number(longitudeValue) : null;
+      const photoEntry = formData.get("photo");
+      evidenceFile =
+        photoEntry instanceof File && photoEntry.size > 0 ? photoEntry : null;
+    } else {
+      const body = await req.json().catch(() => null);
+      orderId = Number(body?.order_id);
+      evidenceNote = String(body?.note ?? "").trim();
+      evidenceLatitude =
+        body?.latitude == null || body?.latitude === ""
+          ? null
+          : Number(body.latitude);
+      evidenceLongitude =
+        body?.longitude == null || body?.longitude === ""
+          ? null
+          : Number(body.longitude);
+    }
 
     if (!Number.isInteger(orderId) || orderId <= 0) {
       return NextResponse.json(
         { success: false, error: "order_id es obligatorio y debe ser válido" },
         { status: 400 },
+      );
+    }
+
+    if (!evidenceFile) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Agrega una foto de evidencia antes de confirmar la entrega.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const fileValidationError = validateImageFile(evidenceFile);
+
+    if (fileValidationError) {
+      return NextResponse.json(
+        { success: false, error: fileValidationError },
+        { status: 400 },
+      );
+    }
+
+    const cloudinaryStatus = getCloudinaryConfigStatus();
+
+    if (!cloudinaryStatus.isConfigured) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "No se pudo subir la evidencia de entrega porque Cloudinary no está configurado.",
+        },
+        { status: 500 },
+      );
+    }
+
+    const uploadResult = await uploadImageToCloudinary(evidenceFile, {
+      kind: "generic",
+    });
+    const evidencePhotoUrl = String(uploadResult.secure_url ?? "").trim();
+
+    if (!evidencePhotoUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No se pudo guardar la foto de evidencia de entrega.",
+        },
+        { status: 500 },
       );
     }
 
@@ -260,12 +393,46 @@ export async function POST(req: NextRequest) {
       connection,
     );
 
+    await ensureDeliveryEvidenceTable(connection);
+
+    await connection.query<ResultSetHeader>(
+      `
+        INSERT INTO delivery_evidence (
+          delivery_id,
+          order_id,
+          driver_user_id,
+          photo_url,
+          note,
+          latitude,
+          longitude,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        ON DUPLICATE KEY UPDATE
+          photo_url = VALUES(photo_url),
+          note = VALUES(note),
+          latitude = VALUES(latitude),
+          longitude = VALUES(longitude),
+          updated_at = NOW()
+      `,
+      [
+        Number(order.delivery_id),
+        orderId,
+        authUser.user.id,
+        evidencePhotoUrl,
+        evidenceNote || null,
+        evidenceLatitude,
+        evidenceLongitude,
+      ],
+    );
+
     const businessUserIds = await getBusinessUserIds(
       connection,
       Number(order.business_id),
     );
 
-    await createNotificationsForUsers(
+    await createNotificationsForUsersSafely(
       [...businessUserIds, Number(order.customer_user_id)],
       {
         type: "pedido",
@@ -276,11 +443,34 @@ export async function POST(req: NextRequest) {
       connection,
     );
 
+    await recordAuditLog(
+      {
+        userId: authUser.user.id,
+        action: "DRIVER_MARK_DELIVERED",
+        resourceType: "order",
+        resourceId: orderId,
+        oldValue: {
+          status: order.current_status,
+        },
+        newValue: {
+          status: "delivered",
+          evidencePhotoStored: true,
+          hasEvidenceNote: Boolean(evidenceNote),
+        },
+        ip:
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+          req.headers.get("x-real-ip"),
+        userAgent: req.headers.get("user-agent"),
+      },
+      connection,
+    );
+
     await connection.commit();
 
     return NextResponse.json({
       success: true,
       message: "Pedido marcado como entregado",
+      evidenceSaved: true,
     });
   } catch (error) {
     await connection.rollback();

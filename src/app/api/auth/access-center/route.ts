@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (adminGeneral || hasBusinessOwner) {
+    if (adminGeneral || hasBusinessOwner || hasBusinessManager) {
       access.push({
         key: "admin-negocio",
         title: "Administrador de negocio",

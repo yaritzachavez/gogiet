@@ -37,6 +37,7 @@ export interface DeliveryOrder {
   paymentMethod: string;
   amount: number;
   businessName?: string;
+  businessAddress?: string;
   address: DeliveryAddress;
   contact: DeliveryContact;
   folio?: string;
@@ -44,6 +45,8 @@ export interface DeliveryOrder {
   items?: DeliveryOrderItem[];
   notes?: string;
   fullAddress?: string;
+  shippingFee?: number;
+  customerReference?: string;
   assignmentStatus?: string;
   canRespond?: boolean;
   canReject?: boolean;
@@ -75,6 +78,7 @@ export interface DeliveryHistoryEntry {
   id: string;
   folio: string;
   businessName: string;
+  businessAddress?: string;
   customerName: string;
   customerPhone: string;
   fullAddress: string;
@@ -85,6 +89,7 @@ export interface DeliveryHistoryEntry {
   tip: number;
   deliveredAt: string;
   status: string;
+  earningStatus?: string;
 }
 
 export interface DeliveryNotification {

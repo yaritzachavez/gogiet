@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { isSessionTokenActive, touchSessionToken } from "@/lib/auth-security";
 import pool from "@/lib/db";
 import { getExistingTables } from "@/lib/db-schema";
 import { mapDbRoleToPublicRole } from "@/lib/role-utils";
@@ -27,6 +28,24 @@ export async function GET(req: Request) {
         ),
       );
     }
+
+    const activeSession = await isSessionTokenActive(authUser.token);
+
+    if (!activeSession) {
+      return withCors(
+        req,
+        NextResponse.json(
+          {
+            success: false,
+            error: "Tu sesión ya no está activa.",
+            roles: [],
+          },
+          { status: 401 },
+        ),
+      );
+    }
+
+    await touchSessionToken(authUser.token);
 
     const existingTables = await getExistingTables(["user_roles", "roles"]);
 

@@ -1,18 +1,25 @@
-import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
 import pool from "@/lib/db";
+import {
+  consumeRateLimit,
+  createPasswordResetToken,
+  ensureAuthSecuritySchema,
+  getRequestIp,
+  getRequestUserAgent,
+  isValidEmail,
+  maskEmailForLogs,
+  normalizeEmail,
+  recordAuthAuditLog,
+} from "@/lib/auth-security";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type UserRow = RowDataPacket & {
   id: number;
   email: string;
   email_verified?: number | boolean | null;
-};
-
-type UserColumnRow = RowDataPacket & {
-  Field?: string;
 };
 
 type SqlLikeError = {
@@ -23,17 +30,14 @@ type SqlLikeError = {
   stack?: string;
 };
 
-function generateCode() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+function buildResetUrl(email: string, token: string) {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.APP_URL ||
+    "https://www.gogieats.shop";
 
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim().toLowerCase());
-}
-
-async function getUserColumns(connection: PoolConnection) {
-  const [rows] = await connection.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
-  return new Set(rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean));
+  const normalizedBaseUrl = baseUrl.replace(/\/$/, "");
+  return `${normalizedBaseUrl}/reset-password?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
 }
 
 export function OPTIONS(req: Request) {
@@ -46,14 +50,48 @@ export async function POST(req: Request) {
 
   try {
     const body = (await req.json()) as { email?: string };
-    const email = String(body.email ?? "").trim().toLowerCase();
+    const email = normalizeEmail(body.email ?? "");
+    const ip = getRequestIp(req);
+    const userAgent = getRequestUserAgent(req);
 
-    if (!email) {
-      return json({ success: false, error: "Correo requerido." }, { status: 400 });
+    if (!email || !isValidEmail(email)) {
+      return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
     }
 
-    if (!isValidEmail(email)) {
-      return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
+    const rateLimitByIp = await consumeRateLimit({
+      action: "forgot_password_ip",
+      identifier: ip,
+      limit: 5,
+      windowSeconds: 15 * 60,
+      blockSeconds: 20 * 60,
+    });
+
+    if (!rateLimitByIp.allowed) {
+      return json(
+        {
+          success: false,
+          error: "Has solicitado demasiados enlaces de recuperación. Intenta nuevamente más tarde.",
+        },
+        { status: 429 },
+      );
+    }
+
+    const rateLimitByEmail = await consumeRateLimit({
+      action: "forgot_password_email",
+      identifier: email,
+      limit: 3,
+      windowSeconds: 15 * 60,
+      blockSeconds: 15 * 60,
+    });
+
+    if (!rateLimitByEmail.allowed) {
+      return json(
+        {
+          success: false,
+          error: "Debes esperar un momento antes de volver a solicitar la recuperación.",
+        },
+        { status: 429 },
+      );
     }
 
     const resendApiKey = process.env.RESEND_API_KEY?.trim();
@@ -64,122 +102,91 @@ export async function POST(req: Request) {
         hasResendApiKey: Boolean(resendApiKey),
         hasEmailFrom: Boolean(emailFrom),
       });
+
       return json(
         { success: false, error: "No pudimos iniciar la recuperación de contraseña." },
         { status: 500 },
       );
     }
 
-    const resend = new Resend(resendApiKey);
-    const connection = await pool.getConnection();
+    await ensureAuthSecuritySchema();
 
-    try {
-      const userColumns = await getUserColumns(connection);
+    const [rows] = await pool.query<UserRow[]>(
+      `
+        SELECT id, email, email_verified
+        FROM users
+        WHERE LOWER(TRIM(email)) = ?
+        LIMIT 1
+      `,
+      [email],
+    );
 
-      if (!userColumns.has("email") || !userColumns.has("verification_code")) {
-        return json(
-          {
-            success: false,
-            error: "La base no tiene soporte para recuperación por código.",
-          },
-          { status: 500 },
-        );
-      }
+    const user = rows[0];
 
-      const [rows] = await connection.query<UserRow[]>(
-        `
-          SELECT id, email
-          ${userColumns.has("email_verified") ? ", email_verified" : ""}
-          FROM users
-          WHERE LOWER(TRIM(email)) = ?
-          LIMIT 1
-        `,
-        [email],
-      );
-
-      const user = rows[0];
-
-      if (!user) {
-        return json(
-          { success: false, error: "No encontramos una cuenta con ese correo." },
-          { status: 404 },
-        );
-      }
-
-      const code = generateCode();
-
-      await connection.beginTransaction();
-
-      const updateAssignments = ["verification_code = ?"];
-      const updateValues: Array<string | null> = [code];
-
-      if (userColumns.has("verification_expires_at")) {
-        updateAssignments.push("verification_expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)");
-      }
-
-      if (userColumns.has("updated_at")) {
-        updateAssignments.push("updated_at = NOW()");
-      }
-
-      updateValues.push(String(user.id));
-
-      await connection.query<ResultSetHeader>(
-        `
-          UPDATE users
-          SET ${updateAssignments.join(", ")}
-          WHERE id = ?
-        `,
-        updateValues,
-      );
-
-      const resendResponse = await resend.emails.send({
-        from: emailFrom,
-        to: email,
-        subject: "Código para recuperar tu contraseña - Gogi Eats",
-        html: `
-          <div style="font-family: Arial, sans-serif; background:#f7f7f7; padding:24px;">
-            <div style="max-width:480px; margin:auto; background:#ffffff; border-radius:16px; padding:24px;">
-              <h2 style="color:#111;">Recupera tu contraseña</h2>
-              <p style="color:#444;">Usa este código para continuar con el cambio de contraseña en Gogi Eats:</p>
-              <div style="font-size:32px; font-weight:bold; letter-spacing:6px; color:#ff6b00; margin:24px 0;">
-                ${code}
-              </div>
-              <p style="color:#666;">Este código expira en 10 minutos.</p>
-              <p style="color:#999; font-size:12px;">Si no solicitaste este cambio, ignora este mensaje.</p>
-            </div>
-          </div>
-        `,
-      });
-
-      if (resendResponse.error) {
-        await connection.rollback();
-        console.error("FORGOT PASSWORD RESEND ERROR:", {
-          code: (resendResponse.error as SqlLikeError).code ?? null,
-          errno: (resendResponse.error as SqlLikeError).errno ?? null,
-          sqlMessage: (resendResponse.error as SqlLikeError).sqlMessage ?? null,
-          message: resendResponse.error.message,
-        });
-
-        return json(
-          { success: false, error: "No pudimos enviar el código por correo." },
-          { status: 500 },
-        );
-      }
-
-      await connection.commit();
-
+    if (!user) {
       return json({
         success: true,
-        message: "Te enviamos un código de verificación para recuperar tu contraseña.",
+        message:
+          "Si encontramos una cuenta asociada a ese correo, recibirás un enlace de recuperación.",
       });
-    } catch (error) {
-      try {
-        await connection.rollback();
-      } catch {}
-      throw error;
-    } finally {
-      connection.release();
     }
+
+    const resetToken = await createPasswordResetToken({
+      userId: user.id,
+      email,
+      ip,
+      userAgent,
+      expiresInMinutes: Number(process.env.PASSWORD_RESET_TOKEN_MINUTES ?? 30),
+    });
+
+    const resetUrl = buildResetUrl(email, resetToken);
+    const resend = new Resend(resendApiKey);
+    const resendResponse = await resend.emails.send({
+      from: emailFrom,
+      to: email,
+      subject: "Recupera tu contraseña - Gogi Eats",
+      html: `
+        <div style="font-family: Arial, sans-serif; background:#f7f7f7; padding:24px;">
+          <div style="max-width:480px; margin:auto; background:#ffffff; border-radius:16px; padding:24px;">
+            <h2 style="color:#111;">Recupera tu contraseña</h2>
+            <p style="color:#444;">Haz clic en el siguiente botón para crear una nueva contraseña:</p>
+            <p style="margin:24px 0;">
+              <a href="${resetUrl}" style="display:inline-block;padding:14px 18px;border-radius:12px;background:#ff6b00;color:#fff;text-decoration:none;font-weight:700;">
+                Restablecer contraseña
+              </a>
+            </p>
+            <p style="color:#666;">Este enlace expira en 30 minutos y solo se puede usar una vez.</p>
+            <p style="color:#999; font-size:12px;">Si no solicitaste este cambio, ignora este mensaje.</p>
+          </div>
+        </div>
+      `,
+    });
+
+    if (resendResponse.error) {
+      console.error("FORGOT PASSWORD RESEND ERROR:", {
+        message: resendResponse.error.message,
+        email: maskEmailForLogs(email),
+      });
+
+      return json(
+        { success: false, error: "No pudimos enviar el enlace de recuperación." },
+        { status: 500 },
+      );
+    }
+
+    await recordAuthAuditLog({
+      userId: user.id,
+      action: "password_reset_requested",
+      email,
+      ip,
+      userAgent,
+    });
+
+    return json({
+      success: true,
+      message:
+        "Si encontramos una cuenta asociada a ese correo, recibirás un enlace de recuperación.",
+    });
   } catch (error) {
     const sqlError =
       typeof error === "object" && error !== null ? (error as SqlLikeError) : null;

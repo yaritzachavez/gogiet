@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { recordAuditLog } from "@/lib/audit-log";
 import { ensureDeliveryStatus } from "@/lib/business-panel";
 import pool from "@/lib/db";
 import {
@@ -113,6 +114,9 @@ export async function PATCH(
         { status: 409 },
       );
     }
+
+    const nextAuditStatus =
+      requestedStatus === "recogido" ? "recogido" : "en_camino";
 
     await connection.beginTransaction();
 
@@ -232,6 +236,29 @@ export async function PATCH(
         },
       });
     }
+
+    await recordAuditLog(
+      {
+        userId: authUser.user.id,
+        action:
+          requestedStatus === "recogido"
+            ? "DRIVER_PICKUP_ORDER"
+            : "DRIVER_MARK_ON_THE_WAY",
+        resourceType: "order",
+        resourceId: orderId,
+        oldValue: {
+          status: order.current_status,
+        },
+        newValue: {
+          status: nextAuditStatus,
+        },
+        ip:
+          req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+          req.headers.get("x-real-ip"),
+        userAgent: req.headers.get("user-agent"),
+      },
+      connection,
+    );
 
     await connection.commit();
 

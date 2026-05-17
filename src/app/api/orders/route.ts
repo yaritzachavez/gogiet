@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import jwt from "jsonwebtoken";
 import type {
   PoolConnection,
@@ -11,8 +12,8 @@ import {
   ensurePaymentsTable,
 } from "@/lib/order-payments";
 import {
-  createNotificationForBusiness,
-  createNotificationsForAdminGeneral,
+  createNotificationForBusinessSafely,
+  createNotificationsForAdminGeneralSafely,
 } from "@/lib/notifications";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import {
@@ -45,6 +46,9 @@ type ProductRow = RowDataPacket & {
   price: string | number;
   discount_price: string | number | null;
   business_id: number;
+  status_id: number | null;
+  is_stock_available: number | boolean | null;
+  stock_average: number | string | null;
 };
 
 type AddressRow = RowDataPacket & {
@@ -62,6 +66,10 @@ type BusinessRow = RowDataPacket & {
 
 type ColumnRow = RowDataPacket & {
   Field: string;
+};
+
+type ExistingOrderRow = RowDataPacket & {
+  id: number;
 };
 
 type AdminMessageRow = RowDataPacket & {
@@ -215,6 +223,26 @@ async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
     );
   }
 
+  if (!columnNames.has("request_fingerprint")) {
+    await conn.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN request_fingerprint VARCHAR(128) NULL
+        AFTER customer_notes
+      `,
+    );
+  }
+
+  if (!columnNames.has("order_snapshot_json")) {
+    await conn.query(
+      `
+        ALTER TABLE orders
+        ADD COLUMN order_snapshot_json JSON NULL
+        AFTER request_fingerprint
+      `,
+    );
+  }
+
   await ensureOrderPaymentColumns(conn);
 }
 
@@ -239,6 +267,7 @@ async function ensureOrderItemsTable(conn: PoolConnection | typeof pool) {
         order_id INT NOT NULL,
         product_id INT NOT NULL,
         product_name_snapshot VARCHAR(120) NOT NULL,
+        product_snapshot_json JSON NULL,
         unit_price DECIMAL(10,2) NOT NULL,
         quantity INT NOT NULL DEFAULT 1,
         subtotal DECIMAL(10,2) NOT NULL,
@@ -250,6 +279,48 @@ async function ensureOrderItemsTable(conn: PoolConnection | typeof pool) {
       )
     `,
   );
+
+  const [columns] = await conn.query<ColumnRow[]>("SHOW COLUMNS FROM order_items");
+  const columnNames = new Set(columns.map((column) => String(column.Field)));
+
+  if (!columnNames.has("product_snapshot_json")) {
+    await conn.query(
+      `
+        ALTER TABLE order_items
+        ADD COLUMN product_snapshot_json JSON NULL
+        AFTER product_name_snapshot
+      `,
+    );
+  }
+}
+
+function buildOrderFingerprint(params: {
+  userId: number;
+  businessId: number;
+  addressId: number;
+  paymentMethod: string;
+  total: number;
+  items: Array<{ product_id: number; quantity: number }>;
+}) {
+  const base = JSON.stringify({
+    userId: params.userId,
+    businessId: params.businessId,
+    addressId: params.addressId,
+    paymentMethod: params.paymentMethod.trim().toLowerCase(),
+    total: Number(params.total.toFixed(2)),
+    items: params.items
+      .map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+      }))
+      .sort((a, b) =>
+        a.product_id === b.product_id
+          ? a.quantity - b.quantity
+          : a.product_id - b.product_id,
+      ),
+  });
+
+  return crypto.createHash("sha256").update(base).digest("hex");
 }
 
 async function ensureAdminMessagesTable(conn: PoolConnection | typeof pool) {
@@ -698,7 +769,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const userId = toPositiveNumber(body.user_id ?? authUser.id);
+    const isAdminGeneral = authUser.roles?.includes("admin_general") ?? false;
+    const requestedUserId = toPositiveNumber(body.user_id);
+    const userId =
+      isAdminGeneral && requestedUserId ? requestedUserId : Number(authUser.id);
     const items = Array.isArray(body.items)
       ? (body.items as OrderItemInput[])
       : [];
@@ -721,18 +795,14 @@ export async function POST(req: NextRequest) {
       product_id: toPositiveNumber(item.product_id),
       quantity: toPositiveNumber(item.quantity),
       notes: item.notes ?? null,
-      unit_price: item.unit_price != null ? Number(item.unit_price) : null,
       customizations: item.customizations ?? null,
-      total_price: item.total_price != null ? Number(item.total_price) : null,
     }));
 
     if (
       normalizedItems.some(
         (item) =>
           !item.product_id ||
-          !item.quantity ||
-          (item.unit_price != null && !Number.isFinite(item.unit_price)) ||
-          (item.total_price != null && !Number.isFinite(item.total_price)),
+          !item.quantity,
       )
     ) {
       return NextResponse.json(
@@ -830,10 +900,17 @@ export async function POST(req: NextRequest) {
     const placeholders = productIds.map(() => "?").join(",");
     const [products] = await conn.query<ProductRow[]>(
       `
-        SELECT id, name, price, discount_price, business_id
+        SELECT
+          id,
+          name,
+          price,
+          discount_price,
+          business_id,
+          status_id,
+          is_stock_available,
+          stock_average
         FROM products
         WHERE id IN (${placeholders})
-          AND status_id = 1
       `,
       productIds,
     );
@@ -912,14 +989,24 @@ export async function POST(req: NextRequest) {
     const orderItems = normalizedItems.map((item) => {
       const product = productById.get(item.product_id as number);
       const quantity = item.quantity as number;
+      const isActive = Number(product?.status_id ?? 0) === 1;
+      const stockAvailable = Boolean(product?.is_stock_available ?? 0);
+      const stockAverage = Number(product?.stock_average ?? 0);
+
+      if (!product || !isActive) {
+        throw new Error("Uno o más productos ya no están activos.");
+      }
+
+      if (!stockAvailable || stockAverage < quantity) {
+        throw new Error(
+          `El producto ${product.name} ya no tiene stock suficiente para este pedido.`,
+        );
+      }
+
       const unitPrice = Number(
-        item.unit_price ?? product?.discount_price ?? product?.price ?? 0,
+        product?.discount_price ?? product?.price ?? 0,
       );
-      const subtotal = Number(
-        (item.total_price ?? Number((unitPrice * quantity).toFixed(2))).toFixed(
-          2,
-        ),
-      );
+      const subtotal = Number((unitPrice * quantity).toFixed(2));
       const serializedItemNotes = [
         item.notes?.trim(),
         item.customizations?.trim(),
@@ -931,6 +1018,19 @@ export async function POST(req: NextRequest) {
       return {
         product_id: item.product_id as number,
         product_name_snapshot: product?.name ?? "Producto",
+        product_snapshot_json: JSON.stringify({
+          id: Number(product.id),
+          name: String(product.name ?? "Producto"),
+          price: Number(product.price ?? 0),
+          discount_price:
+            product.discount_price == null
+              ? null
+              : Number(product.discount_price),
+          business_id: Number(product.business_id),
+          status_id: Number(product.status_id ?? 0),
+          is_stock_available: Boolean(product.is_stock_available),
+          stock_average: Number(product.stock_average ?? 0),
+        }),
         quantity,
         unit_price: unitPrice,
         subtotal,
@@ -976,6 +1076,62 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const requestFingerprint = buildOrderFingerprint({
+      userId,
+      businessId,
+      addressId,
+      paymentMethod: paymentMethodName,
+      total: commissionBreakdown.total,
+      items: orderItems.map((item) => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+      })),
+    });
+
+    const [existingOrders] = await conn.query<ExistingOrderRow[]>(
+      `
+        SELECT o.id
+        FROM orders o
+        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
+        WHERE o.user_id = ?
+          AND o.request_fingerprint = ?
+          AND o.created_at >= (NOW() - INTERVAL 10 MINUTE)
+          AND COALESCE(osc.name, '') NOT IN ('cancelled', 'delivered', 'payment_failed')
+        ORDER BY o.id DESC
+        LIMIT 1
+      `,
+      [userId, requestFingerprint],
+    );
+
+    if (existingOrders.length > 0) {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Ya estamos procesando un pedido similar. Revisa tus pedidos activos antes de intentar de nuevo.",
+          orderId: Number(existingOrders[0].id),
+        },
+        { status: 409 },
+      );
+    }
+
+    const orderSnapshot = {
+      business_id: businessId,
+      address_id: addressId,
+      payment_method: paymentMethodName,
+      items: orderItems.map((item) => ({
+        product_id: item.product_id,
+        product_name_snapshot: item.product_name_snapshot,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal,
+        notes: item.notes,
+      })),
+      totals: commissionBreakdown,
+      created_from: "api/orders",
+    };
+
     const [orderResult] = await conn.query<ResultSetHeader>(
       `
         INSERT INTO orders (
@@ -998,13 +1154,15 @@ export async function POST(req: NextRequest) {
           discount_amount,
           total_amount,
           customer_notes,
+          request_fingerprint,
+          order_snapshot_json,
           payment_provider,
           payment_status,
           placed_at,
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
       `,
       [
         userId,
@@ -1029,28 +1187,21 @@ export async function POST(req: NextRequest) {
           body.customer_notes ??
           body.client_note ??
           null,
+        requestFingerprint,
+        JSON.stringify(orderSnapshot),
         paymentProvider,
         normalizedPaymentStatus,
       ],
     );
 
     const orderId = orderResult.insertId;
-    const itemValues = orderItems.map((item) => [
-      orderId,
-      item.product_id,
-      item.product_name_snapshot,
-      item.unit_price,
-      item.quantity,
-      item.subtotal,
-      item.notes,
-    ]);
-
     await conn.query(
       `
         INSERT INTO order_items (
           order_id,
           product_id,
           product_name_snapshot,
+          product_snapshot_json,
           unit_price,
           quantity,
           subtotal,
@@ -1058,7 +1209,18 @@ export async function POST(req: NextRequest) {
         )
         VALUES ?
       `,
-      [itemValues],
+      [
+        orderItems.map((item) => [
+          orderId,
+          item.product_id,
+          item.product_name_snapshot,
+          item.product_snapshot_json,
+          item.unit_price,
+          item.quantity,
+          item.subtotal,
+          item.notes,
+        ]),
+      ],
     );
 
     if (body.delivery_instructions || body.client_note || body.customer_notes) {
@@ -1106,7 +1268,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await createNotificationsForAdminGeneral(
+    await createNotificationsForAdminGeneralSafely(
       {
         type: "pedido",
         title: `Pedido nuevo #${orderId}`,
@@ -1121,7 +1283,7 @@ export async function POST(req: NextRequest) {
       conn,
     );
 
-    await createNotificationForBusiness(
+    await createNotificationForBusinessSafely(
       businessId,
       {
         type: "pedido",
@@ -1143,7 +1305,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (paymentMethodName === "transferencia") {
-      await createNotificationsForAdminGeneral(
+      await createNotificationsForAdminGeneralSafely(
         {
           type: "pago",
           title: `Pago por validar #${orderId}`,
@@ -1157,7 +1319,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (transferProofUrl) {
-      await createNotificationsForAdminGeneral(
+      await createNotificationsForAdminGeneralSafely(
         {
           type: "pago",
           title: `Comprobante subido #${orderId}`,

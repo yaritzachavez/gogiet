@@ -1,19 +1,22 @@
-import bcrypt from "bcrypt";
+import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
+import pool from "@/lib/db";
 import {
+  assignRoleToUser,
+  consumeRateLimit,
+  ensureAuthSecuritySchema,
+  getRequestIp,
+  getRequestUserAgent,
+  hashPassword,
   isValidEmail,
-  isValidPhone,
   normalizeEmail,
+  normalizePhone,
+  recordAuthAuditLog,
+  sanitizeName,
   validatePasswordStrength,
-} from "@/lib/auth-account";
-import {
-  createAuthUser,
-  findAuthUserByEmail,
-  findUserIdByPhone,
-  getActiveAuthStatusId,
-} from "@/lib/auth-users";
-import { prisma } from "@/lib/prisma";
+} from "@/lib/auth-security";
+import { getActiveAuthStatusId } from "@/lib/auth-users";
 import { mapPublicRoleToDbRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -25,6 +28,22 @@ type RegisterBody = {
   phone?: string;
   password?: string;
   confirmPassword?: string;
+  verificationCode?: string;
+};
+
+type UserRow = RowDataPacket & {
+  id: number;
+  email_verified?: number | boolean | null;
+  verification_code?: string | null;
+  verification_expires_at?: Date | string | null;
+};
+
+type SqlLikeError = {
+  code?: string;
+  errno?: number;
+  sqlMessage?: string;
+  message?: string;
+  stack?: string;
 };
 
 export function OPTIONS(req: Request) {
@@ -36,236 +55,156 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    console.log("REGISTER START");
-    const body = (await req.json()) as RegisterBody;
-    console.log("REGISTER ENV STATUS:", {
-      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
-      hasDbSslCa: Boolean(process.env.DB_CA || process.env.DB_SSL_CA),
-      hasJwtSecret: Boolean(process.env.JWT_SECRET),
-      hasPasswordPepper: Boolean(process.env.PASSWORD_PEPPER),
-      hasSaltRounds: Boolean(process.env.SALT_ROUNDS),
+    const body = (await req.json().catch(() => null)) as RegisterBody | null;
+    const firstName = sanitizeName(body?.firstName ?? body?.name ?? "");
+    const lastName = sanitizeName(body?.lastName ?? "");
+    const email = normalizeEmail(body?.email ?? "");
+    const phone = normalizePhone(body?.phone ?? "");
+    const password = String(body?.password ?? "");
+    const confirmPassword = String(body?.confirmPassword ?? "");
+    const verificationCode = String(body?.verificationCode ?? "").trim();
+    const ip = getRequestIp(req);
+    const userAgent = getRequestUserAgent(req);
+
+    const rateLimit = await consumeRateLimit({
+      action: "register_attempt",
+      identifier: `${ip}:${email || "anonymous"}`,
+      limit: 5,
+      windowSeconds: 15 * 60,
+      blockSeconds: 20 * 60,
     });
-    console.log("REGISTER BODY FIELDS:", {
-      hasFirstName: Boolean(body.firstName?.trim()),
-      hasLastName: Boolean(body.lastName?.trim()),
-      hasName: Boolean(body.name?.trim()),
-      hasEmail: Boolean(body.email?.trim()),
-      hasPhone: Boolean(body.phone?.trim()),
-      hasPassword: Boolean(body.password),
-      hasConfirmPassword: Boolean(body.confirmPassword),
-    });
-    const firstName = body.firstName?.trim();
-    const lastName = body.lastName?.trim();
-    const fallbackName = body.name?.trim();
-    const name = fallbackName || `${firstName ?? ""} ${lastName ?? ""}`.trim();
-    const email = normalizeEmail(body.email ?? "");
-    const cleanPhone = String(body.phone ?? "").replace(/\D/g, "");
-    console.log("EMAIL:", email);
-    console.log("PHONE:", cleanPhone);
-    const phone = cleanPhone || null;
-    const password = body.password;
-    const confirmPassword = body.confirmPassword;
 
-    if (!firstName && !fallbackName) {
+    if (!rateLimit.allowed) {
       return json(
         {
           success: false,
-          error: "Completa todos los campos obligatorios.",
+          error: "Demasiados intentos de registro. Intenta nuevamente más tarde.",
         },
-        { status: 400 },
+        { status: 429 },
       );
     }
 
-    if (!lastName && !fallbackName) {
+    if (!firstName || !lastName || !email || !password) {
       return json(
-        {
-          success: false,
-          error: "Completa todos los campos obligatorios.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!email) {
-      return json(
-        {
-          success: false,
-          error: "Completa todos los campos obligatorios.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!phone) {
-      return json(
-        {
-          success: false,
-          error: "Completa todos los campos obligatorios.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (!password) {
-      return json(
-        {
-          success: false,
-          error: "Completa todos los campos obligatorios.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (confirmPassword !== undefined && password !== confirmPassword) {
-      return json(
-        {
-          success: false,
-          error: "Las contraseñas no coinciden.",
-        },
+        { success: false, error: "Completa todos los campos obligatorios." },
         { status: 400 },
       );
     }
 
     if (!isValidEmail(email)) {
       return json(
-        {
-          success: false,
-          error: "Ingresa un correo válido.",
-        },
+        { success: false, error: "Ingresa un correo válido." },
         { status: 400 },
       );
     }
 
-    if (!phone || !isValidPhone(phone)) {
+    if (!phone || phone.length < 10) {
       return json(
-        {
-          success: false,
-          error: "Ingresa un número de teléfono válido.",
-        },
+        { success: false, error: "Ingresa un número de teléfono válido." },
         { status: 400 },
       );
     }
 
     const passwordError = validatePasswordStrength(password);
-
     if (passwordError) {
+      return json({ success: false, error: passwordError }, { status: 400 });
+    }
+
+    if (password !== confirmPassword) {
+      return json(
+        { success: false, error: "Las contraseñas no coinciden." },
+        { status: 400 },
+      );
+    }
+
+    if (!/^\d{6}$/.test(verificationCode)) {
+      return json(
+        { success: false, error: "Debes ingresar un código de verificación válido." },
+        { status: 400 },
+      );
+    }
+
+    await ensureAuthSecuritySchema();
+
+    const [rows] = await pool.query<UserRow[]>(
+      `
+        SELECT id, email_verified, verification_code, verification_expires_at
+        FROM users
+        WHERE LOWER(TRIM(email)) = ?
+        LIMIT 1
+      `,
+      [email],
+    );
+
+    const user = rows[0];
+
+    if (!user) {
       return json(
         {
           success: false,
-          error: passwordError,
+          error: "Primero solicita un código de verificación para continuar.",
         },
         { status: 400 },
       );
     }
 
-    const existingUser = await findAuthUserByEmail(email);
-    console.log("USUARIO EXISTENTE:", Boolean(existingUser));
-
-    if (existingUser) {
+    if ((user.email_verified === true || user.email_verified === 1) && !user.verification_code) {
       return json(
-        {
-          success: false,
-          error: "Este correo ya está registrado",
-        },
+        { success: false, error: "Este correo ya está registrado." },
         { status: 409 },
       );
     }
 
-    if (phone) {
-      const existingPhoneId = await findUserIdByPhone(phone);
+    if (String(user.verification_code ?? "").trim() !== verificationCode) {
+      return json(
+        { success: false, error: "El código de verificación no es válido." },
+        { status: 400 },
+      );
+    }
 
-      if (existingPhoneId > 0) {
+    if (user.verification_expires_at) {
+      const expiresAt = new Date(user.verification_expires_at).getTime();
+      if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
         return json(
-          {
-            success: false,
-            error: "Este número de teléfono ya está registrado",
-          },
-          { status: 409 },
+          { success: false, error: "El código de verificación ya expiró." },
+          { status: 400 },
         );
       }
     }
 
-    const configuredSaltRounds = Number(process.env.SALT_ROUNDS ?? 12);
-    const saltRounds =
-      Number.isFinite(configuredSaltRounds) && configuredSaltRounds > 0
-        ? configuredSaltRounds
-        : 12;
-    const pepper = process.env.PASSWORD_PEPPER ?? "";
-    const passwordHash = await bcrypt.hash(password + pepper, saltRounds);
-    console.log("PASSWORD HASH GENERADO:", Boolean(passwordHash));
-    console.log("REGISTER SECURITY CONFIG:", {
-      hasPasswordPepper: Boolean(pepper),
-      hasAppSecretHash: Boolean(process.env.APP_SECRET_HASH),
-      hasJwtSecret: Boolean(process.env.JWT_SECRET),
-      saltRounds,
-    });
-    const resolvedFirstName = firstName || name.split(/\s+/)[0] || "";
-    const resolvedLastName =
-      lastName || name.split(/\s+/).slice(1).join(" ").trim() || null;
+    const passwordHash = await hashPassword(password);
     const activeStatusId = await getActiveAuthStatusId();
 
-    const userCreateData: Record<string, unknown> = {
-      firstName: resolvedFirstName,
-      lastName: resolvedLastName,
-      email,
-      phone,
-      password: passwordHash,
-      statusId: activeStatusId,
-    };
+    await pool.query<ResultSetHeader>(
+      `
+        UPDATE users
+        SET
+          first_name = ?,
+          last_name = ?,
+          phone = ?,
+          password_hash = ?,
+          status_id = ?,
+          email_verified = 1,
+          verification_code = NULL,
+          verification_expires_at = NULL,
+          verification_sent_at = NULL,
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [firstName, lastName, phone, passwordHash, activeStatusId, user.id],
+    );
 
-    console.log("REGISTER USER PAYLOAD:", {
-      firstName: resolvedFirstName,
-      lastName: resolvedLastName,
+    const defaultRoleName = mapPublicRoleToDbRole("CLIENTE");
+    const role = await assignRoleToUser(user.id, defaultRoleName);
+
+    await recordAuthAuditLog({
+      userId: user.id,
+      action: "register_completed",
       email,
-      phone,
-      statusId: activeStatusId,
-      hasPasswordHash: Boolean(passwordHash),
+      ip,
+      userAgent,
+      metadata: { role: role.name },
     });
-
-    const user = await createAuthUser({
-      firstName: String(userCreateData.firstName),
-      lastName:
-        typeof userCreateData.lastName === "string"
-          ? userCreateData.lastName
-          : null,
-      email,
-      phone,
-      passwordHash,
-      statusId: Number(userCreateData.statusId),
-    });
-
-    if (!user) {
-      throw new Error("No se pudo crear el usuario en la base de datos.");
-    }
-    console.log("USUARIO CREADO ID:", user.id);
-
-    try {
-      const defaultRoleName = mapPublicRoleToDbRole("CLIENTE");
-      const defaultRole = await prisma.roles.findUnique({
-        where: { name: defaultRoleName },
-        select: { id: true, name: true },
-      });
-
-      if (defaultRole) {
-        await prisma.user_roles.create({
-          data: {
-            user_id: user.id,
-            role_id: defaultRole.id,
-          },
-        });
-        console.log("ROL DEFAULT ASIGNADO");
-      } else {
-        console.warn("REGISTER DEFAULT ROLE NO ENCONTRADO:", defaultRoleName);
-      }
-    } catch (roleError) {
-      console.error("ERROR EN /api/auth/register:", {
-        message:
-          roleError instanceof Error ? roleError.message : String(roleError),
-        stack: roleError instanceof Error ? roleError.stack : undefined,
-        name: roleError instanceof Error ? roleError.name : undefined,
-        error: roleError,
-      });
-    }
 
     return json(
       {
@@ -273,31 +212,25 @@ export async function POST(req: Request) {
         message: "Usuario creado correctamente.",
         requiresVerification: false,
         email,
-        user,
       },
       { status: 201 },
     );
-  } catch (error: unknown) {
-    console.error("ERROR EN /api/auth/register:", {
+  } catch (error) {
+    const sqlError =
+      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+
+    console.error("REGISTER ERROR:", {
+      code: sqlError?.code ?? null,
+      errno: sqlError?.errno ?? null,
+      sqlMessage: sqlError?.sqlMessage ?? null,
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
-      name: error instanceof Error ? error.name : undefined,
-      error,
+      stack: error instanceof Error ? error.stack : sqlError?.stack,
     });
 
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ER_NO_REFERENCED_ROW_2"
-    ) {
+    if (sqlError?.code === "ER_DUP_ENTRY") {
       return json(
-        {
-          success: false,
-          error:
-            "No se pudo asignar el estado inicial del usuario. Verifica el catálogo de estados.",
-        },
-        { status: 500 },
+        { success: false, error: "Ya existe una cuenta con esos datos." },
+        { status: 409 },
       );
     }
 

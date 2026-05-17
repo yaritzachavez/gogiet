@@ -2,14 +2,18 @@
 
 import {
   BarChart3,
+  Building2,
   Camera,
   ClipboardList,
+  LockKeyhole,
   Megaphone,
   PackagePlus,
   PlayCircle,
+  RefreshCcw,
   Search,
   Settings,
   ShieldCheck,
+  ShieldAlert,
   ShoppingBag,
   Sparkles,
   UserPlus,
@@ -18,7 +22,6 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   type ChangeEvent,
   type FormEvent,
@@ -217,6 +220,8 @@ type ProductSortOption =
   | "stock_asc"
   | "stock_desc";
 
+type AccessView = "ready" | "guest" | "forbidden" | "error";
+
 type SellerForm = {
   selected_user_id: string;
   estado: string;
@@ -388,6 +393,86 @@ async function parseJsonResponse(response: Response) {
   return data;
 }
 
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 12000,
+) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function BusinessAccessStateCard(props: {
+  icon: React.ReactNode;
+  eyebrow: string;
+  title: string;
+  description: string;
+  primaryLabel: string;
+  primaryHref?: string;
+  primaryAction?: () => void;
+  secondaryLabel?: string;
+  secondaryHref?: string;
+}) {
+  return (
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.12),transparent_26%),linear-gradient(180deg,#0b0b0b_0%,#111111_48%,#151515_100%)] px-4 py-12 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[72vh] max-w-3xl items-center">
+        <section className="w-full overflow-hidden rounded-[34px] border border-white/10 bg-[#121212]/92 shadow-[0_28px_90px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+          <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(255,115,0,0.18),rgba(255,115,0,0.04)_55%,transparent)] px-6 py-6 sm:px-8">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-orange-400/25 bg-orange-500/10 text-orange-200 shadow-[0_12px_35px_rgba(255,115,0,0.18)]">
+              {props.icon}
+            </div>
+            <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.26em] text-orange-200/90">
+              {props.eyebrow}
+            </p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              {props.title}
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
+              {props.description}
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-4 px-6 py-6 sm:flex-row sm:px-8 sm:py-7">
+            {props.primaryHref ? (
+              <Link
+                href={props.primaryHref}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 via-orange-500 to-orange-400 px-5 text-sm font-bold text-white shadow-[0_18px_45px_rgba(255,115,0,0.24)] transition hover:scale-[1.01] hover:from-orange-400 hover:to-orange-500"
+              >
+                {props.primaryLabel}
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={props.primaryAction}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-orange-500 via-orange-500 to-orange-400 px-5 text-sm font-bold text-white shadow-[0_18px_45px_rgba(255,115,0,0.24)] transition hover:scale-[1.01] hover:from-orange-400 hover:to-orange-500"
+              >
+                {props.primaryLabel}
+              </button>
+            )}
+            {props.secondaryLabel && props.secondaryHref ? (
+              <Link
+                href={props.secondaryHref}
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl border border-white/12 bg-white/5 px-5 text-sm font-semibold text-neutral-100 transition hover:border-orange-300/30 hover:bg-orange-500/8"
+              >
+                {props.secondaryLabel}
+              </Link>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
 function AdminModal({
   title,
   open,
@@ -421,7 +506,6 @@ function AdminModal({
 }
 
 export function BusinessAdminDashboard() {
-  const router = useRouter();
   const [activeSection, setActiveSection] = useState<AdminSection>("summary");
   const [selectedBusinessId, setSelectedBusinessId] = useState<number | null>(
     null,
@@ -462,6 +546,7 @@ export function BusinessAdminDashboard() {
     status_id: "1",
   });
   const [loading, setLoading] = useState(true);
+  const [accessView, setAccessView] = useState<AccessView>("ready");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
@@ -628,18 +713,23 @@ export function BusinessAdminDashboard() {
     const token = getStoredToken();
 
     if (!token) {
-      router.replace("/login");
+      setAccessView("guest");
+      setLoading(false);
       return;
     }
 
     try {
       setLoading(true);
+      setAccessView("ready");
       setError("");
+      const authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      };
 
-      const accessResponse = await fetch("/api/auth/access-center", {
+      const accessResponse = await fetchWithTimeout("/api/auth/access-center", {
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...authHeaders,
         },
       });
       const accessData = await parseJsonResponse(accessResponse);
@@ -656,10 +746,13 @@ export function BusinessAdminDashboard() {
           ? (accessData.accessFlags as Record<string, unknown>)
           : {};
       const canAccessAdminPanel =
-        Boolean(accessFlags.admin) || Boolean(accessFlags.businessOwner);
+        Boolean(accessFlags.admin) ||
+        Boolean(accessFlags.businessOwner) ||
+        Boolean(accessFlags.businessManager);
 
       if (!canAccessAdminPanel) {
-        router.replace("/pickdash/seller");
+        setAccessView("forbidden");
+        setError("Tu cuenta no tiene permisos para administrar este panel.");
         return;
       }
 
@@ -677,58 +770,49 @@ export function BusinessAdminDashboard() {
         weeklyResponse,
         categoriesResponse,
       ] = await Promise.all([
-        fetch(`/api/business/me${query}`, {
+        fetchWithTimeout(`/api/business/me${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/orders${query}`, {
+        fetchWithTimeout(`/api/business/orders${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/products${query}`, {
+        fetchWithTimeout(`/api/business/products${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/team${query}`, {
+        fetchWithTimeout(`/api/business/team${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/trainings${query}`, {
+        fetchWithTimeout(`/api/business/trainings${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/promotions${query}`, {
+        fetchWithTimeout(`/api/business/promotions${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/stock-alerts${query}`, {
+        fetchWithTimeout(`/api/business/stock-alerts${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch(`/api/business/reports/weekly${query}`, {
+        fetchWithTimeout(`/api/business/reports/weekly${query}`, {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
-        fetch("/api/business/categories", {
+        fetchWithTimeout("/api/business/categories", {
           headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            ...authHeaders,
           },
         }),
       ]);
@@ -793,8 +877,8 @@ export function BusinessAdminDashboard() {
           payload: businessData,
         });
         clearStoredBusinessSelection();
+        setAccessView("error");
         setError(missingBusinessMessage);
-        router.replace("/admin/business?missing_business=1");
         return;
       }
 
@@ -929,15 +1013,18 @@ export function BusinessAdminDashboard() {
       );
     } catch (error) {
       console.error("Error cargando panel administrativo del negocio:", error);
+      setAccessView("error");
       setError(
-        error instanceof Error
-          ? error.message
-          : "No se pudo cargar el panel administrativo.",
+        error instanceof Error && error.name === "AbortError"
+          ? "No se pudo cargar el panel administrativo a tiempo. Intenta nuevamente."
+          : error instanceof Error
+            ? error.message
+            : "No se pudo cargar el panel administrativo. Intenta nuevamente.",
       );
     } finally {
       setLoading(false);
     }
-  }, [router, selectedBusinessId]);
+  }, [selectedBusinessId]);
 
   useEffect(() => {
     loadDashboard();
@@ -2186,11 +2273,80 @@ export function BusinessAdminDashboard() {
     { id: "settings", label: "Configuración", icon: Settings },
   ] as const;
 
+  if (accessView === "guest") {
+    return (
+      <BusinessAccessStateCard
+        icon={<LockKeyhole className="h-6 w-6" />}
+        eyebrow="Panel de Negocio"
+        title="Acceso exclusivo para negocios"
+        description="Para entrar a este panel necesitas iniciar sesión con una cuenta de negocio autorizada. Si todavía no tienes acceso, podemos ayudarte a activarlo."
+        primaryHref="/login"
+        primaryLabel="Iniciar sesión"
+        secondaryHref="mailto:soporte@gogieats.shop?subject=Solicitud%20de%20acceso%20para%20mi%20negocio"
+        secondaryLabel="Solicitar acceso para mi negocio"
+      />
+    );
+  }
+
+  if (accessView === "forbidden") {
+    return (
+      <BusinessAccessStateCard
+        icon={<ShieldAlert className="h-6 w-6" />}
+        eyebrow="Acceso restringido"
+        title="Tu cuenta no tiene acceso a este panel"
+        description={
+          error ||
+          "Este apartado es exclusivo para negocios registrados y vendedores autorizados dentro de Gogi Eats."
+        }
+        primaryHref="mailto:soporte@gogieats.shop?subject=Soporte%20de%20acceso%20al%20panel%20de%20negocio"
+        primaryLabel="Contactar soporte"
+        secondaryHref="/"
+        secondaryLabel="Volver al inicio"
+      />
+    );
+  }
+
+  if (accessView === "error" && !business && !loading) {
+    return (
+      <BusinessAccessStateCard
+        icon={<RefreshCcw className="h-6 w-6" />}
+        eyebrow="Carga interrumpida"
+        title="No se pudo cargar el panel administrativo"
+        description={
+          error ||
+          "Intenta nuevamente para continuar con la administración de tu negocio."
+        }
+        primaryAction={loadDashboard}
+        primaryLabel="Reintentar"
+        secondaryHref="mailto:soporte@gogieats.shop?subject=Error%20de%20acceso%20al%20panel%20de%20negocio"
+        secondaryLabel="Contactar soporte"
+      />
+    );
+  }
+
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#f4f6f8] px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl rounded-[28px] border border-slate-200 bg-white p-8 text-sm font-semibold text-slate-500 shadow-xl">
-          Cargando panel administrativo...
+      <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.12),transparent_26%),linear-gradient(180deg,#0b0b0b_0%,#111111_48%,#151515_100%)] px-4 py-12 text-white sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-[#121212]/92 shadow-[0_26px_80px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+          <div className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(255,115,0,0.18),rgba(255,115,0,0.04)_55%,transparent)] px-6 py-6 sm:px-8">
+            <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-orange-400/25 bg-orange-500/10 text-orange-200 shadow-[0_12px_35px_rgba(255,115,0,0.18)]">
+              <Building2 className="h-6 w-6" />
+            </div>
+            <p className="mt-4 text-xs font-extrabold uppercase tracking-[0.26em] text-orange-200/90">
+              Validando acceso
+            </p>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Cargando panel administrativo
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-300 sm:text-base">
+              Estamos verificando tu sesión, tus permisos y la información del negocio para mostrarte el panel correcto.
+            </p>
+          </div>
+          <div className="px-6 py-6 sm:px-8">
+            <div className="h-2 overflow-hidden rounded-full bg-white/8">
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-r from-orange-500 via-orange-400 to-orange-300" />
+            </div>
+          </div>
         </div>
       </main>
     );

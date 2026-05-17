@@ -3,12 +3,22 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import {
+  getExistingColumns,
+  getShippingFeeSqlExpression,
+  pickFirstExistingColumn,
+  SHIPPING_FEE_COLUMN_CANDIDATES,
+} from "@/lib/delivery-fees";
 import { requireDriverAccess } from "@/lib/permissions";
 
 type DeliveryOrderRow = RowDataPacket & {
   order_id: number;
   business_name: string;
+  business_address: string | null;
+  business_district: string | null;
+  business_city: string | null;
   total_amount: string | number | null;
+  shipping_fee_amount: string | number | null;
   customer_name: string | null;
   customer_phone: string | null;
   street: string | null;
@@ -110,6 +120,16 @@ export async function GET(req: NextRequest) {
     }
 
     const userId = access.access.userId;
+    const orderColumns = await getExistingColumns(
+      pool,
+      "orders",
+      SHIPPING_FEE_COLUMN_CANDIDATES,
+    );
+    const shippingFeeColumn = pickFirstExistingColumn(
+      orderColumns,
+      SHIPPING_FEE_COLUMN_CANDIDATES,
+    );
+    const shippingFeeExpression = getShippingFeeSqlExpression(shippingFeeColumn);
 
     logDbUsage("/api/delivery/orders", {
       userId,
@@ -122,7 +142,11 @@ export async function GET(req: NextRequest) {
         SELECT
           o.id AS order_id,
           b.name AS business_name,
+          b.address AS business_address,
+          b.district AS business_district,
+          b.city AS business_city,
           o.total_amount,
+          ${shippingFeeExpression} AS shipping_fee_amount,
           CONCAT(u.first_name, ' ', COALESCE(u.last_name, '')) AS customer_name,
           COALESCE(a.phone, u.phone) AS customer_phone,
           a.street,
@@ -208,13 +232,18 @@ export async function GET(req: NextRequest) {
         id: Number(row.order_id),
         folio: `FG-${String(row.order_id).padStart(4, "0")}`,
         businessName: row.business_name,
+        businessAddress: [row.business_address, row.business_district, row.business_city]
+          .filter(Boolean)
+          .join(", "),
         total: Number(row.total_amount ?? 0),
+        shippingFee: Number(row.shipping_fee_amount ?? 0),
         customerName: row.customer_name ?? "Cliente",
         customerPhone: row.customer_phone ?? "",
         address: buildAddress(row),
         zoneName: row.neighborhood ?? "Sin zona",
         paymentMethod: row.payment_method ?? "Sin método",
         deliveryNotes: row.delivery_notes || row.order_delivery_notes || "",
+        customerReference: row.reference_notes ?? "",
         status: formatDeliveryStatus(row.delivery_status ?? row.order_status),
         assignmentStatus: row.delivery_status ?? "",
         canRespond: requiresCourierResponse(row.delivery_status),

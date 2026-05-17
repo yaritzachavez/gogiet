@@ -69,6 +69,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    void fetch(getClientApiUrl("/api/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("roles");
