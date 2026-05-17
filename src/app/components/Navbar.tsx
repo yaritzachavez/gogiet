@@ -172,6 +172,24 @@ export default function Navbar() {
   }, []);
 
   useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    const previousTouchAction = body.style.touchAction;
+
+    if (mobileMenuOpen) {
+      body.style.overflow = "hidden";
+      body.style.touchAction = "none";
+    }
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.touchAction = previousTouchAction;
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
     if (!mounted || !user || typeof window === "undefined") {
       if (!user) {
         setNotifications([]);
@@ -387,7 +405,7 @@ export default function Navbar() {
           <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.75rem]">
             <Link
               href="/"
-              className="group flex min-w-0 items-center gap-3 rounded-2xl transition-all duration-300"
+              className="group flex min-w-0 items-center gap-2 rounded-2xl transition-all duration-300 sm:gap-3"
             >
               <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
@@ -399,7 +417,7 @@ export default function Navbar() {
                   priority
                 />
               </div>
-              <span className="hidden text-base font-extrabold tracking-[0.14em] text-white sm:inline">
+              <span className="hidden truncate text-base font-extrabold tracking-[0.12em] text-white sm:inline">
                 Gogi Eats
               </span>
             </Link>
@@ -412,11 +430,11 @@ export default function Navbar() {
   return (
     <nav className="sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/84 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl">
       <div className="app-shell">
-        <div className="flex h-16 items-center justify-between gap-3 sm:h-[4.75rem]">
+        <div className="flex h-16 items-center justify-between gap-2 sm:h-[4.75rem] sm:gap-3">
           <div className="flex min-w-0 flex-shrink-0 items-center">
             <Link
               href="/"
-              className="group flex min-w-0 items-center gap-3 rounded-2xl transition-all duration-300"
+              className="group flex min-w-0 items-center gap-2 rounded-2xl transition-all duration-300 sm:gap-3"
             >
               <div className="relative h-11 w-11 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_34px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
                 <Image
@@ -428,13 +446,13 @@ export default function Navbar() {
                   priority
                 />
               </div>
-              <span className="hidden text-base font-extrabold tracking-[0.14em] text-white sm:inline">
+              <span className="hidden truncate text-base font-extrabold tracking-[0.12em] text-white sm:inline">
                 Gogi Eats
               </span>
             </Link>
           </div>
 
-          <div className="hidden items-center space-x-6 lg:flex">
+          <div className="hidden min-w-0 items-center space-x-5 xl:flex">
             <Link
               href="/"
               className="text-sm font-semibold text-[#b3b3b3] transition-colors hover:text-white"
@@ -459,7 +477,7 @@ export default function Navbar() {
             )}
           </div>
 
-          <div className="hidden items-center space-x-3 lg:flex">
+          <div className="hidden min-w-0 items-center space-x-3 xl:flex">
             {user ? (
               <>
                 <div className="relative">
@@ -540,7 +558,7 @@ export default function Navbar() {
             )}
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
+          <div className="flex items-center gap-2 sm:gap-3 xl:hidden">
             {user ? (
               <>
                 <Button
@@ -602,7 +620,7 @@ export default function Navbar() {
         </div>
 
         {notificationsOpen && user ? (
-          <div className="pb-4 lg:hidden">
+          <div className="pb-4 xl:hidden">
             <NotificationList
               notifications={notifications}
               loading={notificationsLoading}
@@ -615,14 +633,14 @@ export default function Navbar() {
         ) : null}
 
         {mobileMenuOpen && (
-          <div className="safe-bottom fixed inset-0 top-16 z-40 lg:hidden">
+          <div className="safe-bottom fixed inset-0 top-16 z-[90] h-[calc(100dvh-4rem)] xl:hidden sm:top-[4.75rem] sm:h-[calc(100dvh-4.75rem)]">
             <button
               type="button"
               className="absolute inset-0 bg-black/55 backdrop-blur-sm"
               aria-label="Cerrar menú móvil"
               onClick={closeMobileMenu}
             />
-            <div className="relative ml-auto flex h-full w-full max-w-sm flex-col overflow-y-auto border-l border-white/10 bg-[#121212]/96 px-4 py-5 shadow-2xl shadow-black/50 touch-scroll sm:px-5">
+            <div className="relative ml-auto flex h-full w-full max-w-[min(24rem,100vw)] flex-col overflow-y-auto border-l border-white/10 bg-[#121212]/96 px-4 py-5 shadow-2xl shadow-black/50 touch-scroll sm:px-5">
               <div className="mb-5 rounded-[24px] border border-white/10 bg-white/4 p-4">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-orange-300">
                   Navegación
@@ -632,7 +650,7 @@ export default function Navbar() {
                 </p>
               </div>
 
-              <div className="flex flex-col gap-2">
+              <div className="grid gap-2">
                 <Link
                   href="/"
                   className="rounded-2xl border border-transparent px-4 py-3 text-sm font-semibold text-[#e4e4e4] transition hover:border-white/10 hover:bg-white/6 hover:text-white"
@@ -664,6 +682,13 @@ export default function Navbar() {
                   onClick={closeMobileMenu}
                 >
                   Explorar tiendas
+                </Link>
+                <Link
+                  href="/profile"
+                  className="rounded-2xl border border-transparent px-4 py-3 text-sm font-semibold text-[#e4e4e4] transition hover:border-white/10 hover:bg-white/6 hover:text-white"
+                  onClick={closeMobileMenu}
+                >
+                  Mi perfil
                 </Link>
               </div>
 

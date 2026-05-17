@@ -22,14 +22,14 @@ export function CategoryHero({ category }: CategoryHeroProps) {
 
   return (
     <section
-      className={`rounded-[38px] border border-[#e2d9d0] bg-gradient-to-br ${theme.heroGradient} p-6 shadow-[0_30px_80px_rgba(62,47,40,0.12)] backdrop-blur`}
+      className={`rounded-[28px] border border-[#e2d9d0] bg-gradient-to-br ${theme.heroGradient} p-4 shadow-[0_30px_80px_rgba(62,47,40,0.12)] backdrop-blur sm:rounded-[38px] sm:p-6`}
     >
       <p className="text-xs uppercase tracking-[0.4em] text-[#c9a46a]">
         {theme.emoji} {theme.name}
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="font-serif text-4xl font-semibold text-[#3e2f28]">
+          <h1 className="font-serif text-[clamp(1.9rem,6vw,3rem)] font-semibold text-[#3e2f28]">
             {theme.microcopy[0]}
           </h1>
           <p
@@ -40,7 +40,7 @@ export function CategoryHero({ category }: CategoryHeroProps) {
           </p>
         </div>
 
-        <div className="rounded-[28px] border border-white/70 bg-white/70 px-4 py-2 text-sm text-[#5c4c43] shadow-inner backdrop-blur">
+        <div className="rounded-[24px] border border-white/70 bg-white/70 px-3.5 py-2 text-sm text-[#5c4c43] shadow-inner backdrop-blur">
           Descubre algo nuevo hoy ✨
         </div>
       </div>

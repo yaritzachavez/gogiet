@@ -26,7 +26,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <div className="absolute -right-20 bottom-[-14rem] h-[28rem] w-[28rem] rounded-full bg-gradient-to-br from-orange-500/20 via-orange-500/10 to-transparent blur-3xl md:-right-32 lg:-right-40" />
       </div>
 
-      <div className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-[280px_1fr]">
+      <div className="relative z-10 grid min-h-screen grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="hidden border-r border-white/10 bg-black/55 p-5 shadow-lg ring-1 ring-white/10 backdrop-blur-3xl lg:flex lg:flex-col lg:p-6 dark:border-white/10 dark:bg-white/5 dark:ring-white/10">
           <div className="rounded-2xl bg-gradient-to-br from-orange-500/50 to-orange-500/50 p-[1px] shadow-lg">
             <Link
@@ -43,7 +43,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
             </Link>
           </div>
 
-          <nav className="mt-4 grid gap-1.5">
+          <nav className="mt-4 grid gap-2">
             {NAV_LINKS.map((link) => (
               <SidebarLink key={link.href} {...link} />
             ))}

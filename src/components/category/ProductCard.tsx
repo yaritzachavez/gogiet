@@ -31,13 +31,14 @@ export function ProductCard({
   const discount = salePrice ? Math.round((1 - salePrice / price) * 100) : null;
 
   return (
-    <article className="group relative flex flex-col rounded-[22px] border border-[#e2d9d0] bg-gradient-to-br from-white via-[#faf7f2] to-[#f5efe8] p-3 shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-[0_14px_32px_rgba(0,0,0,0.12)]">
-      <div className="relative h-40 w-full overflow-hidden rounded-[18px]">
+    <article className="group relative flex h-full max-w-full flex-col rounded-[22px] border border-[#e2d9d0] bg-gradient-to-br from-white via-[#faf7f2] to-[#f5efe8] p-3 shadow-[0_8px_24px_rgba(0,0,0,0.06)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(0,0,0,0.12)]">
+      <div className="relative w-full overflow-hidden rounded-[18px]">
         <AppImage
           src={image}
           alt={title}
           width={640}
           height={480}
+          aspectClassName="aspect-[1.16/1]"
           className="h-full w-full"
           imageClassName="object-cover"
           fallbackLabel="Sin foto"
@@ -70,8 +71,12 @@ export function ProductCard({
 
       <div className="mt-3 flex flex-col gap-2 text-[#3e2f28]">
         <header>
-          <h3 className="font-serif text-lg font-semibold">{title}</h3>
-          <p className="font-sans text-sm text-[#57534e]">{description}</p>
+          <h3 className="font-serif text-base font-semibold sm:text-lg">
+            {title}
+          </h3>
+          <p className="line-clamp-2 font-sans text-sm text-[#57534e]">
+            {description}
+          </p>
         </header>
 
         <div className="flex items-baseline gap-2">
@@ -85,13 +90,13 @@ export function ProductCard({
           ) : null}
         </div>
 
-        <div className="mt-auto flex items-center justify-between">
-          <span className="text-xs font-semibold text-[#6d8b74]">
+        <div className="mt-auto flex items-center justify-between gap-3">
+          <span className="min-w-0 text-xs font-semibold text-[#6d8b74]">
             Hecho con amor local
           </span>
           <button
             type="button"
-            className="rounded-full bg-[#6d8b74] px-4 py-2 text-xs font-semibold text-white transition hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6d8b74]"
+            className="shrink-0 rounded-full bg-[#6d8b74] px-3.5 py-2 text-xs font-semibold text-white transition hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#6d8b74]"
           >
             Agregar
           </button>

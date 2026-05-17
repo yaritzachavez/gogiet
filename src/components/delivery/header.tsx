@@ -91,12 +91,12 @@ export function DeliveryHeader({
   };
 
   return (
-    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#e1d0bc] bg-[#fffaf3] p-5 text-[#2f2419] shadow-2xl shadow-[#cbb090]/15 sm:p-6">
+    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#e1d0bc] bg-[#fffaf3] p-4 text-[#2f2419] shadow-2xl shadow-[#cbb090]/15 sm:p-6">
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,247,237,0.96)_0%,rgba(247,236,221,0.98)_42%,rgba(241,227,209,1)_100%)]" />
       <button
         type="button"
         onClick={onOpenSettings}
-        className="absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e4d5c5] bg-white/80 text-[#7c5b3c] shadow-lg transition hover:bg-white"
+        className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#e4d5c5] bg-white/80 text-[#7c5b3c] shadow-lg transition hover:bg-white sm:h-11 sm:w-11"
         aria-label="Abrir configuración del repartidor"
       >
         <Settings className="h-5 w-5" />
@@ -107,16 +107,16 @@ export function DeliveryHeader({
             Repartidor autorizado
           </p>
           <div>
-            <h1 className="text-2xl font-extrabold leading-tight sm:text-3xl">
+            <h1 className="fluid-title max-w-3xl font-extrabold text-balance">
               Hola, {driverName}
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6e5d4b] sm:text-base">
+            <p className="fluid-subtitle mt-2 max-w-2xl text-[#6e5d4b]">
               Revisa entregas asignadas, confirma ubicaciones y mantén tu estado
               de servicio al día durante el turno.
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-2xl bg-[#f7efe3] p-4">
               <p className="text-xs font-semibold text-[#8d755b]">
                 Entregas actuales

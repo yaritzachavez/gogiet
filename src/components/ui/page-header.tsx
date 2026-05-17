@@ -40,7 +40,9 @@ export function PageHeader({
         ) : null}
       </div>
       {actions ? (
-        <div className="min-w-0 shrink-0 max-sm:w-full">{actions}</div>
+        <div className="min-w-0 shrink-0 max-sm:grid max-sm:w-full max-sm:gap-3">
+          {actions}
+        </div>
       ) : null}
     </div>
   );

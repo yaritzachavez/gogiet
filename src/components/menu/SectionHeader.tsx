@@ -25,7 +25,7 @@ export function SectionHeader({
     <div
       ref={ref}
       className={clsx(
-        "relative overflow-hidden rounded-[24px] border p-5 md:p-6 shadow-[0_12px_32px_rgba(0,0,0,0.08)] transition-all duration-700",
+        "relative overflow-hidden rounded-[22px] border p-4 shadow-[0_12px_32px_rgba(0,0,0,0.08)] transition-all duration-700 md:p-6",
         isVisible ? "reveal-visible" : "reveal",
       )}
       style={{
@@ -36,12 +36,12 @@ export function SectionHeader({
     >
       <div className="flex flex-col gap-3 text-[color:inherit]">
         <div className="flex items-center gap-3">
-          <span className="text-3xl md:text-4xl">{theme.emoji}</span>
+          <span className="text-2xl md:text-4xl">{theme.emoji}</span>
           <div>
             <p className="text-[11px] uppercase tracking-[0.35em] opacity-70">
               Sección
             </p>
-            <h2 className="font-serif text-2xl font-semibold md:text-3xl">
+            <h2 className="font-serif text-xl font-semibold md:text-3xl">
               {title}
             </h2>
           </div>
