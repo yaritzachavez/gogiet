@@ -1036,11 +1036,12 @@ export default function CarritoPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="section-shell responsive-stack py-4 sm:py-6 lg:py-8">
+      <div className="section-shell responsive-stack pb-[calc(env(safe-area-inset-bottom)+6.75rem)] pt-3 sm:py-6 lg:pb-8 lg:pt-6">
         <PageHeader
           eyebrow="Checkout"
           title="Tu pedido está casi listo"
           description="Revisa tus productos, confirma la dirección y elige cómo quieres pagar."
+          className="gap-2.5 px-3 py-3.5 sm:gap-4 sm:px-6 sm:py-6"
         />
         {cartLoadError ? (
           <div className="rounded-[24px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
@@ -1062,14 +1063,27 @@ export default function CarritoPage() {
             {transferError}
           </div>
         ) : null}
-        <div className="responsive-dashboard-grid lg:gap-8">
-          <section className="space-y-6">
-            <h2 className="text-2xl font-black tracking-tight text-[#f5f5f5]">
+        <div className="responsive-dashboard-grid gap-4 lg:gap-8">
+          <section className="space-y-4 sm:space-y-6">
+            <h2 className="text-xl font-black tracking-tight text-[#f5f5f5] sm:text-2xl">
               Productos seleccionados
             </h2>
             {cartLoading ? (
-              <SectionCard className="p-6">
-                <p className="text-sm font-semibold text-[#b3b3b3]">
+              <SectionCard className="space-y-3 p-3 sm:p-6">
+                <div className="h-4 w-32 animate-pulse rounded-full bg-white/10 sm:hidden" />
+                <div className="grid grid-cols-[80px,minmax(0,1fr),auto] gap-3 sm:hidden">
+                  <div className="h-20 rounded-[18px] bg-white/10" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-4/5 animate-pulse rounded-full bg-white/10" />
+                    <div className="h-3 w-2/3 animate-pulse rounded-full bg-white/10" />
+                    <div className="h-3 w-full animate-pulse rounded-full bg-white/10" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-16 animate-pulse rounded-full bg-white/10" />
+                    <div className="h-9 w-20 animate-pulse rounded-full bg-white/10" />
+                  </div>
+                </div>
+                <p className="hidden text-sm font-semibold text-[#b3b3b3] sm:block">
                   Actualizando tu carrito...
                 </p>
               </SectionCard>
@@ -1077,72 +1091,74 @@ export default function CarritoPage() {
             {cartItems.map((item) => (
               <SectionCard
                 key={item.id}
-                className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:p-5"
+                className="grid grid-cols-[80px,minmax(0,1fr),auto] items-center gap-3 overflow-hidden p-3 sm:flex sm:items-start sm:gap-4 sm:p-5"
               >
-                <div className="relative aspect-square w-full max-w-[6rem] shrink-0 overflow-hidden rounded-2xl bg-slate-100 max-sm:max-w-full sm:h-24 sm:w-24">
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[18px] bg-slate-100 sm:h-24 sm:w-24 sm:rounded-2xl">
                   <AppImage
                     src={item.image}
                     alt={item.nombre}
-                    width={192}
-                    height={192}
+                    width={160}
+                    height={160}
                     aspectClassName="aspect-square"
                     className="h-full w-full"
                     imageClassName="object-cover"
                     fallbackLabel="Producto"
                   />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-lg font-black tracking-tight text-[#f5f5f5]">
+                <div className="min-w-0 flex-1 self-stretch">
+                  <h3 className="text-[0.95rem] font-black leading-5 tracking-tight text-[#f5f5f5] sm:text-lg">
                     {item.nombre}
                   </h3>
-                  <p className="mt-1 text-sm font-semibold text-orange-700/80">
+                  <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-orange-300 sm:mt-1 sm:text-sm sm:tracking-normal">
                     {item.negocio}
                   </p>
                   {item.description ? (
-                    <p className="mt-2 text-sm leading-5 text-[#b3b3b3]">
+                    <p className="mt-1 overflow-hidden text-[11px] leading-4 text-[#b3b3b3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] sm:mt-2 sm:text-sm sm:leading-5 sm:[-webkit-line-clamp:3]">
                       {item.description}
                     </p>
                   ) : null}
                   {item.customizationsSummary || item.notes ? (
-                    <div className="mt-3 space-y-1">
+                    <div className="mt-1.5 space-y-1 sm:mt-3">
                       {item.customizationsSummary ? (
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f8f8f]">
+                        <p className="overflow-hidden text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8f8f8f] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:1] sm:text-xs sm:tracking-[0.14em]">
                           {item.customizationsSummary}
                         </p>
                       ) : null}
                       {item.notes ? (
-                        <p className="text-xs font-medium text-[#b3b3b3]">
+                        <p className="overflow-hidden text-[10px] font-medium text-[#b3b3b3] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:1] sm:text-xs sm:[-webkit-line-clamp:2]">
                           {item.notes}
                         </p>
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="mt-4 flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/50 px-2 py-1">
-                      <button
-                        type="button"
-                        onClick={() => handleQuantityChange(item.id, -1)}
-                        className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
-                      >
-                        −
-                      </button>
-                      <span className="min-w-[20px] text-center font-black text-[#f5f5f5]">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleQuantityChange(item.id, 1)}
-                        className="inline-flex size-8 items-center justify-center rounded-full text-white/70 hover:bg-white/10"
-                      >
-                        +
-                      </button>
-                    </div>
-                    <span className="rounded-full bg-orange-500/15 px-3 py-1 text-sm font-bold text-orange-300">
-                      {formatMoney(getCartItemUnitPrice(item))} c/u
-                    </span>
-                    <span className="text-base font-black text-[#f5f5f5]">
+                </div>
+                <div className="flex min-w-[5.25rem] flex-col items-end justify-between self-stretch gap-2.5 sm:min-w-[8rem]">
+                  <div className="text-right">
+                    <span className="block text-[0.95rem] font-black leading-none text-[#f5f5f5] sm:text-base">
                       {formatMoney(getCartItemSubtotal(item))}
                     </span>
+                    <span className="mt-1 inline-flex rounded-full bg-orange-500/12 px-2 py-0.5 text-[10px] font-bold text-orange-300 sm:px-3 sm:py-1 sm:text-sm">
+                      {formatMoney(getCartItemUnitPrice(item))} c/u
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 rounded-full border border-white/10 bg-black/55 px-1.5 py-1 sm:gap-2 sm:px-2 sm:py-1">
+                    <button
+                      type="button"
+                      onClick={() => handleQuantityChange(item.id, -1)}
+                      className="inline-flex size-7 items-center justify-center rounded-full text-sm text-white/70 transition hover:bg-white/10 hover:text-white sm:size-8"
+                    >
+                      −
+                    </button>
+                    <span className="min-w-[18px] text-center text-sm font-black text-[#f5f5f5] sm:min-w-[20px]">
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleQuantityChange(item.id, 1)}
+                      className="inline-flex size-7 items-center justify-center rounded-full text-sm text-white/70 transition hover:bg-white/10 hover:text-white sm:size-8"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
               </SectionCard>
@@ -1152,18 +1168,18 @@ export default function CarritoPage() {
               value={deliveryInstructions}
               onChange={(e) => setDeliveryInstructions(e.target.value)}
               placeholder="Instrucciones para el repartidor..."
-              className="w-full p-4 text-sm font-medium"
-              rows={3}
+              className="w-full rounded-[20px] border border-white/10 bg-black/70 px-3.5 py-3 text-sm font-medium leading-5 text-white placeholder:text-white/35 sm:px-4 sm:py-4"
+              rows={2}
             />
           </section>
 
-          <aside className="space-y-6">
-            <SectionCard className="p-5 lg:sticky lg:top-24 lg:p-6">
-              <h2 className="mb-4 text-xl font-black tracking-tight text-[#f5f5f5]">
+          <aside className="space-y-4 sm:space-y-6">
+            <SectionCard className="p-4 lg:sticky lg:top-24 lg:p-6">
+              <h2 className="mb-3 text-lg font-black tracking-tight text-[#f5f5f5] sm:mb-4 sm:text-xl">
                 Resumen de compra
               </h2>
               {hasOnlyZeroPriceItems ? (
-                <div className="mb-4 rounded-2xl border border-orange-500/30 bg-black/60 p-4">
+                <div className="mb-4 rounded-2xl border border-orange-500/30 bg-black/60 p-3.5 sm:p-4">
                   <p className="text-sm font-semibold text-orange-300">
                     Detectamos productos viejos sin precio en tu carrito.
                   </p>
@@ -1177,7 +1193,7 @@ export default function CarritoPage() {
                   </Button>
                 </div>
               ) : null}
-              <div className="space-y-3 text-sm">
+              <div className="space-y-2.5 text-sm sm:space-y-3">
                 <div className="flex justify-between font-medium text-[#b3b3b3]">
                   <span>Productos</span>
                   <span className="font-bold text-[#f5f5f5]">
@@ -1198,17 +1214,17 @@ export default function CarritoPage() {
                       : "Gratis"}
                   </span>
                 </div>
-                <div className="flex justify-between border-t border-white/10 pt-3 text-lg font-black text-[#f5f5f5]">
+                <div className="flex justify-between border-t border-white/10 pt-3 text-base font-black text-[#f5f5f5] sm:text-lg">
                   <span>Total</span>
                   <span>{formatMoney(commissionBreakdown.total)}</span>
                 </div>
               </div>
 
-              <div className="mt-6 rounded-[24px] bg-black/60 p-4">
+              <div className="mt-4 rounded-[22px] bg-black/60 p-3.5 sm:mt-6 sm:rounded-[24px] sm:p-4">
                 <p className="text-xs font-bold uppercase text-orange-300">
                   Entrega en:
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[#f5f5f5]">
+                <p className="mt-1 text-sm font-semibold leading-5 text-[#f5f5f5]">
                   {savedAddress?.fullAddress || "Sin dirección"}
                 </p>
                 {shipping.message ? (
@@ -1228,14 +1244,14 @@ export default function CarritoPage() {
               <Button
                 onClick={handleCheckout}
                 size="lg"
-                className="mt-6 w-full"
+                className="mt-4 hidden w-full lg:inline-flex"
                 disabled={!canContinueToPayment}
               >
                 {submittingOrder ? "Procesando..." : "Continuar al pago"}
                 <ArrowRight className="h-4 w-4" />
               </Button>
               {checkoutBlockReason ? (
-                <p className="mt-3 text-sm font-semibold text-[#b3b3b3]">
+                <p className="mt-3 text-xs font-semibold leading-5 text-[#b3b3b3] sm:text-sm">
                   {checkoutBlockReason}
                 </p>
               ) : null}
@@ -1244,20 +1260,20 @@ export default function CarritoPage() {
         </div>
       </div>
 
-      <div className="safe-bottom sticky bottom-0 z-30 border-t border-white/10 bg-black/90 px-3 py-3 backdrop-blur-xl lg:hidden">
+      <div className="safe-bottom sticky bottom-0 z-30 border-t border-white/10 bg-[rgba(8,8,8,0.92)] px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] shadow-[0_-16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:hidden">
         <div className="section-shell flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8f8f8f]">
               Total
             </p>
-            <p className="truncate text-lg font-black text-white">
+            <p className="truncate text-base font-black text-white sm:text-lg">
               {formatMoney(commissionBreakdown.total)}
             </p>
           </div>
           <Button
             onClick={handleCheckout}
             size="lg"
-            className="min-w-[10.5rem] shrink-0"
+            className="h-11 min-w-[9.75rem] shrink-0 rounded-2xl px-4 text-sm shadow-[0_10px_24px_rgba(249,115,22,0.24)]"
             disabled={!canContinueToPayment}
           >
             {submittingOrder ? "Procesando..." : "Continuar"}
@@ -1274,11 +1290,11 @@ export default function CarritoPage() {
       />
 
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="rounded-[28px] border-white/10 bg-black">
+        <DialogContent className="max-sm:max-w-[calc(100vw-1rem)] rounded-[24px] border-white/10 bg-black max-sm:p-4">
           <DialogHeader>
             <DialogTitle>Método de pago</DialogTitle>
           </DialogHeader>
-          <div className="rounded-[22px] bg-black/60 p-4 text-sm text-white/70">
+          <div className="rounded-[22px] bg-black/60 p-3.5 text-sm text-white/70 sm:p-4">
             <p className="font-semibold text-[#f5f5f5]">
               Resumen antes de confirmar
             </p>
@@ -1309,16 +1325,18 @@ export default function CarritoPage() {
                   : "Efectivo al recibir"}
             </p>
           </div>
-          <div className="grid gap-3">
+          <div className="grid gap-2.5 sm:gap-3">
             {PAYMENT_METHOD_OPTIONS.map((opt) => (
               <button
                 type="button"
                 key={opt.id}
                 onClick={() => setSelectedPaymentMethod(opt.id)}
-                className={`rounded-[22px] border p-4 text-left transition ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"}`}
+                className={`rounded-[20px] border p-3.5 text-left transition sm:rounded-[22px] sm:p-4 ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"}`}
               >
                 <p className="font-black text-[#f5f5f5]">{opt.label}</p>
-                <p className="mt-1 text-sm text-[#b3b3b3]">{opt.description}</p>
+                <p className="mt-1 text-xs text-[#b3b3b3] sm:text-sm">
+                  {opt.description}
+                </p>
               </button>
             ))}
           </div>
@@ -1337,11 +1355,11 @@ export default function CarritoPage() {
 
       {/* Diálogo de Transferencia */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent className="rounded-[28px] border-white/10 bg-black">
+        <DialogContent className="max-sm:max-w-[calc(100vw-1rem)] rounded-[24px] border-white/10 bg-black max-sm:p-4">
           <DialogHeader>
             <DialogTitle>Datos de Transferencia</DialogTitle>
           </DialogHeader>
-          <div className="space-y-1 rounded-[24px] bg-black/60 p-4 text-sm">
+          <div className="space-y-1 rounded-[22px] bg-black/60 p-3.5 text-sm sm:rounded-[24px] sm:p-4">
             <p>
               <strong>Banco:</strong> {TRANSFER_ACCOUNT.bank}
             </p>
@@ -1355,7 +1373,7 @@ export default function CarritoPage() {
               Total a pagar: {formatMoney(commissionBreakdown.total)}
             </p>
           </div>
-          <div className="py-4">
+          <div className="py-3 sm:py-4">
             <label
               htmlFor="transfer-proof"
               className="mb-2 block text-xs font-bold text-[#f5f5f5]"
