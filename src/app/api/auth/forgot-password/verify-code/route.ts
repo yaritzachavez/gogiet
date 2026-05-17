@@ -1,5 +1,4 @@
-import bcrypt from "bcrypt";
-import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
@@ -27,18 +26,6 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim().toLowerCase());
 }
 
-function validatePasswordStrength(password: string) {
-  if (password.length < 8) {
-    return "La contraseña debe tener al menos 8 caracteres.";
-  }
-
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
-    return "La contraseña debe incluir al menos una letra y un número.";
-  }
-
-  return "";
-}
-
 async function getUserColumns(connection: PoolConnection) {
   const [rows] = await connection.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
   return new Set(rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean));
@@ -53,17 +40,9 @@ export async function POST(req: Request) {
     withCors(req, NextResponse.json(body, init));
 
   try {
-    const body = (await req.json()) as {
-      email?: string;
-      code?: string;
-      password?: string;
-      confirmPassword?: string;
-    };
-
+    const body = (await req.json()) as { email?: string; code?: string };
     const email = String(body.email ?? "").trim().toLowerCase();
     const code = String(body.code ?? "").trim();
-    const password = String(body.password ?? "");
-    const confirmPassword = String(body.confirmPassword ?? "");
 
     if (!email || !isValidEmail(email)) {
       return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
@@ -73,31 +52,10 @@ export async function POST(req: Request) {
       return json({ success: false, error: "Ingresa un código válido." }, { status: 400 });
     }
 
-    const passwordError = validatePasswordStrength(password);
-    if (passwordError) {
-      return json({ success: false, error: passwordError }, { status: 400 });
-    }
-
-    if (password !== confirmPassword) {
-      return json({ success: false, error: "Las contraseñas no coinciden." }, { status: 400 });
-    }
-
     const connection = await pool.getConnection();
 
     try {
       const userColumns = await getUserColumns(connection);
-      const passwordColumn = userColumns.has("password_hash")
-        ? "password_hash"
-        : userColumns.has("password")
-          ? "password"
-          : null;
-
-      if (!passwordColumn || !userColumns.has("verification_code")) {
-        return json(
-          { success: false, error: "La base no tiene soporte para recuperar contraseña." },
-          { status: 500 },
-        );
-      }
 
       const [rows] = await connection.query<UserRow[]>(
         `
@@ -123,50 +81,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const configuredSaltRounds = Number(process.env.SALT_ROUNDS ?? 12);
-      const saltRounds =
-        Number.isFinite(configuredSaltRounds) && configuredSaltRounds > 0
-          ? configuredSaltRounds
-          : 12;
-      const pepper = process.env.PASSWORD_PEPPER ?? "";
-      const passwordHash = await bcrypt.hash(password + pepper, saltRounds);
-
-      await connection.beginTransaction();
-
-      const updateAssignments = [
-        `\`${passwordColumn}\` = ?`,
-        "verification_code = NULL",
-      ];
-      const updateValues: Array<string | number> = [passwordHash, user.id];
-
-      if (userColumns.has("verification_expires_at")) {
-        updateAssignments.push("verification_expires_at = NULL");
-      }
-
-      if (userColumns.has("updated_at")) {
-        updateAssignments.push("updated_at = NOW()");
-      }
-
-      await connection.query<ResultSetHeader>(
-        `
-          UPDATE users
-          SET ${updateAssignments.join(", ")}
-          WHERE id = ?
-        `,
-        updateValues,
-      );
-
-      await connection.commit();
-
-      return json({
-        success: true,
-        message: "Tu contraseña fue actualizada correctamente.",
-      });
-    } catch (error) {
-      try {
-        await connection.rollback();
-      } catch {}
-      throw error;
+      return json({ success: true, message: "Código verificado correctamente." });
     } finally {
       connection.release();
     }
@@ -174,7 +89,7 @@ export async function POST(req: Request) {
     const sqlError =
       typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
 
-    console.error("RESET PASSWORD ERROR:", {
+    console.error("VERIFY RESET CODE ERROR:", {
       code: sqlError?.code ?? null,
       errno: sqlError?.errno ?? null,
       sqlMessage: sqlError?.sqlMessage ?? null,
@@ -183,7 +98,7 @@ export async function POST(req: Request) {
     });
 
     return json(
-      { success: false, error: "No pudimos actualizar tu contraseña." },
+      { success: false, error: "No pudimos verificar el código." },
       { status: 500 },
     );
   }
