@@ -1,8 +1,29 @@
+import type { RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool from "@/lib/db";
+
+type CartRow = RowDataPacket & {
+  id: number;
+  user_id: number;
+};
+
+type ProductRow = RowDataPacket & {
+  id: number;
+  price: number | string | null;
+  discount_price: number | string | null;
+  business_id: number | null;
+};
+
+type ProductExistsRow = RowDataPacket & {
+  product_id: number;
+};
+
+type CartBusinessRow = RowDataPacket & {
+  business_id: number | null;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +48,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [cartRows]: any = await pool.query(
+    const [cartRows] = await pool.query<CartRow[]>(
       `SELECT id, user_id FROM cart WHERE id = ? LIMIT 1`,
       [cartId],
     );
@@ -50,7 +71,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [productRow]: any = await pool.query(
+    const [productRow] = await pool.query<ProductRow[]>(
       `
         SELECT id, price, discount_price, business_id
         FROM products
@@ -67,6 +88,66 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const productBusinessId = Number(productRow[0].business_id ?? 0);
+
+    if (!productBusinessId) {
+      console.error("ADD TO CART invalid product business:", {
+        cartId,
+        productId,
+        productRow: productRow[0],
+      });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Este producto no tiene un negocio válido asociado. Vuelve a cargar la tienda.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const cartBusinessValidationQuery = `
+      SELECT DISTINCT p.business_id
+      FROM products_cart pc
+      INNER JOIN products p ON p.id = pc.product_id
+      WHERE pc.cart_id = ?
+    `;
+    const [cartBusinessRows] = await pool.query<CartBusinessRow[]>(
+      cartBusinessValidationQuery,
+      [cartId],
+    );
+    const existingBusinessIds = Array.from(
+      new Set(
+        cartBusinessRows
+          .map((row) => Number(row.business_id ?? 0))
+          .filter(
+            (businessId) => Number.isFinite(businessId) && businessId > 0,
+          ),
+      ),
+    );
+
+    console.log("ADD TO CART business validation:", {
+      cartId,
+      productId,
+      productBusinessId,
+      existingBusinessIds,
+      query: cartBusinessValidationQuery,
+    });
+
+    if (
+      existingBusinessIds.length > 0 &&
+      !existingBusinessIds.includes(productBusinessId)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Tu carrito ya contiene productos de otro negocio. Finaliza ese pedido o vacía el carrito antes de agregar productos de una tienda diferente.",
+        },
+        { status: 400 },
+      );
+    }
+
     const basePrice = Number(
       productRow[0].discount_price ??
         productRow[0].price ??
@@ -76,7 +157,7 @@ export async function POST(req: NextRequest) {
     const finalPrice = Math.max(basePrice - discountValue, 0);
     const subtotal = finalPrice * quantity;
 
-    const [exists]: any = await pool.query(
+    const [exists] = await pool.query<ProductExistsRow[]>(
       `SELECT product_id FROM products_cart WHERE cart_id = ? AND product_id = ? LIMIT 1`,
       [cartId, productId],
     );
@@ -145,7 +226,7 @@ export async function POST(req: NextRequest) {
       item: {
         cart_id: cartId,
         product_id: productId,
-        business_id: Number(productRow[0].business_id ?? 0),
+        business_id: productBusinessId,
         quantity,
         price: finalPrice,
         subtotal,

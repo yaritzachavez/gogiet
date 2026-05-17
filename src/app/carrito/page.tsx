@@ -119,6 +119,13 @@ function getCartItemSubtotal(item: {
   );
 }
 
+function toPositiveNumber(value: unknown) {
+  const normalizedValue = Number(value);
+  return Number.isFinite(normalizedValue) && normalizedValue > 0
+    ? normalizedValue
+    : null;
+}
+
 const DEFAULT_SHIPPING_STATE: ShippingByAddressResult = {
   zoneName: null,
   shippingCost: null,
@@ -585,9 +592,39 @@ export default function CarritoPage() {
     [cartItems],
   );
 
+  const cartBusinessState = useMemo(() => {
+    const normalizedItems = cartItems.map((item) => ({
+      id: String(item.id),
+      productId: Number(item.productId ?? item.id ?? 0),
+      name: String(item.nombre ?? "").trim(),
+      businessId: toPositiveNumber(item.businessId),
+      businessName: String(item.businessName ?? item.negocio ?? "").trim(),
+    }));
+
+    const invalidItems = normalizedItems.filter((item) => !item.businessId);
+    const businessIds = Array.from(
+      new Set(
+        normalizedItems
+          .map((item) => item.businessId)
+          .filter((value): value is number => Boolean(value)),
+      ),
+    );
+
+    return {
+      invalidItems,
+      businessIds,
+      resolvedBusinessId:
+        invalidItems.length === 0 && businessIds.length === 1
+          ? businessIds[0]
+          : null,
+    };
+  }, [cartItems]);
+
   const hasValidBusiness = useMemo(
-    () => cartItems.some((item) => Number(item.businessId ?? 0) > 0),
-    [cartItems],
+    () =>
+      cartBusinessState.invalidItems.length === 0 &&
+      cartBusinessState.businessIds.length === 1,
+    [cartBusinessState],
   );
 
   const checkoutBlockReason = useMemo(() => {
@@ -595,8 +632,14 @@ export default function CarritoPage() {
     if (cartLoading) return "Estamos actualizando tu carrito.";
     if (cartItems.length === 0) return "Tu carrito está vacío.";
     if (!hasValidItems) return "Hay productos sin precio válido en tu carrito.";
+    if (cartBusinessState.invalidItems.length > 0) {
+      return "Hay productos en tu carrito sin negocio válido. Elimina esos productos y vuelve a intentar.";
+    }
+    if (cartBusinessState.businessIds.length > 1) {
+      return "Tu carrito mezcla productos de distintos negocios. Finaliza un solo negocio por pedido.";
+    }
     if (!hasValidBusiness)
-      return "No pudimos identificar el negocio del pedido.";
+      return "No pudimos identificar el negocio de este pedido.";
     if (!savedAddress) return "Agrega una dirección para continuar.";
     if (shipping.requiresConfirmation)
       return (
@@ -607,6 +650,8 @@ export default function CarritoPage() {
     return "";
   }, [
     cartItems.length,
+    cartBusinessState.businessIds.length,
+    cartBusinessState.invalidItems.length,
     cartLoading,
     commissionBreakdown.total,
     hasValidBusiness,
@@ -616,6 +661,15 @@ export default function CarritoPage() {
     shipping.requiresConfirmation,
     user,
   ]);
+
+  useEffect(() => {
+    console.log("[checkout] cartItems:", cartItems);
+    console.log("[checkout] cart business state:", {
+      businessIds: cartBusinessState.businessIds,
+      invalidItems: cartBusinessState.invalidItems,
+      resolvedBusinessId: cartBusinessState.resolvedBusinessId,
+    });
+  }, [cartBusinessState, cartItems]);
 
   const canContinueToPayment = !checkoutBlockReason && !submittingOrder;
   const canSubmitOrder =
@@ -742,6 +796,14 @@ export default function CarritoPage() {
 
   const handleCheckout = () => {
     setTransferError("");
+
+    console.log("[checkout] attempting checkout with business state:", {
+      cartId,
+      cartItems,
+      businessIds: cartBusinessState.businessIds,
+      invalidItems: cartBusinessState.invalidItems,
+      resolvedBusinessId: cartBusinessState.resolvedBusinessId,
+    });
 
     if (!user || !hasValidItems || !hasValidBusiness) {
       setTransferError(
@@ -878,40 +940,43 @@ export default function CarritoPage() {
         throw new Error("Necesitas iniciar sesión para continuar.");
       }
 
+      const checkoutPayload = {
+        user_id: user?.id,
+        address_id: savedAddress?.id,
+        delivery_address_id: savedAddress?.id,
+        cart_id: cartId,
+        business_id: cartBusinessState.resolvedBusinessId,
+        subtotal: commissionBreakdown.subtotal,
+        terminal_fee: commissionBreakdown.terminalFee,
+        shipping_cost: commissionBreakdown.deliveryFee,
+        delivery_fee: commissionBreakdown.deliveryFee,
+        service_fee: commissionBreakdown.serviceFee,
+        platform_fee: commissionBreakdown.platformFee,
+        driver_fee: commissionBreakdown.driverFee,
+        total: commissionBreakdown.total,
+        payment_method: selectedPaymentMethod,
+        status,
+        payment_receipt_url: proofUrl || null,
+        comprobante_pago_url: proofUrl || null,
+        delivery_instructions: deliveryInstructions || null,
+        items: cartItems.map((i) => ({
+          product_id: i.productId,
+          quantity: i.quantity,
+          business_id: i.businessId ?? null,
+          unit_price: getCartItemUnitPrice(i),
+          total_price: getCartItemSubtotal(i),
+        })),
+      };
+
+      console.log("[checkout] payload to /api/orders:", checkoutPayload);
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          user_id: user?.id,
-          address_id: savedAddress?.id,
-          delivery_address_id: savedAddress?.id,
-          cart_id: cartId,
-          business_id:
-            cartItems.find((item) => Number(item.businessId ?? 0) > 0)
-              ?.businessId ?? null,
-          subtotal: commissionBreakdown.subtotal,
-          terminal_fee: commissionBreakdown.terminalFee,
-          shipping_cost: commissionBreakdown.deliveryFee,
-          delivery_fee: commissionBreakdown.deliveryFee,
-          service_fee: commissionBreakdown.serviceFee,
-          platform_fee: commissionBreakdown.platformFee,
-          driver_fee: commissionBreakdown.driverFee,
-          total: commissionBreakdown.total,
-          payment_method: selectedPaymentMethod,
-          status,
-          payment_receipt_url: proofUrl || null,
-          comprobante_pago_url: proofUrl || null,
-          delivery_instructions: deliveryInstructions || null,
-          items: cartItems.map((i) => ({
-            product_id: i.productId,
-            quantity: i.quantity,
-            unit_price: getCartItemUnitPrice(i),
-            total_price: getCartItemSubtotal(i),
-          })),
-        }),
+        body: JSON.stringify(checkoutPayload),
       });
       const data = await res.json().catch(() => null);
       if (res.ok && data?.success && data?.order?.id) {
@@ -1059,7 +1124,7 @@ export default function CarritoPage() {
           </div>
         ) : null}
         {transferError ? (
-          <div className="rounded-[24px] border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          <div className="rounded-[18px] border border-red-300/80 bg-red-50 px-3 py-2 text-xs font-semibold leading-5 text-red-700 sm:rounded-[24px] sm:px-4 sm:py-3 sm:text-sm">
             {transferError}
           </div>
         ) : null}

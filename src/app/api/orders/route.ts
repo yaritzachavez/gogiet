@@ -6,17 +6,17 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
-import pool, { logDbUsage } from "@/lib/db";
 import { resolveBusinessAccess } from "@/lib/business-panel";
-import {
-  ensureOrderPaymentColumns,
-  ensurePaymentsTable,
-} from "@/lib/order-payments";
+import pool, { logDbUsage } from "@/lib/db";
 import {
   createNotificationForBusinessSafely,
   createNotificationsForAdminGeneralSafely,
 } from "@/lib/notifications";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
+import {
+  ensureOrderPaymentColumns,
+  ensurePaymentsTable,
+} from "@/lib/order-payments";
 import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
@@ -39,6 +39,7 @@ type OrderItemInput = {
   unit_price?: number | null;
   customizations?: string | null;
   total_price?: number | null;
+  business_id?: number | null;
 };
 
 type ProductRow = RowDataPacket & {
@@ -84,10 +85,7 @@ type AdminMessageRow = RowDataPacket & {
 };
 
 function unauthorized(message = "Necesitas iniciar sesión para continuar.") {
-  return NextResponse.json(
-    { success: false, error: message },
-    { status: 401 },
-  );
+  return NextResponse.json({ success: false, error: message }, { status: 401 });
 }
 
 function getAuthUser(req: NextRequest): JwtPayload | null {
@@ -281,7 +279,9 @@ async function ensureOrderItemsTable(conn: PoolConnection | typeof pool) {
     `,
   );
 
-  const [columns] = await conn.query<ColumnRow[]>("SHOW COLUMNS FROM order_items");
+  const [columns] = await conn.query<ColumnRow[]>(
+    "SHOW COLUMNS FROM order_items",
+  );
   const columnNames = new Set(columns.map((column) => String(column.Field)));
 
   if (!columnNames.has("product_snapshot_json")) {
@@ -802,16 +802,33 @@ export async function POST(req: NextRequest) {
       ? (body.items as OrderItemInput[])
       : [];
 
+    console.log("POST /api/orders payload summary:", {
+      authUserId: authUser.id,
+      requestedUserId,
+      cartId: toPositiveNumber(body.cart_id),
+      businessIdReceived: body.business_id ?? null,
+      addressIdReceived: body.delivery_address_id ?? body.address_id ?? null,
+      paymentMethod: body.payment_method ?? null,
+      status: body.status ?? null,
+      items,
+    });
+
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: "No pudimos identificar al usuario del pedido" },
+        {
+          success: false,
+          error: "No pudimos identificar al usuario del pedido",
+        },
         { status: 400 },
       );
     }
 
     if (!items.length) {
       return NextResponse.json(
-        { success: false, error: "Agrega al menos un producto antes de continuar" },
+        {
+          success: false,
+          error: "Agrega al menos un producto antes de continuar",
+        },
         { status: 400 },
       );
     }
@@ -819,17 +836,14 @@ export async function POST(req: NextRequest) {
     const normalizedItems = items.map((item) => ({
       product_id: toPositiveNumber(item.product_id),
       quantity: toPositiveNumber(item.quantity),
+      business_id: toPositiveNumber(item.business_id),
       notes: item.notes ?? null,
       customizations: item.customizations ?? null,
     }));
 
-    if (
-      normalizedItems.some(
-        (item) =>
-          !item.product_id ||
-          !item.quantity,
-      )
-    ) {
+    console.log("POST /api/orders normalized items:", normalizedItems);
+
+    if (normalizedItems.some((item) => !item.product_id || !item.quantity)) {
       return NextResponse.json(
         {
           success: false,
@@ -885,7 +899,7 @@ export async function POST(req: NextRequest) {
               : paymentMethodName === "mercadopago" &&
                   requestedStatus === "pending"
                 ? "pending_payment"
-              : requestedStatus,
+                : requestedStatus,
             conn,
           );
     const paymentProvider =
@@ -923,22 +937,31 @@ export async function POST(req: NextRequest) {
 
     const productIds = normalizedItems.map((item) => item.product_id as number);
     const placeholders = productIds.map(() => "?").join(",");
+    const productsQuery = `
+      SELECT
+        id,
+        name,
+        price,
+        discount_price,
+        business_id,
+        status_id,
+        is_stock_available,
+        stock_average
+      FROM products
+      WHERE id IN (${placeholders})
+    `;
+
+    console.log("POST /api/orders products query:", {
+      query: productsQuery,
+      productIds,
+    });
+
     const [products] = await conn.query<ProductRow[]>(
-      `
-        SELECT
-          id,
-          name,
-          price,
-          discount_price,
-          business_id,
-          status_id,
-          is_stock_available,
-          stock_average
-        FROM products
-        WHERE id IN (${placeholders})
-      `,
+      productsQuery,
       productIds,
     );
+
+    console.log("POST /api/orders products found:", products);
 
     if (products.length !== new Set(productIds).size) {
       await conn.rollback();
@@ -957,6 +980,17 @@ export async function POST(req: NextRequest) {
     const businessIds = new Set(
       products.map((product) => Number(product.business_id)),
     );
+    const frontendBusinessIds = new Set(
+      normalizedItems
+        .map((item) => item.business_id)
+        .filter((value): value is number => Boolean(value)),
+    );
+
+    console.log("POST /api/orders business validation:", {
+      businessIdsFromProducts: Array.from(businessIds),
+      businessIdsFromFrontend: Array.from(frontendBusinessIds),
+      businessIdReceived: body.business_id ?? null,
+    });
 
     if (businessIds.size !== 1) {
       await conn.rollback();
@@ -965,6 +999,10 @@ export async function POST(req: NextRequest) {
           success: false,
           error:
             "Todos los productos del pedido deben pertenecer al mismo negocio",
+          debug: {
+            businessIdsFromProducts: Array.from(businessIds),
+            productIds,
+          },
         },
         { status: 400 },
       );
@@ -978,23 +1016,39 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "No pudimos validar el negocio de este pedido.",
+          error:
+            "No pudimos validar el negocio de este pedido. Revisa que todos los productos pertenezcan al mismo negocio y vuelvelos a agregar si es necesario.",
+          debug: {
+            businessIdReceived: body.business_id ?? null,
+            businessIdsFromProducts: Array.from(businessIds),
+            businessIdsFromFrontend: Array.from(frontendBusinessIds),
+            itemBusinessIds: normalizedItems.map((item) => item.business_id),
+            productIds,
+          },
         },
         { status: 400 },
       );
     }
 
-    const [businessRows] = await conn.query<BusinessRow[]>(
-      `
-        SELECT id, status_id, is_open
-        FROM business
-        WHERE id = ?
-        LIMIT 1
-      `,
-      [businessId],
-    );
+    const businessQuery = `
+      SELECT id, status_id, is_open
+      FROM business
+      WHERE id = ?
+      LIMIT 1
+    `;
+
+    console.log("POST /api/orders business query:", {
+      query: businessQuery,
+      businessId,
+    });
+
+    const [businessRows] = await conn.query<BusinessRow[]>(businessQuery, [
+      businessId,
+    ]);
 
     const business = businessRows[0];
+
+    console.log("POST /api/orders business found:", business);
 
     if (
       !business ||
@@ -1028,9 +1082,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const unitPrice = Number(
-        product?.discount_price ?? product?.price ?? 0,
-      );
+      const unitPrice = Number(product?.discount_price ?? product?.price ?? 0);
       const subtotal = Number((unitPrice * quantity).toFixed(2));
       const serializedItemNotes = [
         item.notes?.trim(),
