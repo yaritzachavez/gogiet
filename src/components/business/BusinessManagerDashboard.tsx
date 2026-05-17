@@ -556,8 +556,22 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
             }))
           : [];
         const parsedActiveOrders = parsedOrders.filter((order) =>
-          ACTIVE_ORDER_STATUSES.has(normalizeBusinessStatus(order.estado)),
+          ACTIVE_ORDER_STATUSES.has(getOrderStatusKey(order)),
         );
+
+        if (process.env.NODE_ENV !== "production") {
+          console.log("[BusinessManagerDashboard] loadOrders", {
+            businessId: business.id,
+            totalReceived: parsedOrders.length,
+            totalActive: parsedActiveOrders.length,
+            orders: parsedOrders.map((order) => ({
+              id: order.orderId,
+              estado: order.estado,
+              statusCode: order.statusCode,
+              metodoPago: order.metodoPago,
+            })),
+          });
+        }
 
         setOrders(parsedOrders);
         setOpenOrderId((current) =>

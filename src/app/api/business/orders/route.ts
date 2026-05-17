@@ -93,6 +93,16 @@ export async function GET(req: NextRequest) {
       requestedBusinessId,
     );
 
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[business/orders] access", {
+        userId: authUser.user.id,
+        requestedBusinessId,
+        resolvedBusinessId: access.businessId,
+        businessIds: access.businessIds,
+        roles: access.roles,
+      });
+    }
+
     logDbUsage("/api/business/orders", {
       userId: access.userId,
       email: access.email,
@@ -161,6 +171,11 @@ export async function GET(req: NextRequest) {
     );
 
     if (!orderRows.length) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[business/orders] no orders found", {
+          businessId: access.businessId,
+        });
+      }
       return NextResponse.json({
         success: true,
         orders: [],
@@ -192,39 +207,54 @@ export async function GET(req: NextRequest) {
       itemsByOrder.set(Number(item.order_id), group);
     }
 
+    const responseOrders = orderRows.map((row) => ({
+      id: Number(row.id),
+      businessId: Number(row.business_id),
+      businessName: row.business_name,
+      subtotal: Number(row.subtotal ?? 0),
+      serviceFee: Number(row.service_fee ?? 0),
+      deliveryFee: Number(row.delivery_fee ?? 0),
+      total: Number(row.total_amount ?? 0),
+      status: getOrderStatusLabel(row.status_name),
+      statusCode: resolveCanonicalOrderStatus(row.status_name),
+      placedAt: row.placed_at ?? row.created_at,
+      customerName: row.customer_name ?? "Cliente",
+      paymentMethod: row.payment_method ?? "Sin método",
+      paymentReceiptUrl: row.payment_receipt_url ?? null,
+      address: buildAddress(row),
+      notes: row.customer_notes ?? "",
+      deliveryUserId: Number(row.driver_user_id ?? 0) || null,
+      deliveryName: row.delivery_name ?? null,
+      deliveryPhone: row.delivery_phone ?? null,
+      deliveryProfileImageUrl: row.delivery_profile_image_url ?? null,
+      deliveryStatus: row.delivery_status_name ?? null,
+      deliveryRequested:
+        Boolean(row.delivery_id) && !row.delivery_status_is_final,
+      items: (itemsByOrder.get(Number(row.id)) ?? []).map((item) => ({
+        id: Number(item.id),
+        name: item.product_name,
+        quantity: Number(item.quantity ?? 0),
+        total: Number(item.subtotal ?? 0),
+        notes: item.notes ?? "",
+      })),
+    }));
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[business/orders] payload", {
+        businessId: access.businessId,
+        totalOrders: responseOrders.length,
+        orders: responseOrders.map((order) => ({
+          id: order.id,
+          status: order.status,
+          statusCode: order.statusCode,
+          paymentMethod: order.paymentMethod,
+        })),
+      });
+    }
+
     return NextResponse.json({
       success: true,
-      orders: orderRows.map((row) => ({
-        id: Number(row.id),
-        businessId: Number(row.business_id),
-        businessName: row.business_name,
-        subtotal: Number(row.subtotal ?? 0),
-        serviceFee: Number(row.service_fee ?? 0),
-        deliveryFee: Number(row.delivery_fee ?? 0),
-        total: Number(row.total_amount ?? 0),
-        status: getOrderStatusLabel(row.status_name),
-        statusCode: resolveCanonicalOrderStatus(row.status_name),
-        placedAt: row.placed_at ?? row.created_at,
-        customerName: row.customer_name ?? "Cliente",
-        paymentMethod: row.payment_method ?? "Sin método",
-        paymentReceiptUrl: row.payment_receipt_url ?? null,
-        address: buildAddress(row),
-        notes: row.customer_notes ?? "",
-        deliveryUserId: Number(row.driver_user_id ?? 0) || null,
-        deliveryName: row.delivery_name ?? null,
-        deliveryPhone: row.delivery_phone ?? null,
-        deliveryProfileImageUrl: row.delivery_profile_image_url ?? null,
-        deliveryStatus: row.delivery_status_name ?? null,
-        deliveryRequested:
-          Boolean(row.delivery_id) && !row.delivery_status_is_final,
-        items: (itemsByOrder.get(Number(row.id)) ?? []).map((item) => ({
-          id: Number(item.id),
-          name: item.product_name,
-          quantity: Number(item.quantity ?? 0),
-          total: Number(item.subtotal ?? 0),
-          notes: item.notes ?? "",
-        })),
-      })),
+      orders: responseOrders,
     });
   } catch (error) {
     console.error("Error GET /api/business/orders:", error);

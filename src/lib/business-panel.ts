@@ -127,12 +127,14 @@ export async function resolveBusinessAccess(
     "roles",
     "business_owners",
     "business_managers",
+    "business",
     "businesses",
   ]);
   const hasUsersTable = existingTables.has("users");
   const hasRolesTables =
     existingTables.has("user_roles") && existingTables.has("roles");
-  const hasBusinessesTable = existingTables.has("businesses");
+  const hasBusinessTable =
+    existingTables.has("business") || existingTables.has("businesses");
 
   let userInfoRows: UserInfoRow[] = [];
 
@@ -164,7 +166,7 @@ export async function resolveBusinessAccess(
     .filter(Boolean) as string[];
 
   const ownerBusinesses =
-    existingTables.has("business_owners") && hasBusinessesTable
+    existingTables.has("business_owners") && hasBusinessTable
       ? (
           await pool.query<AssignedBusinessRow[]>(
             `
@@ -180,7 +182,7 @@ export async function resolveBusinessAccess(
       : [];
 
   const managerBusinesses =
-    existingTables.has("business_managers") && hasBusinessesTable
+    existingTables.has("business_managers") && hasBusinessTable
       ? (
           await pool.query<AssignedBusinessRow[]>(
             `
@@ -206,7 +208,7 @@ export async function resolveBusinessAccess(
 
   let assignedBusinesses = Array.from(assignedBusinessesMap.values());
 
-  if (assignedBusinesses.length > 0 && hasBusinessesTable) {
+  if (assignedBusinesses.length > 0 && hasBusinessTable) {
     const requestedIds = assignedBusinesses
       .map((business) => Number(business.id))
       .filter((businessId) => Number.isFinite(businessId) && businessId > 0);
@@ -233,7 +235,7 @@ export async function resolveBusinessAccess(
     );
   }
 
-  if (!assignedBusinesses.length && userIsAdminGeneral && hasBusinessesTable) {
+  if (!assignedBusinesses.length && userIsAdminGeneral && hasBusinessTable) {
     const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'admin_general' AS source
