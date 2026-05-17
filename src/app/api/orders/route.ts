@@ -7,6 +7,7 @@ import type {
 } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 import pool, { logDbUsage } from "@/lib/db";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import {
   ensureOrderPaymentColumns,
   ensurePaymentsTable,
@@ -584,18 +585,42 @@ export async function GET(req: NextRequest) {
 
     const isAdminGeneral = authUser.roles?.includes("admin_general") ?? false;
     const userId = toPositiveNumber(requestedUserId);
+    const parsedBusinessId = toPositiveNumber(businessId);
+    const businessAccess =
+      parsedBusinessId && !isAdminGeneral
+        ? await resolveBusinessAccess(authUser.id, parsedBusinessId)
+        : null;
+    const hasBusinessAccess = Boolean(
+      parsedBusinessId &&
+        (isAdminGeneral || businessAccess?.businessId === parsedBusinessId),
+    );
 
-    if (userId) {
-      filters.push("o.user_id = ?");
-      values.push(userId);
-    } else if (!isAdminGeneral) {
-      filters.push("o.user_id = ?");
-      values.push(authUser.id);
-    }
+    if (parsedBusinessId && !isAdminGeneral) {
+      if (!hasBusinessAccess) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "No tienes permiso para ver pedidos de este negocio.",
+          },
+          { status: 403 },
+        );
+      }
 
-    if (businessId) {
       filters.push("o.business_id = ?");
-      values.push(businessId);
+      values.push(parsedBusinessId);
+    } else {
+      if (userId) {
+        filters.push("o.user_id = ?");
+        values.push(userId);
+      } else if (!isAdminGeneral) {
+        filters.push("o.user_id = ?");
+        values.push(authUser.id);
+      }
+
+      if (parsedBusinessId) {
+        filters.push("o.business_id = ?");
+        values.push(parsedBusinessId);
+      }
     }
 
     if (deliveryId) {
