@@ -95,7 +95,7 @@ export function CurrentDeliveriesCard({
   return (
     <Card className="overflow-hidden rounded-[24px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
       <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f6ead8] text-[#c56f2d]">
               <Package className="h-5 w-5" />
@@ -109,7 +109,7 @@ export function CurrentDeliveriesCard({
               </CardDescription>
             </div>
           </div>
-          <div className="rounded-2xl bg-white px-5 py-3 text-center shadow-sm">
+          <div className="rounded-2xl bg-white px-4 py-3 text-center shadow-sm sm:px-5">
             <p className="text-3xl font-extrabold text-[#c56f2d]">
               {deliveriesCount}
             </p>
@@ -188,7 +188,7 @@ export function CurrentDeliveriesCard({
                       visualStatus.cardClass,
                     )}
                   >
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                    <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                       <div>
                         <span className="text-sm font-bold text-slate-700">
                           #{order.id}
@@ -211,7 +211,7 @@ export function CurrentDeliveriesCard({
                       </Badge>
                     </div>
 
-                    <div className="grid gap-3 text-sm text-slate-600 sm:grid-cols-2 lg:grid-cols-[1.2fr,0.8fr,0.8fr]">
+                    <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-[1.2fr,0.8fr,0.8fr]">
                       <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Entrega

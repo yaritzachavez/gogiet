@@ -1306,7 +1306,7 @@ export default function DeliveryDashboardPage() {
   return (
     <main className="min-h-screen bg-[#f3ede3] text-[#2b221a]">
       <div className="min-h-screen bg-[linear-gradient(180deg,#fbf6ef_0%,#f4ede3_38%,#efe6da_100%)]">
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="section-shell responsive-stack py-4 sm:py-6 lg:py-8">
           <DeliveryHeader
             driverName={driverName}
             serviceArea={profile.delivery_zone || "Sin zona configurada"}
@@ -1323,7 +1323,7 @@ export default function DeliveryDashboardPage() {
             }}
           />
 
-          <div className="grid gap-6 xl:grid-cols-[1.65fr,1fr]">
+          <div className="responsive-dashboard-grid">
             <CurrentDeliveriesCard
               orders={currentOrders}
               activeDeliveriesCount={activeDeliveriesCount}
@@ -1410,8 +1410,8 @@ export default function DeliveryDashboardPage() {
       </div>
 
       {historyOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1720]/55 px-4 py-6 backdrop-blur-sm">
-          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-[30px] border border-white/25 bg-[#f7faf6] shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f1720]/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-white/25 bg-[#f7faf6] shadow-2xl sm:rounded-[30px]">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffedd5_45%,#fed7aa_100%)] px-6 py-5">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-orange-700/70">
@@ -1434,7 +1434,7 @@ export default function DeliveryDashboardPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-6 py-6">
+            <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
               {historyLoading ? (
                 <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm font-medium text-slate-500">
                   Cargando historial de entregas...
@@ -1564,8 +1564,8 @@ export default function DeliveryDashboardPage() {
       ) : null}
 
       {deliveryEvidenceOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#2b2119]/50 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-[28px] border border-[#e1d0bc] bg-[#fffaf3] p-6 shadow-2xl shadow-[#b78b5d]/20">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2b2119]/50 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="w-full max-w-xl rounded-[24px] border border-[#e1d0bc] bg-[#fffaf3] p-4 shadow-2xl shadow-[#b78b5d]/20 sm:rounded-[28px] sm:p-6">
             <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]">
               Confirmar entrega
             </p>
@@ -1621,7 +1621,7 @@ export default function DeliveryDashboardPage() {
               ) : null}
             </div>
 
-            <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <div className="mt-6 grid gap-3 sm:flex sm:flex-wrap sm:justify-end">
               <button
                 type="button"
                 onClick={() => {
@@ -1653,8 +1653,8 @@ export default function DeliveryDashboardPage() {
       ) : null}
 
       {profileOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0f1720]/55 px-4 py-6 backdrop-blur-sm">
-          <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-[30px] border border-white/25 bg-[#f7faf6] shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f1720]/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-white/25 bg-[#f7faf6] shadow-2xl sm:rounded-[30px]">
             <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#d1fae5_55%,#a7f3d0_100%)] px-6 py-5">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-emerald-700/70">

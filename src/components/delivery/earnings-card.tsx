@@ -63,7 +63,7 @@ export function EarningsCard({
 
   return (
     <Card className="overflow-hidden rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
-      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-6 text-[#2f2419]">
+      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5 text-[#2f2419] sm:pb-6">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <Wallet className="h-5 w-5" />
           Ganancias
@@ -72,13 +72,13 @@ export function EarningsCard({
           Seguimiento rápido de tus ingresos diarios, propinas y avance semanal.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5 pt-6">
+      <CardContent className="space-y-5 pt-5 sm:pt-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#e8d8c6] bg-[#fffdf9] p-4 shadow-inner">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Hoy
             </p>
-            <p className="mt-2 flex items-baseline gap-2 text-3xl font-semibold text-[#b36a2b]">
+            <p className="mt-2 break-words text-[clamp(1.8rem,1.3rem+2vw,3rem)] font-semibold text-[#b36a2b]">
               {formatCurrency(earnings.today, earnings.currency)}
             </p>
             <p className="mt-1 flex items-center gap-2 text-xs text-[#9a6d42]">
@@ -91,7 +91,7 @@ export function EarningsCard({
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Propinas
             </p>
-            <p className="mt-2 flex items-baseline gap-2 text-2xl font-semibold text-[#2f2419]">
+            <p className="mt-2 break-words text-[clamp(1.45rem,1.1rem+1.4vw,2.1rem)] font-semibold text-[#2f2419]">
               {formatCurrency(earnings.tips, earnings.currency)}
             </p>
             <p className="mt-1 flex items-center gap-2 text-xs text-[#6f5d4c]">

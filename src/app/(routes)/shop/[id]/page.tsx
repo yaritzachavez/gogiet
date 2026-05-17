@@ -764,24 +764,27 @@ export default function BusinessDetailPage() {
                   className="space-y-3 bg-slate-50 p-4 rounded-2xl"
                 >
                   <h4 className="font-bold text-slate-900">{group.name}</h4>
-                  {group.options.map((opt) => (
-                    <label
-                      key={opt.id}
-                      className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-orange-200 transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          className="w-5 h-5 accent-orange-600 rounded"
-                        />
-                        <span className="font-medium">{opt.name}</span>
-                      </div>
-                      <span className="text-orange-600 font-bold text-sm">
-                        +
-                        {opt.extraPrice > 0 ? `MX$${opt.extraPrice}` : "Gratis"}
-                      </span>
-                    </label>
-                  ))}
+                  {group.options.map((opt) => {
+                    const extraPrice = Number(opt.extraPrice ?? 0);
+
+                    return (
+                      <label
+                        key={opt.id}
+                        className="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-xl cursor-pointer hover:border-orange-200 transition"
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            className="w-5 h-5 accent-orange-600 rounded"
+                          />
+                          <span className="font-medium">{opt.name}</span>
+                        </div>
+                        <span className="text-orange-600 font-bold text-sm">
+                          +{extraPrice > 0 ? `MX$${extraPrice.toFixed(2)}` : "Gratis"}
+                        </span>
+                      </label>
+                    );
+                  })}
                 </div>
               ))
             ) : (
