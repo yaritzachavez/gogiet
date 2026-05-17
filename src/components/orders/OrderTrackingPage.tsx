@@ -310,10 +310,10 @@ export default function OrderTrackingPage() {
 
   if (loading) {
     return (
-      <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
+      <main className="min-h-[70vh] bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.12),transparent_24%),linear-gradient(180deg,#0b0b0b_0%,#111111_48%,#151515_100%)] px-4 py-12 text-[#f5f5f5]">
         <div className="mx-auto max-w-4xl">
-          <SectionCard className="p-6">
-            <p className="text-sm text-orange-900/70">
+          <SectionCard className="border-white/12 bg-[linear-gradient(180deg,rgba(28,28,28,0.96)_0%,rgba(16,16,16,0.96)_100%)] p-6">
+            <p className="text-sm font-medium text-[#d4d4d4]">
               Cargando seguimiento del pedido...
             </p>
           </SectionCard>
@@ -324,7 +324,7 @@ export default function OrderTrackingPage() {
 
   if (errorMessage || !order) {
     return (
-      <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
+      <main className="min-h-[70vh] bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.12),transparent_24%),linear-gradient(180deg,#0b0b0b_0%,#111111_48%,#151515_100%)] px-4 py-12 text-[#f5f5f5]">
         <div className="mx-auto max-w-4xl">
           <EmptyState
             icon={ReceiptText}
@@ -458,7 +458,7 @@ export default function OrderTrackingPage() {
   };
 
   return (
-    <main className="min-h-[70vh] bg-white/90 px-4 py-12 text-orange-950">
+    <main className="min-h-[70vh] bg-[radial-gradient(circle_at_top,rgba(251,146,60,0.12),transparent_24%),linear-gradient(180deg,#0b0b0b_0%,#111111_48%,#151515_100%)] px-4 py-12 text-[#f5f5f5]">
       <div className="mx-auto max-w-4xl space-y-6">
         <PageHeader
           eyebrow="Estado del pedido"
@@ -480,82 +480,105 @@ export default function OrderTrackingPage() {
         />
 
         {transferPending ? (
-          <SectionCard className="border-orange-200 bg-orange-50/70 p-4 text-sm text-orange-900">
+          <SectionCard className="border-orange-400/25 bg-[linear-gradient(135deg,rgba(255,115,0,0.18),rgba(42,24,10,0.88)_55%,rgba(18,18,18,0.96)_100%)] p-4 text-sm text-orange-100">
             Estamos validando tu comprobante de transferencia.
           </SectionCard>
         ) : null}
         {transferRejected ? (
-          <SectionCard className="border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+          <SectionCard className="border-rose-400/20 bg-[linear-gradient(135deg,rgba(127,29,29,0.32),rgba(26,26,26,0.96)_75%)] p-4 text-sm text-rose-100">
             El pago por transferencia fue rechazado.
             {latestRejectionReason ? ` ${latestRejectionReason}` : ""}
           </SectionCard>
         ) : null}
         {resolveCanonicalOrderStatus(order.status_name) === "delivered" ? (
-          <SectionCard className="border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-700">
+          <SectionCard className="border-emerald-400/20 bg-[linear-gradient(135deg,rgba(5,150,105,0.22),rgba(18,18,18,0.96)_72%)] p-4 text-sm text-emerald-100">
             Tu pedido ya fue entregado. Gracias por pedir en Gogi Eats.
           </SectionCard>
         ) : null}
         {resolveCanonicalOrderStatus(order.status_name) === "cancelled" ? (
-          <SectionCard className="border-red-200 bg-red-50/80 p-4 text-sm text-red-700">
+          <SectionCard className="border-rose-400/20 bg-[linear-gradient(135deg,rgba(127,29,29,0.32),rgba(26,26,26,0.96)_75%)] p-4 text-sm text-rose-100">
             Este pedido fue cancelado.
             {latestRejectionReason ? ` ${latestRejectionReason}` : ""}
           </SectionCard>
         ) : null}
 
-        <SectionCard className="p-6">
+        <SectionCard className="border-white/12 bg-[linear-gradient(180deg,rgba(28,28,28,0.96)_0%,rgba(16,16,16,0.96)_100%)] p-6 shadow-[0_22px_60px_rgba(0,0,0,0.34)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-orange-950">
+              <h2 className="text-lg font-bold text-[#f5f5f5]">
                 Estado actual
               </h2>
-              <p className="mt-1 text-sm text-orange-900/70">
+              <p className="mt-1 text-sm text-[#cfcfcf]">
                 Método de pago: {order.payment_method}
               </p>
             </div>
-            <span className="inline-flex w-fit rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+            <span className="inline-flex w-fit rounded-full border border-orange-400/25 bg-orange-500/12 px-3 py-1 text-xs font-semibold text-orange-200">
               {getOrderStatusLabel(order.status_name)}
             </span>
           </div>
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-5">
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
             {steps.map((step, index) => {
               const isCompleted = index <= activeStepIndex;
+              const isActive = index === activeStepIndex;
               const isLast = index === steps.length - 1;
 
               return (
-                <div key={step.key} className="relative">
+                <div
+                  key={step.key}
+                  className="relative rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:min-h-[132px]"
+                >
                   {!isLast ? (
                     <div
-                      className={`absolute left-[calc(50%+0.75rem)] right-[-50%] top-3 hidden h-0.5 sm:block ${
+                      className={`absolute left-[calc(50%+1rem)] right-[-50%] top-6 hidden h-0.5 lg:block ${
                         index < activeStepIndex
                           ? "bg-orange-500"
-                          : "bg-orange-200"
+                          : "bg-white/12"
                       }`}
                     />
                   ) : null}
-                  <div className="flex flex-col items-center text-center">
+                  <div className="flex items-start gap-3 text-left sm:flex-col sm:items-center sm:text-center">
                     <div
-                      className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
+                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 shadow-sm ${
                         isCompleted
                           ? "border-orange-500 bg-orange-500"
-                          : "border-orange-200 bg-white"
+                          : "border-white/15 bg-[#1d1d1d]"
                       }`}
                     >
                       <div
-                        className={`h-2.5 w-2.5 rounded-full ${
-                          isCompleted ? "bg-white" : "bg-orange-200"
+                        className={`h-3 w-3 rounded-full ${
+                          isCompleted ? "bg-white" : "bg-[#5d5d5d]"
                         }`}
                       />
                     </div>
-                    <p
-                      className={`mt-3 text-sm ${
-                        isCompleted
-                          ? "font-semibold text-orange-950"
-                          : "text-orange-900/60"
-                      }`}
-                    >
-                      {step.label}
-                    </p>
+                    <div className="min-w-0">
+                      <p
+                        className={`text-sm leading-5 ${
+                          isActive
+                            ? "font-bold text-orange-200"
+                            : isCompleted
+                              ? "font-semibold text-[#f5f5f5]"
+                              : "text-[#b5b5b5]"
+                        }`}
+                      >
+                        {step.label}
+                      </p>
+                      <p
+                        className={`mt-1 text-[11px] font-medium uppercase tracking-[0.18em] ${
+                          isActive
+                            ? "text-orange-300/90"
+                            : isCompleted
+                              ? "text-[#d4d4d4]"
+                              : "text-[#7d7d7d]"
+                        }`}
+                      >
+                        {isActive
+                          ? "En curso"
+                          : isCompleted
+                            ? "Completado"
+                            : "Pendiente"}
+                      </p>
+                    </div>
                   </div>
                 </div>
               );
@@ -564,7 +587,7 @@ export default function OrderTrackingPage() {
         </SectionCard>
 
         {order.delivery_user_id ? (
-          <SectionCard className="p-6">
+          <SectionCard className="border-white/12 bg-[linear-gradient(180deg,rgba(27,27,27,0.96)_0%,rgba(15,15,15,0.96)_100%)] p-6">
             <div className="flex items-center gap-4">
               <UserAvatar
                 name={order.delivery_name}
@@ -572,16 +595,16 @@ export default function OrderTrackingPage() {
                 size={64}
               />
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">
+                <p className="text-xs font-semibold uppercase tracking-wide text-orange-300">
                   Tu repartidor
                 </p>
-                <h2 className="mt-1 text-lg font-semibold text-orange-950">
+                <h2 className="mt-1 text-lg font-semibold text-[#f5f5f5]">
                   {order.delivery_name || "Repartidor asignado"}
                 </h2>
-                <p className="text-sm text-orange-900/70">
+                <p className="text-sm text-[#cfcfcf]">
                   {order.delivery_phone || "Teléfono no disponible"}
                 </p>
-                <p className="mt-1 inline-flex rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700">
+                <p className="mt-2 inline-flex rounded-full border border-orange-400/25 bg-orange-500/12 px-3 py-1 text-xs font-semibold text-orange-200">
                   {order.delivery_status || "Asignado"}
                 </p>
               </div>
@@ -589,76 +612,131 @@ export default function OrderTrackingPage() {
           </SectionCard>
         ) : null}
 
-        <section className="grid gap-4 sm:grid-cols-2">
-          <SectionCard className="p-6">
-            <h2 className="text-lg font-semibold text-orange-950">Resumen</h2>
-            <div className="mt-4 space-y-2 text-sm text-orange-900">
+        <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <SectionCard className="border-white/12 bg-[linear-gradient(180deg,rgba(27,27,27,0.96)_0%,rgba(15,15,15,0.96)_100%)] p-6">
+            <h2 className="text-lg font-semibold text-[#f5f5f5]">Resumen</h2>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {isAdminGeneral ? (
                 <>
-                  <p>
-                    <span className="font-semibold">Cliente:</span>{" "}
-                    {order.customer_name || "Sin nombre"}
-                  </p>
-                  <p>
-                    <span className="font-semibold">Correo:</span>{" "}
-                    {order.customer_email || "Sin correo"}
-                  </p>
-                  <p>
-                    <span className="font-semibold">Teléfono:</span>{" "}
-                    {order.customer_phone || "Sin teléfono"}
-                  </p>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                      Cliente
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-[#f5f5f5]">
+                      {order.customer_name || "Sin nombre"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                      Correo
+                    </p>
+                    <p className="mt-2 break-all text-sm text-[#d0d0d0]">
+                      {order.customer_email || "Sin correo"}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:col-span-2">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                      Teléfono
+                    </p>
+                    <p className="mt-2 text-sm text-[#d0d0d0]">
+                      {order.customer_phone || "Sin teléfono"}
+                    </p>
+                  </div>
                 </>
               ) : null}
-              <p>
-                <span className="font-semibold">Negocio:</span>{" "}
-                {order.business_name || "Sin negocio"}
-              </p>
-              <p>
-                <span className="font-semibold">Subtotal:</span>{" "}
-                {formatMoney(Number(order.subtotal ?? 0))}
-              </p>
-              <p>
-                <span className="font-semibold">Envío:</span>{" "}
-                {formatMoney(Number(order.delivery_fee ?? 0))}
-              </p>
-              <p>
-                <span className="font-semibold">Servicio:</span>{" "}
-                {formatMoney(Number(order.service_fee ?? 0))}
-              </p>
-              <p className="pt-2 text-base font-semibold text-orange-950">
-                Total: {formatMoney(Number(order.total_amount ?? 0))}
-              </p>
-              <p>
-                <span className="font-semibold">Dirección:</span>{" "}
-                {address || "Sin dirección disponible"}
-              </p>
-              <p>
-                <span className="font-semibold">Método de pago:</span>{" "}
-                {order.payment_method || "No especificado"}
-              </p>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                  Negocio
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[#f5f5f5]">
+                  {order.business_name || "Sin negocio"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                  Método de pago
+                </p>
+                <p className="mt-2 text-sm text-[#d0d0d0]">
+                  {order.payment_method || "No especificado"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4 sm:col-span-2">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-300">
+                  Dirección
+                </p>
+                <p className="mt-2 text-sm leading-6 text-[#d0d0d0]">
+                  {address || "Sin dirección disponible"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#bdbdbd]">
+                  Subtotal
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[#f5f5f5]">
+                  {formatMoney(Number(order.subtotal ?? 0))}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#bdbdbd]">
+                  Envío
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[#f5f5f5]">
+                  {formatMoney(Number(order.delivery_fee ?? 0))}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#bdbdbd]">
+                  Servicio
+                </p>
+                <p className="mt-2 text-sm font-semibold text-[#f5f5f5]">
+                  {formatMoney(Number(order.service_fee ?? 0))}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-orange-400/20 bg-[linear-gradient(135deg,rgba(255,115,0,0.18),rgba(32,20,10,0.92)_72%)] p-4 shadow-[0_14px_35px_rgba(255,115,0,0.12)]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-orange-200">
+                  Total
+                </p>
+                <p className="mt-2 text-xl font-black text-white">
+                  {formatMoney(Number(order.total_amount ?? 0))}
+                </p>
+              </div>
             </div>
           </SectionCard>
 
-          <SectionCard className="p-6">
-            <h2 className="text-lg font-semibold text-orange-950">Productos</h2>
+          <SectionCard className="border-white/12 bg-[linear-gradient(180deg,rgba(27,27,27,0.96)_0%,rgba(15,15,15,0.96)_100%)] p-6">
+            <h2 className="text-lg font-semibold text-[#f5f5f5]">Productos</h2>
             <div className="mt-4 space-y-3">
               {order.items.map((item, index) => (
                 <div
                   key={`order-${order.id}-item-${item.id ?? index}`}
-                  className="rounded-2xl border border-orange-100 bg-orange-50/40 p-4"
+                  className="rounded-2xl border border-white/8 bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(255,115,0,0.08))] p-4 shadow-[0_10px_28px_rgba(0,0,0,0.18)]"
                 >
-                  <p className="text-sm font-semibold text-orange-950">
-                    {item.product_name}
-                  </p>
-                  <p className="mt-1 text-sm text-orange-900/75">
-                    Cantidad: {Number(item.quantity ?? 0)} ·{" "}
-                    {formatMoney(Number(item.subtotal ?? 0))}
-                  </p>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-[#f5f5f5]">
+                        {item.product_name}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">
+                        {Number(item.quantity ?? 0)} unidad{Number(item.quantity ?? 0) === 1 ? "" : "es"}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-bold text-orange-200">
+                      {formatMoney(Number(item.subtotal ?? 0))}
+                    </p>
+                  </div>
                   {item.notes ? (
-                    <p className="mt-1 text-xs text-orange-900/65">
+                    <p className="mt-3 text-xs leading-5 text-[#c7c7c7]">
                       {item.notes}
                     </p>
                   ) : null}
+                  <div className="mt-3 border-t border-white/8 pt-3">
+                    <p className="text-xs text-[#9f9f9f]">
+                      Precio unitario:{" "}
+                      <span className="font-semibold text-[#e3e3e3]">
+                        {formatMoney(Number(item.unit_price ?? 0))}
+                      </span>
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -666,13 +744,13 @@ export default function OrderTrackingPage() {
         </section>
 
         {normalizeStatus(order.payment_method) === "transferencia" ? (
-          <SectionCard className="p-6">
+          <SectionCard className="border-white/12 bg-[linear-gradient(180deg,rgba(27,27,27,0.96)_0%,rgba(15,15,15,0.96)_100%)] p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-orange-950">
+                <h2 className="text-lg font-semibold text-[#f5f5f5]">
                   Transferencia
                 </h2>
-                <p className="mt-1 text-sm text-orange-900/70">
+                <p className="mt-1 text-sm text-[#cfcfcf]">
                   Datos bancarios y comprobante del pedido.
                 </p>
               </div>
@@ -682,7 +760,7 @@ export default function OrderTrackingPage() {
                     type="button"
                     onClick={() => handlePaymentValidation("approve")}
                     disabled={paymentActionLoading}
-                    className="rounded-2xl border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-2 text-sm font-semibold text-orange-100 transition hover:bg-orange-500/18 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {paymentActionLoading ? "Procesando..." : "Aprobar pago"}
                   </button>
@@ -690,7 +768,7 @@ export default function OrderTrackingPage() {
                     type="button"
                     onClick={() => handlePaymentValidation("reject")}
                     disabled={paymentActionLoading}
-                    className="rounded-2xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-100 transition hover:bg-rose-500/18 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {paymentActionLoading ? "Procesando..." : "Rechazar pago"}
                   </button>
@@ -699,7 +777,7 @@ export default function OrderTrackingPage() {
             </div>
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 text-sm text-orange-900">
+              <div className="space-y-2 text-sm text-[#d0d0d0]">
                 <p>
                   <span className="font-semibold">Banco:</span>{" "}
                   {transferAccount.bank}
@@ -727,8 +805,8 @@ export default function OrderTrackingPage() {
                 ) : null}
               </div>
 
-              <div className="space-y-2 text-sm text-orange-900">
-                <p className="font-semibold">Comprobante de transferencia</p>
+              <div className="space-y-2 text-sm text-[#d0d0d0]">
+                <p className="font-semibold text-[#f5f5f5]">Comprobante de transferencia</p>
                 {order.payment_receipt_url || order.comprobante_pago_url ? (
                   <a
                     href={
@@ -738,12 +816,12 @@ export default function OrderTrackingPage() {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex rounded-2xl border border-orange-200 px-4 py-2 text-sm font-semibold text-orange-700 transition hover:bg-orange-50"
+                    className="inline-flex rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-2 text-sm font-semibold text-orange-100 transition hover:bg-orange-500/18"
                   >
                     Ver comprobante
                   </a>
                 ) : (
-                  <p className="text-orange-900/70">
+                  <p className="text-[#bdbdbd]">
                     No hay comprobante cargado.
                   </p>
                 )}

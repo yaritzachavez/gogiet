@@ -53,20 +53,20 @@ const MXN_CURRENCY_FORMATTER = new Intl.NumberFormat("es-MX", {
 });
 
 const ACTIVE_ORDER_STATUSES = new Set([
-  "pendiente",
-  "por_validar_pago",
-  "pago_validado",
-  "en_preparacion",
-  "preparando",
-  "listo_para_recoger",
-  "repartidor_solicitado",
-  "repartidor_asignado",
+  "pending_payment",
+  "pending",
+  "paid",
+  "payment_review",
+  "accepted",
+  "preparing",
+  "ready_for_pickup",
+  "delivery_requested",
+  "driver_assigned",
+  "on_the_way",
 ]);
 
 const HISTORY_ORDER_STATUSES = new Set([
-  "pedido_entregado",
-  "entregado",
-  "completado",
+  "delivered",
 ]);
 
 type OrderTicket = {
@@ -91,6 +91,7 @@ type OrderTicket = {
 };
 
 type ManagerSection = "dashboard" | "orders";
+type OrdersViewFilter = "all" | "active" | "preparing" | "delivered";
 
 type NewOrderData = {
   cliente: string;
@@ -231,6 +232,10 @@ function isButcheryCategory(category: string) {
   );
 }
 
+function getOrderStatusKey(order: Pick<OrderTicket, "estado" | "statusCode">) {
+  return normalizeBusinessStatus(order.statusCode || order.estado);
+}
+
 export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
   const pathname = usePathname();
   const [orders, setOrders] = useState<OrderTicket[]>([]);
@@ -242,6 +247,9 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
   const [editingOrder, setEditingOrder] = useState<OrderTicket | null>(null);
   const [activeSection, setActiveSection] =
     useState<ManagerSection>("dashboard");
+  const [ordersViewFilter, setOrdersViewFilter] =
+    useState<OrdersViewFilter>("all");
+  const [orderSearch, setOrderSearch] = useState("");
   const [ordersLoading, setOrdersLoading] = useState(true);
   const [ordersError, setOrdersError] = useState("");
   const [sellerTrainings, setSellerTrainings] = useState<
@@ -282,16 +290,52 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       : "Volver al panel de negocio";
 
   const activeOrders = orders.filter((order) =>
-    ACTIVE_ORDER_STATUSES.has(normalizeBusinessStatus(order.estado)),
+    ACTIVE_ORDER_STATUSES.has(getOrderStatusKey(order)),
   );
   const historyOrders = orders.filter((order) =>
-    HISTORY_ORDER_STATUSES.has(normalizeBusinessStatus(order.estado)),
+    HISTORY_ORDER_STATUSES.has(getOrderStatusKey(order)),
   );
   const activePreparationCount = activeOrders.filter((order) =>
-    ["en_preparacion", "preparando", "listo_para_recoger"].includes(
-      normalizeBusinessStatus(order.estado),
+    ["accepted", "preparing", "ready_for_pickup"].includes(
+      getOrderStatusKey(order),
     ),
   ).length;
+  const normalizedOrderSearch = orderSearch.trim().toLowerCase();
+  const filteredOrders = orders.filter((order) => {
+    const statusKey = getOrderStatusKey(order);
+    const matchesFilter =
+      ordersViewFilter === "all"
+        ? true
+        : ordersViewFilter === "active"
+          ? ACTIVE_ORDER_STATUSES.has(statusKey)
+          : ordersViewFilter === "preparing"
+            ? ["accepted", "preparing", "ready_for_pickup"].includes(statusKey)
+            : HISTORY_ORDER_STATUSES.has(statusKey);
+
+    if (!matchesFilter) {
+      return false;
+    }
+
+    if (!normalizedOrderSearch) {
+      return true;
+    }
+
+    const searchableText = [
+      order.id,
+      order.cliente,
+      order.negocio,
+      order.metodoPago,
+      order.direccion,
+      order.estado,
+      order.statusCode,
+      ...order.items.map((item) => item.nombre),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return searchableText.includes(normalizedOrderSearch);
+  });
   const dashboardMetrics = [
     {
       label: "Pedidos activos",
@@ -671,11 +715,13 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
 
   const handleOpenNewOrder = () => {
     setActiveSection("orders");
+    setOrdersViewFilter("all");
     setShowOrderModal(true);
   };
 
   const handleManageStore = () => {
     setActiveSection("orders");
+    setOrdersViewFilter("all");
   };
 
   const handleCreateOrder = (data: NewOrderData) => {
@@ -1067,7 +1113,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                   className="inline-flex items-center gap-3 rounded-2xl bg-orange-800/35 px-7 py-4 text-sm font-extrabold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-orange-900/35"
                 >
                   <ClipboardList className="h-5 w-5" />
-                  Ver historial
+                  Ver pedidos
                 </button>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -1151,10 +1197,13 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setActiveSection("orders")}
+                      onClick={() => {
+                        setActiveSection("orders");
+                        setOrdersViewFilter("all");
+                      }}
                       className="inline-flex items-center gap-2 text-sm font-extrabold uppercase tracking-wide text-orange-600"
                     >
-                      Ver historial
+                      Ver pedidos
                       <span aria-hidden>›</span>
                     </button>
                   </div>
@@ -1172,8 +1221,11 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                       icon={ClipboardList}
                       title="Aún no tienes pedidos activos 🍔"
                       description="Cuando entre un nuevo pedido, aquí podrás verlo, prepararlo y mandarlo a entrega sin perder el ritmo."
-                      actionLabel="Ver historial"
-                      onAction={() => setActiveSection("orders")}
+                      actionLabel="Ver pedidos"
+                      onAction={() => {
+                        setActiveSection("orders");
+                        setOrdersViewFilter("all");
+                      }}
                       className="mt-6"
                     />
                   ) : (
@@ -1594,7 +1646,13 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
           {activeSection === "orders" ? (
             <section className="rounded-[22px] border border-orange-100 bg-orange-50/60 p-4 shadow-xl shadow-orange-900/10 sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <h2 className="text-2xl font-black">Historial de pedidos</h2>
+                <div>
+                  <h2 className="text-2xl font-black">Pedidos del negocio</h2>
+                  <p className="mt-1 text-sm font-semibold text-slate-500">
+                    Revisa pedidos nuevos, activos y entregados sin ocultar los
+                    que llegaron en efectivo pendiente.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={() => setActiveSection("dashboard")}
@@ -1605,43 +1663,86 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                 </button>
               </div>
 
+              <div className="mt-4 flex flex-wrap gap-2">
+                {[
+                  { id: "all", label: `Todos (${orders.length})` },
+                  { id: "active", label: `Activos (${activeOrders.length})` },
+                  {
+                    id: "preparing",
+                    label: `En preparación (${activePreparationCount})`,
+                  },
+                  {
+                    id: "delivered",
+                    label: `Entregados (${historyOrders.length})`,
+                  },
+                ].map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() =>
+                      setOrdersViewFilter(filter.id as OrdersViewFilter)
+                    }
+                    className={`rounded-full px-4 py-2 text-xs font-extrabold uppercase tracking-wide transition ${
+                      ordersViewFilter === filter.id
+                        ? "bg-orange-600 text-white shadow-lg shadow-orange-900/15"
+                        : "border border-orange-200 bg-white text-orange-700 hover:bg-orange-100"
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+
               <div className="mt-4 grid gap-2 lg:grid-cols-[1fr,10rem]">
                 <label className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     type="search"
                     placeholder="Buscar pedidos..."
+                    value={orderSearch}
+                    onChange={(event) => setOrderSearch(event.target.value)}
                     className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm font-semibold text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-orange-300 focus:ring-4 focus:ring-orange-100"
                   />
                 </label>
                 <button
                   type="button"
+                  onClick={() => {
+                    setOrdersViewFilter("all");
+                    setOrderSearch("");
+                  }}
                   className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-800 transition hover:bg-orange-50"
                 >
                   <Filter className="h-4 w-4" />
-                  Filtros
+                  Limpiar
                 </button>
               </div>
 
               {ordersLoading ? (
                 <div className="mt-5 rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm font-semibold text-slate-500">
-                  Cargando historial...
+                  Cargando pedidos...
                 </div>
-              ) : historyOrders.length === 0 ? (
+              ) : ordersError ? (
+                <div className="mt-5 rounded-xl border border-dashed border-rose-200 bg-white p-6 text-sm font-semibold text-rose-700">
+                  {ordersError}
+                </div>
+              ) : filteredOrders.length === 0 ? (
                 <EmptyState
                   icon={Store}
-                  title="Todavía no hay pedidos en tu historial"
-                  description="Cuando completes tus primeras entregas, aquí aparecerá el resumen para seguir el avance del negocio."
-                  actionLabel="Volver a pedidos activos"
-                  onAction={() => setActiveSection("dashboard")}
+                  title="No hay pedidos para mostrar"
+                  description="Cuando entren pedidos nuevos o cambies el filtro, aquí aparecerán para que puedas operarlos desde el panel."
+                  actionLabel="Ver todos"
+                  onAction={() => {
+                    setOrdersViewFilter("all");
+                    setOrderSearch("");
+                  }}
                   className="mt-5"
                 />
               ) : (
                 <ul className="mt-5 grid gap-2.5">
-                  {historyOrders.map((order) => (
+                  {filteredOrders.map((order) => (
                     <li
                       key={order.id}
-                      className="grid items-center gap-3 rounded-xl border border-green-300 bg-green-50 px-4 py-3 shadow-sm ring-1 ring-white transition hover:border-green-400 hover:shadow-md sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
+                      className="grid items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm ring-1 ring-white transition hover:border-orange-300 hover:shadow-md sm:grid-cols-[1fr_auto] lg:grid-cols-[1fr_auto_auto]"
                     >
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -1654,7 +1755,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                           {order.negocio}
                         </p>
                         <p className="truncate text-xs font-semibold text-slate-500">
-                          {order.cliente} · {order.hora} h
+                          {order.cliente} · {order.hora} h · {order.metodoPago}
                         </p>
                       </div>
                       <div className="rounded-lg bg-slate-950 px-4 py-2 text-left text-white sm:text-right">
