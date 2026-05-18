@@ -3,7 +3,6 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import {
   ensureAdminSettingsTable,
-  ensureUserSessionsTable,
   getAuthUser,
   isAdminGeneral,
   type SessionRow,
@@ -33,7 +32,6 @@ export async function GET(req: NextRequest) {
     }
 
     await ensureAdminSettingsTable();
-    await ensureUserSessionsTable();
 
     const [settingRows] = await pool.query<SecuritySettingsRow[]>(
       `
@@ -52,6 +50,7 @@ export async function GET(req: NextRequest) {
           device_name,
           location,
           last_active_at,
+          expires_at,
           status
         FROM user_sessions
         WHERE user_id = ?
@@ -70,6 +69,7 @@ export async function GET(req: NextRequest) {
         deviceName: session.device_name ?? "Dispositivo desconocido",
         location: session.location ?? "Ubicación no disponible",
         lastActiveAt: session.last_active_at,
+        expiresAt: session.expires_at,
         status: session.status ?? "active",
       })),
     });

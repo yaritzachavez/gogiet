@@ -1,10 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import {
-  ensureUserSessionsTable,
-  getAuthUser,
-  isAdminGeneral,
-} from "@/lib/admin-security";
+import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
 
 export async function POST(req: NextRequest) {
@@ -25,13 +21,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await ensureUserSessionsTable();
-
     await pool.query(
       `
         UPDATE user_sessions
-        SET status = 'closed', updated_at = NOW(), last_active_at = NOW()
-        WHERE user_id = ?
+        SET
+          status = 'closed',
+          revoked_at = COALESCE(revoked_at, NOW()),
+          updated_at = NOW(),
+          last_active_at = NOW()
+        WHERE user_id = ? AND revoked_at IS NULL
       `,
       [authUser.id],
     );

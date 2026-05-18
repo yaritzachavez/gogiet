@@ -7,14 +7,13 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 
-import pool from "@/lib/db";
-import { ensureUserSessionsTable } from "@/lib/admin-security";
 import {
   isValidEmail,
   normalizeEmail,
   normalizePhone,
   validatePasswordStrength,
 } from "@/lib/auth-account-shared";
+import pool from "@/lib/db";
 
 type ColumnRow = RowDataPacket & {
   Field?: string;
@@ -52,10 +51,7 @@ type UserLoginSecurityRow = {
   verification_sent_at?: Date | string | null;
 };
 
-type AuditMetadata =
-  | Record<string, unknown>
-  | null
-  | undefined;
+type AuditMetadata = Record<string, unknown> | null | undefined;
 
 const DEFAULT_LOCK_THRESHOLD = 5;
 const DEFAULT_LOCK_MINUTES = 15;
@@ -147,7 +143,9 @@ export async function comparePassword(candidate: string, passwordHash: string) {
 export async function getUserColumns(connection?: PoolConnection) {
   const executor = connection ?? pool;
   const [rows] = await executor.query<ColumnRow[]>("SHOW COLUMNS FROM users");
-  return new Set(rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean));
+  return new Set(
+    rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean),
+  );
 }
 
 async function ensureColumn(
@@ -222,8 +220,6 @@ export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
         INDEX idx_auth_audit_logs_action (action)
       )
     `);
-
-    await ensureUserSessionsTable();
 
     const userColumns = await getUserColumns(conn);
     await ensureColumn(
@@ -519,46 +515,51 @@ export function isUserLocked(user: UserLoginSecurityRow) {
 }
 
 export async function invalidateUserSessions(userId: number) {
-  await ensureUserSessionsTable();
-
   await pool.query<ResultSetHeader>(
     `
       UPDATE user_sessions
       SET
         status = 'revoked',
+        revoked_at = COALESCE(revoked_at, NOW()),
         updated_at = NOW()
-      WHERE user_id = ? AND status = 'active'
+      WHERE user_id = ? AND status = 'active' AND expires_at > NOW()
     `,
     [userId],
   );
 }
 
 export async function isSessionTokenActive(token: string) {
-  await ensureUserSessionsTable();
+  const tokenHash = hashOpaqueToken(token);
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `
       SELECT id
       FROM user_sessions
-      WHERE token = ? AND status = 'active'
+      WHERE session_token_hash = ?
+        AND status = 'active'
+        AND revoked_at IS NULL
+        AND expires_at > NOW()
       LIMIT 1
     `,
-    [token],
+    [tokenHash],
   );
 
   return rows.length > 0;
 }
 
 export async function touchSessionToken(token: string) {
-  await ensureUserSessionsTable();
+  const tokenHash = hashOpaqueToken(token);
 
   await pool.query<ResultSetHeader>(
     `
       UPDATE user_sessions
       SET last_active_at = NOW(), updated_at = NOW()
-      WHERE token = ? AND status = 'active'
+      WHERE session_token_hash = ?
+        AND status = 'active'
+        AND revoked_at IS NULL
+        AND expires_at > NOW()
     `,
-    [token],
+    [tokenHash],
   );
 }
 
@@ -664,7 +665,8 @@ export function isVerifiedFlag(value: number | boolean | null | undefined) {
 
 export function getAuthCookieConfig() {
   const maxAgeHours = Number(process.env.AUTH_SESSION_HOURS ?? 9);
-  const safeHours = Number.isFinite(maxAgeHours) && maxAgeHours > 0 ? maxAgeHours : 9;
+  const safeHours =
+    Number.isFinite(maxAgeHours) && maxAgeHours > 0 ? maxAgeHours : 9;
 
   return {
     httpOnly: true,

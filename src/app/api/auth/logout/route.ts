@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { hashOpaqueToken } from "@/lib/auth-security";
 import pool from "@/lib/db";
-import { ensureAuthSecuritySchema } from "@/lib/auth-security";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 export function OPTIONS(req: Request) {
@@ -17,14 +17,18 @@ export async function POST(req: Request) {
     const auth = getAuthUser(req);
 
     if (auth.token) {
-      await ensureAuthSecuritySchema();
       await pool.query(
         `
           UPDATE user_sessions
-          SET status = 'revoked', updated_at = NOW()
-          WHERE token = ? AND status = 'active'
+          SET
+            status = 'revoked',
+            revoked_at = COALESCE(revoked_at, NOW()),
+            updated_at = NOW()
+          WHERE session_token_hash = ?
+            AND status = 'active'
+            AND revoked_at IS NULL
         `,
-        [auth.token],
+        [hashOpaqueToken(auth.token)],
       );
     }
 
@@ -42,7 +46,7 @@ export async function POST(req: Request) {
     });
 
     return withCors(req, response);
-  } catch (error) {
+  } catch (_error) {
     return json(
       {
         success: false,

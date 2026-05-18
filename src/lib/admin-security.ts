@@ -1,12 +1,10 @@
+import { createHash } from "node:crypto";
+
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
-import {
-  assertColumnsExist,
-  assertIndexesExist,
-  assertTablesExist,
-} from "@/lib/runtime-schema";
+import { assertColumnsExist, assertTablesExist } from "@/lib/runtime-schema";
 
 export type JwtPayload = {
   id: number;
@@ -17,6 +15,7 @@ export type SessionRow = RowDataPacket & {
   device_name: string | null;
   location: string | null;
   last_active_at: Date | string | null;
+  expires_at: Date | string | null;
   status: string | null;
 };
 
@@ -26,6 +25,10 @@ type AuthRequestLike = {
     get: (name: string) => { value: string } | undefined;
   };
 };
+
+function hashSessionToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export function getAuthUser(req: AuthRequestLike) {
   const auth = req.headers.get("authorization");
@@ -90,25 +93,6 @@ export async function ensureAdminSettingsTable() {
   ]);
 }
 
-export async function ensureUserSessionsTable() {
-  await assertTablesExist(pool, ["user_sessions"]);
-  await assertColumnsExist(pool, "user_sessions", [
-    "id",
-    "user_id",
-    "token",
-    "device_name",
-    "location",
-    "last_active_at",
-    "status",
-    "created_at",
-    "updated_at",
-  ]);
-  await assertIndexesExist(pool, "user_sessions", [
-    "idx_user_sessions_user_id",
-    "idx_user_sessions_status",
-  ]);
-}
-
 export function getDeviceName(userAgent: string | null) {
   if (!userAgent) {
     return "Dispositivo desconocido";
@@ -139,21 +123,27 @@ export async function createUserSession(params: {
   token: string;
   deviceName: string;
   location: string;
+  expiresAt: Date;
 }) {
-  await ensureUserSessionsTable();
-
   await pool.query<ResultSetHeader>(
     `
       INSERT INTO user_sessions (
         user_id,
-        token,
+        session_token_hash,
         device_name,
         location,
         last_active_at,
+        expires_at,
         status
       )
-      VALUES (?, ?, ?, ?, NOW(), 'active')
+      VALUES (?, ?, ?, ?, NOW(), ?, 'active')
     `,
-    [params.userId, params.token, params.deviceName, params.location],
+    [
+      params.userId,
+      hashSessionToken(params.token),
+      params.deviceName,
+      params.location,
+      params.expiresAt,
+    ],
   );
 }

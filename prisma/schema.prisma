@@ -43,10 +43,32 @@ model User {
   support_requested_conversations support_conversations[] @relation("support_requester")
   support_sent_messages           support_messages[]      @relation("support_message_sender")
   user_roles                      user_roles[]
+  user_sessions                   UserSession[]
   status_catalog                  status_catalog          @relation(fields: [statusId], references: [id], map: "fk_users_status")
 
   @@index([statusId], map: "fk_users_status")
   @@map("users")
+}
+
+model UserSession {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @map("user_id")
+  sessionTokenHash String   @unique(map: "uk_user_sessions_token_hash") @map("session_token_hash") @db.Char(64)
+  deviceName       String?  @map("device_name") @db.VarChar(120)
+  location         String?  @db.VarChar(191)
+  lastActiveAt     DateTime? @map("last_active_at") @db.DateTime(0)
+  expiresAt        DateTime @map("expires_at") @db.DateTime(0)
+  revokedAt        DateTime? @map("revoked_at") @db.DateTime(0)
+  status           String   @default("active") @db.VarChar(30)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(0)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(0)
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_user_sessions_user")
+
+  @@index([userId], map: "idx_user_sessions_user_id")
+  @@index([status], map: "idx_user_sessions_status")
+  @@index([expiresAt], map: "idx_user_sessions_expires_at")
+  @@index([createdAt], map: "idx_user_sessions_created_at")
+  @@map("user_sessions")
 }
 
 model addresses {

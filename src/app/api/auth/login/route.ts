@@ -210,6 +210,7 @@ export async function POST(req: Request) {
     const primaryRole = publicRoles[0] ?? "customer";
     const hasRoles = roles.length > 0;
     const redirectTo = hasRoles ? "/pickdash" : "/";
+    const authCookieConfig = getAuthCookieConfig();
 
     const expiresIn = (process.env.JWT_EXPIRES_IN ??
       process.env.JWT_EXPIRATION ??
@@ -231,6 +232,7 @@ export async function POST(req: Request) {
         token,
         deviceName: getDeviceName(req.headers.get("user-agent")),
         location: getLocationLabel(ip),
+        expiresAt: new Date(Date.now() + authCookieConfig.maxAge * 1000),
       });
     } catch (sessionError) {
       logger.warn(
@@ -273,7 +275,7 @@ export async function POST(req: Request) {
       },
     });
 
-    response.cookies.set("authToken", token, getAuthCookieConfig());
+    response.cookies.set("authToken", token, authCookieConfig);
 
     return withCors(req, response);
   } catch (error) {
