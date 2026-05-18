@@ -234,6 +234,18 @@ function getOrderStatusKey(order: Pick<OrderTicket, "estado" | "statusCode">) {
   return normalizeBusinessStatus(order.statusCode || order.estado);
 }
 
+function canAcceptOrder(order: Pick<OrderTicket, "estado" | "statusCode">) {
+  const statusKey = getOrderStatusKey(order);
+  return statusKey === "paid";
+}
+
+function canStartOrderPreparation(
+  order: Pick<OrderTicket, "estado" | "statusCode">,
+) {
+  const statusKey = getOrderStatusKey(order);
+  return statusKey === "accepted";
+}
+
 function canMarkOrderReady(order: Pick<OrderTicket, "estado" | "statusCode">) {
   return getOrderStatusKey(order) === "preparing";
 }
@@ -886,6 +898,108 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
     }
   };
 
+  const handleOrderAccepted = async (orderId: number) => {
+    const token = getStoredToken();
+
+    if (!token) {
+      setActionFeedback({
+        type: "error",
+        message: "Debes iniciar sesion nuevamente.",
+      });
+      return;
+    }
+
+    try {
+      setActionLoading({ orderId, type: "delivery" });
+      setActionFeedback(null);
+
+      const response = await fetch(`/api/business/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "accepted" }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.success === false) {
+        throw new Error(
+          (typeof data.error === "string" && data.error) ||
+            "No se pudo aceptar el pedido.",
+        );
+      }
+
+      setActionFeedback({
+        type: "success",
+        message: "Pedido aceptado correctamente.",
+      });
+      await loadOrders();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      setActionFeedback({
+        type: "error",
+        message:
+          message ||
+          "Primero debes aceptar el pedido o validar el pago antes de marcarlo como listo.",
+      });
+    } finally {
+      setActionLoading({ orderId: null, type: null });
+    }
+  };
+
+  const handleOrderPreparation = async (orderId: number) => {
+    const token = getStoredToken();
+
+    if (!token) {
+      setActionFeedback({
+        type: "error",
+        message: "Debes iniciar sesion nuevamente.",
+      });
+      return;
+    }
+
+    try {
+      setActionLoading({ orderId, type: "delivery" });
+      setActionFeedback(null);
+
+      const response = await fetch(`/api/business/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "en_preparacion" }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || data.success === false) {
+        throw new Error(
+          (typeof data.error === "string" && data.error) ||
+            "No se pudo marcar el pedido en preparación.",
+        );
+      }
+
+      setActionFeedback({
+        type: "success",
+        message: "Pedido marcado en preparación.",
+      });
+      await loadOrders();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      setActionFeedback({
+        type: "error",
+        message:
+          message ||
+          "Primero debes aceptar el pedido o validar el pago antes de marcarlo como listo.",
+      });
+    } finally {
+      setActionLoading({ orderId: null, type: null });
+    }
+  };
+
   const handleRequestDriver = async (orderId: number) => {
     const token = getStoredToken();
 
@@ -1343,6 +1457,44 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                                     ))}
                                   </ul>
                                   <div className="mt-3 flex flex-wrap gap-2 border-t border-orange-100 pt-3">
+                                    {canAcceptOrder(order) ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                                        onClick={() =>
+                                          handleOrderAccepted(order.orderId)
+                                        }
+                                        disabled={
+                                          actionLoading.orderId ===
+                                          order.orderId
+                                        }
+                                      >
+                                        {actionLoading.orderId ===
+                                          order.orderId &&
+                                        actionLoading.type === "delivery"
+                                          ? "Procesando..."
+                                          : "Aceptar pedido"}
+                                      </button>
+                                    ) : null}
+                                    {canStartOrderPreparation(order) ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                                        onClick={() =>
+                                          handleOrderPreparation(order.orderId)
+                                        }
+                                        disabled={
+                                          actionLoading.orderId ===
+                                          order.orderId
+                                        }
+                                      >
+                                        {actionLoading.orderId ===
+                                          order.orderId &&
+                                        actionLoading.type === "delivery"
+                                          ? "Procesando..."
+                                          : "En preparación"}
+                                      </button>
+                                    ) : null}
                                     {canMarkOrderReady(order) ? (
                                       <button
                                         type="button"

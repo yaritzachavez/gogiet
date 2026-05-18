@@ -4,15 +4,15 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { createNotificationSafely } from "@/lib/notifications";
+import { resolveCanonicalOrderStatus } from "@/lib/order-status";
 import {
   applyValidatedOrderStatusTransition,
   OrderStatusTransitionError,
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
-import {
-  ensureCoreOrderStatuses,
-} from "@/lib/order-status-server";
+import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
 
 type OrderRow = RowDataPacket & {
   business_id: number;
@@ -28,6 +28,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   const connection = await pool.getConnection();
+  const requestContext = getRequestLoggerContext(req);
 
   try {
     const authUser = getAuthUser(req);
@@ -49,9 +50,7 @@ export async function PATCH(
     const { id } = await context.params;
     const orderId = Number(id);
     const body = await req.json().catch(() => null);
-    const status = String(body?.status ?? "")
-      .trim()
-      .toLowerCase();
+    const requestedStatus = resolveCanonicalOrderStatus(body?.status);
 
     if (!Number.isInteger(orderId) || orderId <= 0) {
       return NextResponse.json(
@@ -60,7 +59,7 @@ export async function PATCH(
       );
     }
 
-    if (!["preparing", "en_preparacion", "preparando"].includes(status)) {
+    if (requestedStatus !== "accepted" && requestedStatus !== "preparing") {
       return NextResponse.json(
         { success: false, error: "Estado inválido" },
         { status: 400 },
@@ -109,10 +108,24 @@ export async function PATCH(
       );
     }
 
+    logger.info(
+      "business.order_status_requested",
+      "Negocio solicitó cambio de estado del pedido",
+      {
+        ...requestContext,
+        orderId,
+        businessId,
+        userId: authUser.user.id,
+        currentStatus: orderRows[0].current_status ?? null,
+        requestedStatus,
+        role: "business",
+      },
+    );
+
     await ensureCoreOrderStatuses(connection);
     const { currentStatus } = validateOrderStatusTransition({
       currentStatus: orderRows[0].current_status,
-      nextStatus: "preparing",
+      nextStatus: requestedStatus,
       role: "business",
       order: {
         id: orderId,
@@ -129,7 +142,7 @@ export async function PATCH(
 
     await applyValidatedOrderStatusTransition(connection, {
       orderId,
-      nextStatus: "preparing",
+      nextStatus: requestedStatus,
       actorUserId: authUser.user.id,
       actorRole: "business",
       currentStatus,
@@ -142,13 +155,19 @@ export async function PATCH(
       {
         userId: Number(orderRows[0].customer_user_id),
         type: "pedido",
-        title: `Pedido en preparación #FG-${String(orderId).padStart(4, "0")}`,
-        message: `${orderRows[0].business_name} ya está preparando tu pedido.`,
+        title:
+          requestedStatus === "accepted"
+            ? `Pedido aceptado #FG-${String(orderId).padStart(4, "0")}`
+            : `Pedido en preparación #FG-${String(orderId).padStart(4, "0")}`,
+        message:
+          requestedStatus === "accepted"
+            ? `${orderRows[0].business_name} aceptó tu pedido y pronto comenzará a prepararlo.`
+            : `${orderRows[0].business_name} ya está preparando tu pedido.`,
         relatedId: orderId,
         dataJson: {
           order_id: orderId,
           business_id: businessId,
-          status: "preparing",
+          status: requestedStatus,
         },
       },
       connection,
@@ -158,11 +177,21 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: "Pedido actualizado a preparación",
+      message:
+        requestedStatus === "accepted"
+          ? "Pedido aceptado correctamente"
+          : "Pedido actualizado a preparación",
     });
   } catch (error) {
     await connection.rollback();
-    console.error("Error PATCH /api/business/orders/[id]/status:", error);
+    logger.error(
+      "business.order_status_error",
+      "Error cambiando estado del pedido desde negocio",
+      {
+        ...requestContext,
+        error,
+      },
+    );
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(
         { success: false, error: error.message },

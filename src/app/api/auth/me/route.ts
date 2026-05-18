@@ -1,3 +1,4 @@
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { ensureAddressesTable } from "@/lib/addresses-table";
@@ -6,7 +7,7 @@ import { requireAuthenticatedUser } from "@/lib/permissions";
 import { mapDbRoleToPublicRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
-type AddressRow = {
+type AddressRow = RowDataPacket & {
   id: number;
   label: string | null;
   neighborhood: string;
@@ -18,7 +19,7 @@ type AddressRow = {
   state: string;
 };
 
-type UserRow = {
+type UserRow = RowDataPacket & {
   first_name: string | null;
   last_name: string | null;
   email: string | null;

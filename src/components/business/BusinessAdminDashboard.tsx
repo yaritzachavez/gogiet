@@ -50,6 +50,14 @@ function canMarkAdminOrderReady(status: string) {
   return normalizeStatus(status) === "preparing";
 }
 
+function canAcceptAdminOrder(status: string) {
+  return normalizeStatus(status) === "paid";
+}
+
+function canStartAdminOrderPreparation(status: string) {
+  return normalizeStatus(status) === "accepted";
+}
+
 type AdminSection =
   | "summary"
   | "orders"
@@ -1345,6 +1353,36 @@ export function BusinessAdminDashboard() {
       setFeedback({
         type: "success",
         message: "Pedido marcado en preparación.",
+      });
+      await refreshData();
+    });
+  };
+
+  const handleOrderAccepted = async (orderId: number) => {
+    const token = getStoredToken();
+    if (!token) return;
+
+    await runAction(`order-accept-${orderId}`, async () => {
+      const response = await fetch(`/api/business/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ status: "accepted" }),
+      });
+      const data = await parseJsonResponse(response);
+
+      if (!response.ok || data.success === false) {
+        throw new Error(
+          (typeof data.error === "string" && data.error) ||
+            "No se pudo aceptar el pedido.",
+        );
+      }
+
+      setFeedback({
+        type: "success",
+        message: "Pedido aceptado correctamente.",
       });
       await refreshData();
     });
@@ -2742,14 +2780,30 @@ export function BusinessAdminDashboard() {
                           >
                             Ver detalle
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOrderPreparation(order.id)}
-                            disabled={busyKey === `order-prep-${order.id}`}
-                            className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-60"
-                          >
-                            En preparación
-                          </button>
+                          {canAcceptAdminOrder(
+                            order.statusCode || order.status,
+                          ) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOrderAccepted(order.id)}
+                              disabled={busyKey === `order-accept-${order.id}`}
+                              className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-60"
+                            >
+                              Aceptar pedido
+                            </button>
+                          ) : null}
+                          {canStartAdminOrderPreparation(
+                            order.statusCode || order.status,
+                          ) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOrderPreparation(order.id)}
+                              disabled={busyKey === `order-prep-${order.id}`}
+                              className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-60"
+                            >
+                              En preparación
+                            </button>
+                          ) : null}
                           {canMarkAdminOrderReady(
                             order.statusCode || order.status,
                           ) ? (

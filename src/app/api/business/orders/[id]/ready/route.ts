@@ -60,6 +60,11 @@ function canDispatchPaidOrAuthorizedOrder(order: OrderRow) {
       409,
     );
   }
+
+  throw new OrderStatusTransitionError(
+    "Primero debes aceptar el pedido o validar el pago antes de marcarlo como listo.",
+    409,
+  );
 }
 
 export async function PATCH(
@@ -156,6 +161,19 @@ export async function PATCH(
       orderRows[0].current_status,
     );
 
+    logger.info(
+      "business.order_ready_status_check",
+      "Validando transición a pedido listo",
+      {
+        ...requestContext,
+        orderId,
+        userId: authUser.user.id,
+        currentStatus,
+        requestedStatus: "ready_for_pickup",
+        role: "business",
+      },
+    );
+
     if (currentStatus === "ready_for_pickup") {
       const assignmentResult = await requestCourierAssignment({
         orderId,
@@ -164,11 +182,14 @@ export async function PATCH(
 
       return NextResponse.json({
         success: true,
+        currentStatus,
         deliveryRequested: assignmentResult.deliveryRequested,
         noActiveCouriers: assignmentResult.noActiveCouriers,
         adminNotified: assignmentResult.adminNotified,
         assignedDeliveryUserId: assignmentResult.courierId,
-        message: assignmentResult.message,
+        message:
+          assignmentResult.message ||
+          "El pedido ya estaba listo y conservó su estado actual.",
       });
     }
 
