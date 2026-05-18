@@ -1,5 +1,67 @@
+import type { RowDataPacket } from "mysql2/promise";
+
 import pool from "@/lib/db";
-import { assertColumnsExist, assertIndexesExist, assertTablesExist } from "@/lib/runtime-schema";
+import {
+  assertColumnsExist,
+  assertTablesExist,
+  RuntimeSchemaError,
+} from "@/lib/runtime-schema";
+
+type AddressIndexRow = RowDataPacket & {
+  Key_name?: string;
+  Column_name?: string;
+};
+
+async function ensureAddressesIndexes() {
+  const [rows] = await pool.query<AddressIndexRow[]>(
+    "SHOW INDEX FROM addresses",
+  );
+  const columnsByIndex = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    const keyName = String(row.Key_name ?? "").trim();
+    const columnName = String(row.Column_name ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (!keyName || !columnName) {
+      continue;
+    }
+
+    if (!columnsByIndex.has(keyName)) {
+      columnsByIndex.set(keyName, new Set());
+    }
+
+    columnsByIndex.get(keyName)?.add(columnName);
+  }
+
+  const hasUserIdIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("user_id"),
+  );
+  const hasStatusIdIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("status_id"),
+  );
+  const hasIsDefaultIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("is_default"),
+  );
+
+  if (!hasIsDefaultIndex) {
+    await pool.query(
+      "CREATE INDEX idx_addresses_is_default ON addresses (is_default)",
+    );
+  }
+
+  const missingIndexes = [
+    !hasUserIdIndex ? "user_id" : null,
+    !hasStatusIdIndex ? "status_id" : null,
+  ].filter(Boolean) as string[];
+
+  if (missingIndexes.length > 0) {
+    throw new RuntimeSchemaError(
+      `Faltan índices equivalentes en addresses: ${missingIndexes.join(", ")}.`,
+    );
+  }
+}
 
 export async function ensureAddressesTable() {
   await assertTablesExist(pool, ["addresses"]);
@@ -23,9 +85,5 @@ export async function ensureAddressesTable() {
     "created_at",
     "updated_at",
   ]);
-  await assertIndexesExist(pool, "addresses", [
-    "idx_addresses_user_id",
-    "idx_addresses_status_id",
-    "idx_addresses_is_default",
-  ]);
+  await ensureAddressesIndexes();
 }
