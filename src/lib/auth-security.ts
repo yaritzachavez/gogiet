@@ -67,9 +67,9 @@ let loggedAuthSchemaCheck = false;
 
 type AuthSchemaState = {
   databaseName: string | null;
-  hasPasswordResetTokens: boolean;
-  hasAuthRateLimits: boolean;
-  hasAuthAuditLogs: boolean;
+  hasPasswordResetTable: boolean;
+  hasAuthRateLimitsTable: boolean;
+  hasAuthAuditLogsTable: boolean;
   hasEmailVerified: boolean;
   hasVerificationCode: boolean;
   hasVerificationExpiresAt: boolean;
@@ -195,17 +195,17 @@ async function getAuthSchemaState(connection?: PoolConnection) {
 
   return {
     databaseName,
-    hasPasswordResetTokens:
+    hasPasswordResetTable: Boolean(
       tableChecks.find(
         ([tableName]) => tableName === "password_reset_tokens",
-      )?.[1] ?? false,
-    hasAuthRateLimits:
-      tableChecks.find(
-        ([tableName]) => tableName === "auth_rate_limits",
-      )?.[1] ?? false,
-    hasAuthAuditLogs:
-      tableChecks.find(([tableName]) => tableName === "auth_audit_logs")?.[1] ??
-      false,
+      )?.[1],
+    ),
+    hasAuthRateLimitsTable: Boolean(
+      tableChecks.find(([tableName]) => tableName === "auth_rate_limits")?.[1],
+    ),
+    hasAuthAuditLogsTable: Boolean(
+      tableChecks.find(([tableName]) => tableName === "auth_audit_logs")?.[1],
+    ),
     hasEmailVerified: userColumns.has("email_verified"),
     hasVerificationCode: userColumns.has("verification_code"),
     hasVerificationExpiresAt: userColumns.has("verification_expires_at"),
@@ -229,15 +229,20 @@ export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
       logger.warn(
         "auth.schema_runtime_check",
         "[auth-schema] verificación runtime de auth",
-        schemaState,
+        {
+          ...schemaState,
+          hasPasswordResetTable: Boolean(schemaState.hasPasswordResetTable),
+          hasAuthRateLimitsTable: Boolean(schemaState.hasAuthRateLimitsTable),
+          hasAuthAuditLogsTable: Boolean(schemaState.hasAuthAuditLogsTable),
+        },
       );
       loggedAuthSchemaCheck = true;
     }
 
     const missingTables = [
-      !schemaState.hasPasswordResetTokens ? "password_reset_tokens" : null,
-      !schemaState.hasAuthRateLimits ? "auth_rate_limits" : null,
-      !schemaState.hasAuthAuditLogs ? "auth_audit_logs" : null,
+      !schemaState.hasPasswordResetTable ? "password_reset_tokens" : null,
+      !schemaState.hasAuthRateLimitsTable ? "auth_rate_limits" : null,
+      !schemaState.hasAuthAuditLogsTable ? "auth_audit_logs" : null,
     ].filter(Boolean) as string[];
 
     if (missingTables.length > 0) {
