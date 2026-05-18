@@ -18,6 +18,7 @@ import {
   findPaymentByWebhookEventId,
   upsertPaymentRecord,
 } from "@/lib/order-payments";
+import type { CanonicalOrderStatus } from "@/lib/order-status";
 import {
   applyValidatedOrderStatusTransition,
   OrderStatusTransitionError,
@@ -48,6 +49,11 @@ type WebhookPayload = {
   };
   [key: string]: unknown;
 };
+
+type MercadoPagoWebhookOrderStatus = Extract<
+  CanonicalOrderStatus,
+  "paid" | "pending_payment" | "payment_review" | "payment_failed"
+>;
 
 function parseOrderIdFromReference(reference: unknown) {
   const value = String(reference ?? "").trim();
@@ -83,13 +89,19 @@ function roundMoney(value: unknown) {
   return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
 }
 
-function mapWebhookPaymentStatusToOrderStatus(paymentStatus: string) {
+function mapWebhookPaymentStatusToOrderStatus(
+  paymentStatus: string,
+): MercadoPagoWebhookOrderStatus | null {
   if (paymentStatus === "approved") {
-    return "paid" as const;
+    return "paid";
   }
 
   if (paymentStatus === "pending" || paymentStatus === "in_process") {
-    return "pending_payment" as const;
+    return "pending_payment";
+  }
+
+  if (paymentStatus === "in_mediation") {
+    return "payment_review";
   }
 
   if (
@@ -98,7 +110,7 @@ function mapWebhookPaymentStatusToOrderStatus(paymentStatus: string) {
     paymentStatus === "refunded" ||
     paymentStatus === "charged_back"
   ) {
-    return "payment_failed" as const;
+    return "payment_failed";
   }
 
   return null;
@@ -106,7 +118,7 @@ function mapWebhookPaymentStatusToOrderStatus(paymentStatus: string) {
 
 function shouldSkipOrderStatusUpdate(params: {
   currentStatus: string | null;
-  nextStatus: "paid" | "pending_payment" | "payment_failed" | null;
+  nextStatus: MercadoPagoWebhookOrderStatus | null;
 }) {
   const currentStatus = String(params.currentStatus ?? "")
     .trim()
@@ -389,13 +401,43 @@ export async function POST(req: NextRequest) {
 
     const nextStatus = mapWebhookPaymentStatusToOrderStatus(paymentStatus);
     let transitionedToPaid = false;
+    let statusTransitionSkippedReason: string | null = null;
 
-    if (
-      !shouldSkipOrderStatusUpdate({
+    if (!nextStatus) {
+      statusTransitionSkippedReason = "payment_status_without_order_transition";
+      logger.info(
+        "payments.mercadopago.webhook_no_status_transition",
+        "Webhook recibido sin cambio aplicable al flujo del pedido",
+        {
+          ...requestContext,
+          orderId,
+          paymentId,
+          requestId: webhookEventId || null,
+          paymentStatus,
+          currentStatus: order.current_status,
+        },
+      );
+    } else if (
+      shouldSkipOrderStatusUpdate({
         currentStatus: order.current_status,
         nextStatus,
       })
     ) {
+      statusTransitionSkippedReason = "order_status_update_skipped";
+      logger.info(
+        "payments.mercadopago.webhook_status_transition_skipped",
+        "Webhook recibido pero no requiere transición de estado",
+        {
+          ...requestContext,
+          orderId,
+          paymentId,
+          requestId: webhookEventId || null,
+          paymentStatus,
+          currentStatus: order.current_status,
+          requestedStatus: nextStatus,
+        },
+      );
+    } else {
       const { currentStatus } = validateOrderStatusTransition({
         currentStatus: order.current_status,
         nextStatus,
@@ -514,6 +556,7 @@ export async function POST(req: NextRequest) {
         requestId: webhookEventId || null,
         paymentStatus,
         transitionedToPaid,
+        skippedTransitionReason: statusTransitionSkippedReason,
       },
     );
 
