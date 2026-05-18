@@ -41,6 +41,16 @@ export type UserSessionsSchema = {
   hasUpdatedAt: boolean;
 };
 
+export type SessionDiagnostics = {
+  found: boolean;
+  sessionId: number | null;
+  userId: number | null;
+  expired: boolean;
+  revoked: boolean;
+  status: string | null;
+  expiresAt: Date | string | null;
+};
+
 let cachedUserSessionsSchema: UserSessionsSchema | null = null;
 
 export function hashSessionToken(token: string) {
@@ -232,7 +242,7 @@ export async function createUserSession(params: {
     columnName === "last_active_at" ? "NOW()" : "?",
   );
 
-  await pool.query<ResultSetHeader>(
+  const [result] = await pool.query<ResultSetHeader>(
     `
       INSERT INTO user_sessions (
         ${columns.join(", ")}
@@ -241,4 +251,62 @@ export async function createUserSession(params: {
     `,
     values,
   );
+
+  return {
+    sessionId: Number(result.insertId ?? 0) || null,
+    tokenColumn: schema.tokenColumn,
+    expiresAt: params.expiresAt,
+  };
+}
+
+export async function getSessionDiagnostics(token: string) {
+  const schema = await getUserSessionsSchema();
+  const persistedToken = getPersistedSessionTokenValue(token, schema);
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `
+      SELECT
+        id,
+        user_id,
+        ${schema.hasExpiresAt ? "expires_at," : "NULL AS expires_at,"}
+        ${schema.hasRevokedAt ? "revoked_at," : "NULL AS revoked_at,"}
+        ${schema.hasStatus ? "status" : "NULL AS status"}
+      FROM user_sessions
+      WHERE ${schema.tokenColumn} = ?
+      LIMIT 1
+    `,
+    [persistedToken],
+  );
+
+  const row = rows[0] ?? null;
+
+  if (!row) {
+    return {
+      found: false,
+      sessionId: null,
+      userId: null,
+      expired: false,
+      revoked: false,
+      status: null,
+      expiresAt: null,
+    } satisfies SessionDiagnostics;
+  }
+
+  const expiresAtValue = row.expires_at ?? null;
+  const expiresAt =
+    expiresAtValue == null ? null : new Date(String(expiresAtValue));
+  const hasValidExpiresAt =
+    expiresAt instanceof Date && !Number.isNaN(expiresAt.getTime());
+  const sessionExpired = hasValidExpiresAt
+    ? expiresAt.getTime() <= Date.now()
+    : false;
+
+  return {
+    found: true,
+    sessionId: Number(row.id ?? 0) || null,
+    userId: Number(row.user_id ?? 0) || null,
+    expired: sessionExpired,
+    revoked: Boolean(row.revoked_at),
+    status: row.status ? String(row.status) : null,
+    expiresAt: row.expires_at ?? null,
+  } satisfies SessionDiagnostics;
 }

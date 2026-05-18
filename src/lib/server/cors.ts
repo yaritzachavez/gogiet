@@ -1,12 +1,16 @@
 import { NextResponse } from "next/server";
 
 const ALLOWED_ORIGINS = new Set([
+  "https://gogieats.shop",
   "https://www.gogieats.shop",
   "capacitor://localhost",
   "http://localhost",
   "http://127.0.0.1",
   "ionic://localhost",
 ]);
+
+const DEFAULT_ALLOWED_ORIGIN =
+  process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://www.gogieats.shop";
 
 function resolveAllowedOrigin(req: Request) {
   const origin = req.headers.get("origin");
@@ -15,15 +19,15 @@ function resolveAllowedOrigin(req: Request) {
     return origin;
   }
 
-  return "https://www.gogieats.shop";
+  return DEFAULT_ALLOWED_ORIGIN;
 }
 
 export function withCors(req: Request, response: NextResponse) {
-  response.headers.set("Access-Control-Allow-Origin", resolveAllowedOrigin(req));
   response.headers.set(
-    "Access-Control-Allow-Methods",
-    "GET,POST,OPTIONS",
+    "Access-Control-Allow-Origin",
+    resolveAllowedOrigin(req),
   );
+  response.headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   response.headers.set(
     "Access-Control-Allow-Headers",
     "Content-Type, Authorization, X-Requested-With",

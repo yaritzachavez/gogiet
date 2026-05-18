@@ -5,6 +5,7 @@ import {
   createUserSession,
   getDeviceName,
   getLocationLabel,
+  hashSessionToken,
 } from "@/lib/admin-security";
 import {
   clearFailedLoginAttempts,
@@ -278,7 +279,7 @@ export async function POST(req: Request) {
       { expiresIn },
     );
 
-    await createUserSession({
+    const createdSession = await createUserSession({
       userId: user.id,
       token,
       deviceName: getDeviceName(req.headers.get("user-agent")),
@@ -289,7 +290,10 @@ export async function POST(req: Request) {
     logger.info("auth.login_session_created", "[auth-login] sesión creada", {
       ...requestContext,
       route: "/api/auth/login",
+      sessionCreated: Boolean(createdSession.sessionId),
+      sessionId: createdSession.sessionId,
       userId: user.id,
+      expiresAt: createdSession.expiresAt,
     });
 
     try {
@@ -325,6 +329,7 @@ export async function POST(req: Request) {
       route: "/api/auth/login",
       userId: user.id,
       cookieName: "authToken",
+      tokenHashPreview: hashSessionToken(token).slice(0, 8),
       secure: authCookieConfig.secure,
       sameSite: authCookieConfig.sameSite,
       path: authCookieConfig.path,

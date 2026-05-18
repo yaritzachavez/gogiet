@@ -2,6 +2,11 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { ensureAddressesTable } from "@/lib/addresses-table";
+import {
+  getAuthUser,
+  getSessionDiagnostics,
+  hashSessionToken,
+} from "@/lib/admin-security";
 import pool from "@/lib/db";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { requireAuthenticatedUser } from "@/lib/permissions";
@@ -65,6 +70,16 @@ export async function GET(req: NextRequest) {
   };
 
   try {
+    const cookieNames = req.cookies.getAll().map((cookie) => cookie.name);
+    const authSnapshot = getAuthUser(req);
+    const hasExpectedCookie = cookieNames.includes("authToken");
+    const tokenHashPreview = authSnapshot.token
+      ? hashSessionToken(authSnapshot.token).slice(0, 8)
+      : null;
+    const sessionDiagnostics = authSnapshot.token
+      ? await getSessionDiagnostics(authSnapshot.token).catch(() => null)
+      : null;
+
     const auth = await requireAuthenticatedUser(req);
     if (!auth.ok) {
       logger.info(
@@ -73,6 +88,13 @@ export async function GET(req: NextRequest) {
         {
           ...requestContext,
           route: "/api/auth/me",
+          cookiesReceived: cookieNames,
+          expectedCookieName: "authToken",
+          hasExpectedCookie,
+          tokenHashPreview,
+          sessionFound: sessionDiagnostics?.found ?? false,
+          sessionExpired: sessionDiagnostics?.expired ?? false,
+          userFound: Boolean(authSnapshot.user),
         },
       );
       return withCors(req, auth.response);
@@ -116,6 +138,13 @@ export async function GET(req: NextRequest) {
     logger.info("auth.me_user_detected", "[auth-me] usuario detectado", {
       ...requestContext,
       route: "/api/auth/me",
+      cookiesReceived: cookieNames,
+      expectedCookieName: "authToken",
+      hasExpectedCookie,
+      tokenHashPreview,
+      sessionFound: sessionDiagnostics?.found ?? false,
+      sessionExpired: sessionDiagnostics?.expired ?? false,
+      userFound: Boolean(userRow),
       userId: auth.access.userId,
       role: auth.access.roles,
     });
