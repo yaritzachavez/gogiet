@@ -2,6 +2,7 @@ import mysql from "mysql2/promise";
 
 import { getDbSslSummary, resolveDbSslCaContent } from "@/lib/db-ssl";
 import { areInternalToolsEnabled } from "@/lib/internal-tools";
+import { logger } from "@/lib/logger";
 
 type DbRuntimeConfig = {
   host: string;
@@ -40,7 +41,7 @@ function resolveDbConfig(): DbRuntimeConfig {
     try {
       parsedUrl = new URL(existingUrl);
     } catch (error) {
-      console.warn("[db] DATABASE_URL inválida", {
+      logger.warn("db.database_url_invalid", "DATABASE_URL inválida", {
         message: error instanceof Error ? error.message : String(error),
       });
     }
@@ -89,8 +90,9 @@ function resolveDbConfig(): DbRuntimeConfig {
       (envPort && envPort !== String(port)) ||
       (envUser && envUser !== user)
     ) {
-      console.warn(
-        "[db] DATABASE_URL y DB_* no coinciden; mysql2 usará DATABASE_URL",
+      logger.warn(
+        "db.database_url_mismatch",
+        "DATABASE_URL y DB_* no coinciden; mysql2 usará DATABASE_URL",
         {
           databaseUrlMasked: getMaskedDatabaseUrl(existingUrl),
           dbHost: envHost,
@@ -139,21 +141,18 @@ declare global {
 }
 
 if (!globalThis.__gogiDbLogged && areInternalToolsEnabled()) {
-  console.log("[db] Conectando a MySQL", {
-    DB_HOST: dbConfig.host,
-    DB_NAME: dbConfig.database,
-    DB_PORT: dbConfig.port,
-    DB_SSL: dbConfig.useSsl,
-    DATABASE_URL_EXISTS: Boolean(process.env.DATABASE_URL),
-    DATABASE_URL_MASKED: maskedDatabaseUrl,
-    DB_SSL_CA_EXISTS: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
-    DB_SSL_CA_SOURCE: dbSslSummary.source,
-    DB_SSL_CA_LOADED: Boolean(sslConfig),
-    DB_SSL_CA_LENGTH: dbSslSummary.certificateLength,
-    DB_SSL_IGNORED_SOURCES: dbSslSummary.ignoredSources,
-    DB_NAME_IS_EXPECTED: dbConfig.database === "gogiEats",
-    DB_NAME_LOOKS_SUSPICIOUS: ["gogi", "defaultdb"].includes(dbConfig.database),
-    NODE_ENV: process.env.NODE_ENV ?? "development",
+  logger.debug("db.pool_init", "Conectando a MySQL", {
+    host: dbConfig.host,
+    database: dbConfig.database,
+    port: dbConfig.port,
+    sslEnabled: dbConfig.useSsl,
+    databaseUrlExists: Boolean(process.env.DATABASE_URL),
+    databaseUrlMasked: maskedDatabaseUrl,
+    sslCaExists: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
+    sslCaSource: dbSslSummary.source,
+    sslCaLoaded: Boolean(sslConfig),
+    sslCaLength: dbSslSummary.certificateLength,
+    sslIgnoredSources: dbSslSummary.ignoredSources,
   });
   globalThis.__gogiDbLogged = true;
 }
@@ -188,12 +187,12 @@ export function logDbUsage(
     return;
   }
 
-  console.log("[db] endpoint", {
-    endpoint,
-    DB_HOST: dbConfig.host,
-    DB_NAME: dbConfig.database,
+  logger.debug("db.endpoint_usage", "Uso de endpoint con base de datos", {
+    route: endpoint,
+    database: dbConfig.database,
     userId: payload?.userId ?? null,
     role: payload?.role ?? null,
+    email: payload?.email ?? null,
   });
 }
 

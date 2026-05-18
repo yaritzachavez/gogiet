@@ -9,6 +9,7 @@ import {
   DeliveryAssignmentError,
   requestCourierAssignment,
 } from "@/lib/delivery-assignments";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { createNotificationSafely } from "@/lib/notifications";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
 import {
@@ -65,6 +66,7 @@ export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
+  const requestContext = getRequestLoggerContext(req);
   try {
     const authUser = getAuthUser(req);
 
@@ -85,7 +87,15 @@ export async function PATCH(
     const { id } = await context.params;
     const orderId = Number(id);
 
-    console.log("[business-ready] Marcando pedido listo", orderId);
+    logger.info(
+      "business.order_ready_requested",
+      "Negocio solicitó marcar pedido como listo",
+      {
+        ...requestContext,
+        orderId,
+        userId: authUser.user.id,
+      },
+    );
 
     if (!Number.isInteger(orderId) || orderId <= 0) {
       return NextResponse.json(
@@ -253,7 +263,14 @@ export async function PATCH(
       message: assignmentResult.message,
     });
   } catch (error) {
-    console.error("[business-ready] Error real backend", error);
+    logger.error(
+      "business.order_ready_error",
+      "Error marcando pedido como listo",
+      {
+        ...requestContext,
+        error,
+      },
+    );
     if (error instanceof DeliveryAssignmentError) {
       return NextResponse.json(
         { success: false, error: error.message },

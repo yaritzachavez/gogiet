@@ -1,7 +1,5 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
-
-import pool from "@/lib/db";
 import {
   assignRoleToUser,
   consumeRateLimit,
@@ -17,6 +15,8 @@ import {
   validatePasswordStrength,
 } from "@/lib/auth-security";
 import { getActiveAuthStatusId } from "@/lib/auth-users";
+import pool from "@/lib/db";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { mapPublicRoleToDbRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -53,6 +53,7 @@ export function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const json = (body: unknown, init?: ResponseInit) =>
     withCors(req, NextResponse.json(body, init));
+  const requestContext = getRequestLoggerContext(req);
 
   try {
     const body = (await req.json().catch(() => null)) as RegisterBody | null;
@@ -78,7 +79,8 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "Demasiados intentos de registro. Intenta nuevamente más tarde.",
+          error:
+            "Demasiados intentos de registro. Intenta nuevamente más tarde.",
         },
         { status: 429 },
       );
@@ -119,7 +121,10 @@ export async function POST(req: Request) {
 
     if (!/^\d{6}$/.test(verificationCode)) {
       return json(
-        { success: false, error: "Debes ingresar un código de verificación válido." },
+        {
+          success: false,
+          error: "Debes ingresar un código de verificación válido.",
+        },
         { status: 400 },
       );
     }
@@ -148,7 +153,10 @@ export async function POST(req: Request) {
       );
     }
 
-    if ((user.email_verified === true || user.email_verified === 1) && !user.verification_code) {
+    if (
+      (user.email_verified === true || user.email_verified === 1) &&
+      !user.verification_code
+    ) {
       return json(
         { success: false, error: "Este correo ya está registrado." },
         { status: 409 },
@@ -217,14 +225,16 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+      typeof error === "object" && error !== null
+        ? (error as SqlLikeError)
+        : null;
 
-    console.error("REGISTER ERROR:", {
+    logger.error("auth.register_error", "Error al registrar usuario", {
+      ...requestContext,
       code: sqlError?.code ?? null,
       errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
+      error,
     });
 
     if (sqlError?.code === "ER_DUP_ENTRY") {

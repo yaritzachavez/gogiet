@@ -8,6 +8,7 @@ import type {
 import { isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
 import { getExistingTables } from "@/lib/db-schema";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
 
@@ -224,10 +225,14 @@ export async function resolveBusinessAccess(
     );
 
     if (orphanedBusinessIds.length > 0) {
-      console.warn("[business-access] Ignorando relaciones rotas de negocio", {
-        userId,
-        orphanedBusinessIds,
-      });
+      logger.warn(
+        "business.orphaned_relations_ignored",
+        "Ignorando relaciones rotas de negocio",
+        {
+          userId,
+          orphanedBusinessIds,
+        },
+      );
     }
 
     assignedBusinesses = assignedBusinesses.filter((business) =>
@@ -545,32 +550,17 @@ export async function findAvailableCourier(
     maxActiveDeliveries: MAX_ACTIVE_DELIVERIES_PER_COURIER,
   };
 
-  console.log("[courier-search] roles encontrados:", rolesEncontrados);
-  console.log(
-    "[courier-search] usuarios con rol repartidor:",
-    usuariosRepartidores,
-  );
-  console.log(
-    "[courier-search] repartidores disponibles:",
-    filteredAvailableCouriers.map((row) => ({
-      id: Number(row.id),
-      name: row.name ?? "Repartidor sin nombre",
-      email: row.email ?? null,
-      phone: row.phone ?? null,
-      avatarUrl: row.profile_image_url ?? null,
-      roleName: String(
-        (row as CourierAvailabilityRow & { role_name: string }).role_name,
-      ),
-      activeAssignments: Number(row.active_assignments ?? 0),
-    })),
-  );
-  console.log(
-    "[courier-search] repartidores con cupo:",
-    couriersWithCapacity.map((row) => ({
-      id: Number(row.id),
-      name: row.name ?? "Repartidor sin nombre",
-      activeAssignments: Number(row.active_assignments ?? 0),
-    })),
+  logger.debug(
+    "delivery.courier_search_summary",
+    "Resumen de búsqueda de repartidores",
+    {
+      roleNames: rolesEncontrados,
+      courierUserCount: usuariosRepartidores.length,
+      availableCourierCount: filteredAvailableCouriers.length,
+      couriersWithCapacityCount: couriersWithCapacity.length,
+      profileTableName,
+      maxActiveDeliveries: MAX_ACTIVE_DELIVERIES_PER_COURIER,
+    },
   );
 
   const selectedCourier = couriersWithCapacity[0]
@@ -595,7 +585,14 @@ export async function findAvailableCourier(
     activeAssignments: Number(row.active_assignments ?? 0),
   }));
 
-  console.log("[courier-search] repartidor seleccionado:", selectedCourier);
+  logger.info(
+    "delivery.courier_selected",
+    "Repartidor seleccionado para evaluación",
+    {
+      courierId: selectedCourier?.id ?? null,
+      activeAssignments: selectedCourier?.activeAssignments ?? null,
+    },
+  );
 
   return {
     courier: selectedCourier,

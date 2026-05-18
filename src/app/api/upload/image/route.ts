@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import {
   requireAuthenticatedUser,
   requireBusinessAccess,
@@ -24,6 +25,7 @@ function resolveKind(value: FormDataEntryValue | null): UploadImageKind {
 }
 
 export async function POST(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   try {
     const auth = await requireAuthenticatedUser(req);
     if (!auth.ok) {
@@ -37,7 +39,6 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: "Faltan variables de Cloudinary",
-          details: cloudinaryStatus.missing.join(", "),
         },
         { status: 500 },
       );
@@ -111,7 +112,10 @@ export async function POST(req: NextRequest) {
       url: result.secure_url,
     });
   } catch (error) {
-    console.error("ERROR /api/upload/image:", error);
+    logger.error("upload.image_error", "Error subiendo imagen", {
+      ...requestContext,
+      error,
+    });
 
     return NextResponse.json(
       {

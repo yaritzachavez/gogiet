@@ -6,6 +6,7 @@ import {
   getDbSslSummary,
 } from "@/lib/db-ssl";
 import { areInternalToolsEnabled } from "@/lib/internal-tools";
+import { logger } from "@/lib/logger";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -43,7 +44,7 @@ function resolvePrismaDatabaseUrl() {
   const sslSummary = getDbSslSummary();
 
   if (areInternalToolsEnabled()) {
-    console.info("[prisma] SSL env status", {
+    logger.debug("prisma.ssl_env_status", "Estado SSL de Prisma", {
       databaseUrlExists: Boolean(existingUrl),
       databaseUrlMasked: getMaskedDatabaseUrl(existingUrl),
       dbSslCaExists: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
@@ -76,19 +77,27 @@ function resolvePrismaDatabaseUrl() {
             process.env.DB_NAME.trim() !== urlDatabase) ||
           (process.env.DB_PORT?.trim() && envPort !== urlPort))
       ) {
-        console.warn("[prisma] DATABASE_URL y DB_* no coinciden", {
-          databaseUrlHost: urlHost,
-          databaseUrlPort: urlPort,
-          databaseUrlDatabase: urlDatabase,
-          dbHost: host ?? null,
-          dbPort: process.env.DB_PORT?.trim() ?? null,
-          dbName: process.env.DB_NAME?.trim() ?? null,
-        });
+        logger.warn(
+          "prisma.database_url_mismatch",
+          "DATABASE_URL y DB_* no coinciden",
+          {
+            databaseUrlHost: urlHost,
+            databaseUrlPort: urlPort,
+            databaseUrlDatabase: urlDatabase,
+            dbHost: host ?? null,
+            dbPort: process.env.DB_PORT?.trim() ?? null,
+            dbName: process.env.DB_NAME?.trim() ?? null,
+          },
+        );
       }
     } catch (error) {
-      console.warn("[prisma] No se pudo inspeccionar DATABASE_URL", {
-        message: error instanceof Error ? error.message : String(error),
-      });
+      logger.warn(
+        "prisma.database_url_inspection_failed",
+        "No se pudo inspeccionar DATABASE_URL",
+        {
+          message: error instanceof Error ? error.message : String(error),
+        },
+      );
     }
 
     process.env.DATABASE_URL = needsSsl
@@ -96,9 +105,13 @@ function resolvePrismaDatabaseUrl() {
       : existingUrl;
 
     if (areInternalToolsEnabled()) {
-      console.info("[prisma] DATABASE_URL final", {
-        databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
-      });
+      logger.debug(
+        "prisma.database_url_final",
+        "DATABASE_URL final para Prisma",
+        {
+          databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
+        },
+      );
     }
     return process.env.DATABASE_URL;
   }
@@ -122,14 +135,18 @@ function resolvePrismaDatabaseUrl() {
   process.env.DATABASE_URL = needsSsl ? applyMysqlSslParams(url) : url;
 
   if (areInternalToolsEnabled()) {
-    console.info("[prisma] DATABASE_URL generado desde DB_*", {
-      host,
-      database,
-      port: port ?? "(default)",
-      needsSsl,
-      hasRuntimeCaFile: Boolean(caPath),
-      databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
-    });
+    logger.debug(
+      "prisma.database_url_generated",
+      "DATABASE_URL generado desde DB_*",
+      {
+        host,
+        database,
+        port: port ?? "(default)",
+        needsSsl,
+        hasRuntimeCaFile: Boolean(caPath),
+        databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
+      },
+    );
   }
 
   return process.env.DATABASE_URL;
@@ -138,7 +155,7 @@ function resolvePrismaDatabaseUrl() {
 resolvePrismaDatabaseUrl();
 
 const prismaClientOptions: Prisma.PrismaClientOptions = {
-  log: ["query", "info", "warn", "error"],
+  log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
 };
 
 export const prisma =

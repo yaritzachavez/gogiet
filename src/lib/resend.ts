@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { areInternalToolsEnabled } from "@/lib/internal-tools";
+import { logger } from "@/lib/logger";
 
 export function getEmailFromAddress() {
   return process.env.EMAIL_FROM || "Gogi Eats <onboarding@resend.dev>";
@@ -27,17 +28,10 @@ export function logEmailDiagnostics(context: string) {
     return;
   }
 
-  const diagnostics = getEmailDiagnostics();
-
-  console.log(
-    `${context} EMAIL_VERIFICATION_ENABLED:`,
-    diagnostics.emailVerificationEnabled,
-  );
-  console.log(`${context} SMTP_HOST existe:`, diagnostics.hasSmtpHost);
-  console.log(`${context} SMTP_USER existe:`, diagnostics.hasSmtpUser);
-  console.log(`${context} SMTP_PASS existe:`, diagnostics.hasSmtpPass);
-  console.log(`${context} EMAIL_FROM existe:`, diagnostics.hasEmailFrom);
-  console.log(`${context} RESEND_API_KEY existe:`, diagnostics.hasResendApiKey);
+  logger.debug("email.diagnostics", "Diagnóstico de configuración de correo", {
+    context,
+    ...getEmailDiagnostics(),
+  });
 }
 
 export function shouldUseDevelopmentEmailFallback() {

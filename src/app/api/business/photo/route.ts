@@ -5,6 +5,7 @@ import {
   getPersistedImageUrlError,
   normalizePersistedImageUrl,
 } from "@/lib/image-url";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -21,6 +22,7 @@ function buildImageErrorResponse(message: string, status = 400) {
 
 export async function POST(req: NextRequest) {
   let step = "init";
+  const requestContext = getRequestLoggerContext(req);
 
   try {
     step = "auth";
@@ -81,12 +83,16 @@ export async function POST(req: NextRequest) {
       select: { id: true, name: true, logo_url: true },
     });
 
-    console.info("[business-photo] business lookup", {
-      businessId: body.businessId,
-      exists: Boolean(business),
-      businessName: business?.name ?? null,
-      userId,
-    });
+    logger.info(
+      "business.photo_lookup",
+      "Negocio consultado antes de guardar foto",
+      {
+        ...requestContext,
+        businessId: body.businessId,
+        exists: Boolean(business),
+        userId,
+      },
+    );
 
     if (!business) {
       return buildImageErrorResponse("Negocio no encontrado", 404);
@@ -139,9 +145,10 @@ export async function POST(req: NextRequest) {
     }
 
     step = "save-db-url";
-    console.info("[business-photo] saving business logo", {
+    logger.info("business.photo_save", "Guardando logo del negocio", {
+      ...requestContext,
       businessId: business.id,
-      businessName: business.name,
+      userId,
     });
     const updateResult = await prisma.business.updateMany({
       where: { id: business.id },
@@ -178,11 +185,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    console.error("ERROR business/photo:", {
+    logger.error("business.photo_error", "Error guardando foto del negocio", {
+      ...requestContext,
       step,
       error,
-      message: errorMessage,
-      stack: error instanceof Error ? error.stack : undefined,
     });
 
     if (
@@ -194,7 +200,6 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: "La columna logo_url no existe en la base activa",
-          details: errorMessage,
         },
         { status: 500 },
       );
@@ -209,7 +214,6 @@ export async function POST(req: NextRequest) {
         {
           success: false,
           error: "La tabla businesses no existe en la base activa",
-          details: errorMessage,
         },
         { status: 500 },
       );

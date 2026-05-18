@@ -27,6 +27,7 @@ import {
   updateAuthUserLastLogin,
 } from "@/lib/auth-users";
 import { JWT_SECRET } from "@/lib/env";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -61,6 +62,7 @@ export function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const json = (body: unknown, init?: ResponseInit) =>
     withCors(req, NextResponse.json(body, init));
+  const requestContext = getRequestLoggerContext(req);
 
   try {
     const body = (await req.json().catch(() => null)) as {
@@ -231,12 +233,18 @@ export async function POST(req: Request) {
         location: getLocationLabel(ip),
       });
     } catch (sessionError) {
-      console.warn("LOGIN SESSION WARNING:", {
-        message:
-          sessionError instanceof Error
-            ? sessionError.message
-            : String(sessionError),
-      });
+      logger.warn(
+        "auth.login_session_warning",
+        "No se pudo persistir la sesión de login",
+        {
+          ...requestContext,
+          userId: user.id,
+          message:
+            sessionError instanceof Error
+              ? sessionError.message
+              : String(sessionError),
+        },
+      );
     }
 
     try {
@@ -274,12 +282,12 @@ export async function POST(req: Request) {
         ? (error as SqlLikeError)
         : null;
 
-    console.error("LOGIN ERROR:", {
+    logger.error("auth.login_error", "Error al iniciar sesión", {
+      ...requestContext,
       code: sqlError?.code ?? null,
       errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
       message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
+      error,
     });
 
     return json(

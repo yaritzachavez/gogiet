@@ -7,6 +7,7 @@ import { isSessionTokenActive, touchSessionToken } from "@/lib/auth-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import {
   type DbRoleName,
   mapDbRolesToPublicRoles,
@@ -90,14 +91,16 @@ function logSecurityEvent(params: {
   orderId?: number | null;
   paymentId?: number | null;
 }) {
-  console.warn("[security] access_denied", {
-    path: getRequestPath(params.req),
+  logger.security("auth.access_denied", "Acceso denegado", {
+    ...getRequestLoggerContext(params.req),
+    route: getRequestPath(params.req),
     reason: params.reason,
-    actorUserId: params.userId ?? null,
+    userId: params.userId ?? null,
     targetUserId: params.targetUserId ?? null,
     businessId: params.businessId ?? null,
     orderId: params.orderId ?? null,
     paymentId: params.paymentId ?? null,
+    severity: "high",
   });
 }
 

@@ -9,6 +9,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import {
   createNotificationForBusinessSafely,
   createNotificationsForAdminGeneralSafely,
@@ -557,6 +558,7 @@ async function getOrderById(
 }
 
 export async function GET(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   try {
     const authUser = getAuthUser(req);
     if (!authUser) return unauthorized();
@@ -775,7 +777,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, orders: normalizedOrders });
   } catch (error) {
-    console.error("Error GET /api/orders:", error);
+    logger.error("orders.list_error", "Error listando pedidos", {
+      ...requestContext,
+      error,
+    });
     return NextResponse.json(
       {
         success: false,
@@ -787,6 +792,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   const authUser = getAuthUser(req);
   if (!authUser) return unauthorized();
 
@@ -966,11 +972,16 @@ export async function POST(req: NextRequest) {
         .filter((value): value is number => Boolean(value)),
     );
 
-    console.log("POST /api/orders business validation:", {
-      businessIdsFromProducts: Array.from(businessIds),
-      businessIdsFromFrontend: Array.from(frontendBusinessIds),
-      businessIdReceived: body.business_id ?? null,
-    });
+    logger.info(
+      "orders.business_validation",
+      "Validación de negocio del pedido",
+      {
+        ...requestContext,
+        businessIdsFromProducts: Array.from(businessIds),
+        businessIdsFromFrontend: Array.from(frontendBusinessIds),
+        businessIdReceived: body.business_id ?? null,
+      },
+    );
 
     if (businessIds.size !== 1) {
       await conn.rollback();
@@ -979,10 +990,6 @@ export async function POST(req: NextRequest) {
           success: false,
           error:
             "Todos los productos del pedido deben pertenecer al mismo negocio",
-          debug: {
-            businessIdsFromProducts: Array.from(businessIds),
-            productIds,
-          },
         },
         { status: 400 },
       );
@@ -998,13 +1005,6 @@ export async function POST(req: NextRequest) {
           success: false,
           error:
             "No pudimos validar el negocio de este pedido. Revisa que todos los productos pertenezcan al mismo negocio y vuelvelos a agregar si es necesario.",
-          debug: {
-            businessIdReceived: body.business_id ?? null,
-            businessIdsFromProducts: Array.from(businessIds),
-            businessIdsFromFrontend: Array.from(frontendBusinessIds),
-            itemBusinessIds: normalizedItems.map((item) => item.business_id),
-            productIds,
-          },
         },
         { status: 400 },
       );
@@ -1017,8 +1017,8 @@ export async function POST(req: NextRequest) {
       LIMIT 1
     `;
 
-    console.log("POST /api/orders business query:", {
-      query: businessQuery,
+    logger.debug("orders.business_query", "Consulta del negocio del pedido", {
+      ...requestContext,
       businessId,
     });
 
@@ -1028,7 +1028,12 @@ export async function POST(req: NextRequest) {
 
     const business = businessRows[0];
 
-    console.log("POST /api/orders business found:", business);
+    logger.info("orders.business_found", "Negocio encontrado para el pedido", {
+      ...requestContext,
+      businessId,
+      statusId: Number(business?.status_id ?? 0),
+      isOpen: Boolean(business?.is_open),
+    });
 
     if (
       !business ||
@@ -1459,10 +1464,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     await conn.rollback();
-    console.error("Error POST /api/orders:", {
+    logger.error("orders.create_error", "Error creando pedido", {
+      ...requestContext,
       error,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : null,
     });
     return NextResponse.json(
       {

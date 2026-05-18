@@ -5,8 +5,10 @@ import {
   DeliveryAssignmentError,
   requestCourierAssignment,
 } from "@/lib/delivery-assignments";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 
 export async function POST(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   try {
     const authUser = getAuthUser(req);
 
@@ -27,11 +29,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     const orderId = Number(body?.order_id);
 
-    console.log("[api/request-delivery] payload recibido:", {
-      order_id: body?.order_id,
-      parsedOrderId: orderId,
-      userId: authUser.user.id,
-    });
+    logger.info(
+      "business.request_delivery_received",
+      "Solicitud manual de repartidor recibida",
+      {
+        ...requestContext,
+        order_id: body?.order_id,
+        parsedOrderId: orderId,
+        userId: authUser.user.id,
+      },
+    );
 
     if (!Number.isInteger(orderId) || orderId <= 0) {
       return NextResponse.json(
@@ -58,7 +65,14 @@ export async function POST(req: NextRequest) {
       message: result.message,
     });
   } catch (error) {
-    console.error("Error POST /api/business/orders/request-delivery:", error);
+    logger.error(
+      "business.request_delivery_error",
+      "Error solicitando repartidor",
+      {
+        ...requestContext,
+        error,
+      },
+    );
 
     if (error instanceof DeliveryAssignmentError) {
       return NextResponse.json(

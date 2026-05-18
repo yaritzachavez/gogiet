@@ -7,11 +7,24 @@ import {
 } from "@/lib/internal-tools";
 
 export function middleware(req: NextRequest) {
+  const requestId =
+    req.headers.get("x-request-id")?.trim() || crypto.randomUUID();
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-request-id", requestId);
+
   if (isInternalToolPath(req.nextUrl.pathname) && !areInternalToolsEnabled()) {
-    return new NextResponse("Not Found", { status: 404 });
+    const response = new NextResponse("Not Found", { status: 404 });
+    response.headers.set("x-request-id", requestId);
+    return response;
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+  response.headers.set("x-request-id", requestId);
+  return response;
 }
 
 export const config = {

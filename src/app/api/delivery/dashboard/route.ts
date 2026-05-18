@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 
 type DeliveryDashboardRow = RowDataPacket & {
   order_id: number;
@@ -78,6 +79,7 @@ function isToday(value: string | null) {
 }
 
 export async function GET(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   try {
     const authUser = getAuthUser(req);
 
@@ -211,25 +213,16 @@ export async function GET(req: NextRequest) {
       );
     });
 
-    console.log(
-      "[delivery-dashboard] asignaciones activas:",
-      activeAssignments.map((row) => ({
-        orderId: Number(row.order_id),
-        orderStatus: row.order_status,
-        deliveryStatus: row.delivery_status,
-      })),
+    logger.info(
+      "delivery.dashboard_loaded",
+      "Dashboard de repartidor calculado",
+      {
+        ...requestContext,
+        activeDeliveriesCount: activeAssignments.length,
+        completedTodayCount: completedTodayAssignments.length,
+        availableDeliveriesCount,
+      },
     );
-    console.log(
-      "[delivery-dashboard] asignaciones completadas hoy:",
-      completedTodayAssignments.map((row) => ({
-        orderId: Number(row.order_id),
-        deliveredAt: row.delivered_at,
-      })),
-    );
-    console.log("[delivery-dashboard] contador final:", {
-      activeDeliveriesCount: activeAssignments.length,
-      completedTodayCount: completedTodayAssignments.length,
-    });
 
     const dashboard = {
       activeDeliveriesCount: activeAssignments.length,
@@ -264,14 +257,18 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error GET /api/delivery/dashboard:", error);
+    logger.error(
+      "delivery.dashboard_error",
+      "Error cargando dashboard del repartidor",
+      {
+        ...requestContext,
+        error,
+      },
+    );
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo cargar el dashboard del repartidor.",
+        error: "No se pudo cargar el dashboard del repartidor.",
         dashboard: null,
       },
       { status: 500 },

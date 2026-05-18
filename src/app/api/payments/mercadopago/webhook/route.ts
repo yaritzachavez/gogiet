@@ -2,6 +2,8 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import { getMercadoPagoWebhookSecret, getRuntimeEnvironment } from "@/lib/env";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import {
   getMercadoPagoPayment,
   verifyMercadoPagoWebhookSignature,
@@ -135,6 +137,8 @@ function shouldSkipOrderStatusUpdate(params: {
 }
 
 export async function POST(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
+  const runtimeEnvironment = getRuntimeEnvironment();
   const url = new URL(req.url);
   const searchParams = url.searchParams;
   const body = (await req.json().catch(() => null)) as WebhookPayload | null;
@@ -153,6 +157,27 @@ export async function POST(req: NextRequest) {
     typeof verifyMercadoPagoWebhookSignature
   > | null = null;
 
+  const webhookSecret = getMercadoPagoWebhookSecret();
+
+  if (!webhookSecret) {
+    logger.warn(
+      "payments.mercadopago.webhook_not_configured",
+      "Webhook de Mercado Pago no configurado en este entorno",
+      {
+        ...requestContext,
+        environment: runtimeEnvironment,
+      },
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Webhook no configurado",
+      },
+      { status: 503 },
+    );
+  }
+
   try {
     signatureCheck = verifyMercadoPagoWebhookSignature({
       signatureHeader,
@@ -160,9 +185,14 @@ export async function POST(req: NextRequest) {
       dataId: signatureDataId,
     });
   } catch (error) {
-    console.error("[mercadopago-webhook] configuration error", {
-      message: error instanceof Error ? error.message : "unknown_error",
-    });
+    logger.error(
+      "payments.mercadopago.webhook_config_error",
+      "Configuración incompleta del webhook de Mercado Pago",
+      {
+        ...requestContext,
+        error,
+      },
+    );
     return NextResponse.json(
       {
         success: false,
@@ -173,11 +203,17 @@ export async function POST(req: NextRequest) {
   }
 
   if (!signatureCheck?.ok) {
-    console.warn("[mercadopago-webhook] invalid signature", {
-      reason: signatureCheck?.reason ?? "unknown",
-      requestId: webhookEventId || null,
-      topic: topic || null,
-    });
+    logger.security(
+      "payments.mercadopago.invalid_signature",
+      "Firma inválida en webhook de Mercado Pago",
+      {
+        ...requestContext,
+        severity: "high",
+        reason: signatureCheck?.reason ?? "unknown",
+        requestId: webhookEventId || null,
+        topic: topic || null,
+      },
+    );
     return NextResponse.json(
       { success: false, error: "Firma de webhook inválida." },
       { status: 400 },
@@ -468,13 +504,18 @@ export async function POST(req: NextRequest) {
 
     await conn.commit();
 
-    console.info("[mercadopago-webhook] processed", {
-      orderId,
-      paymentId,
-      webhookEventId: webhookEventId || null,
-      paymentStatus,
-      transitionedToPaid,
-    });
+    logger.info(
+      "payments.mercadopago.webhook_processed",
+      "Webhook de Mercado Pago procesado",
+      {
+        ...requestContext,
+        orderId,
+        paymentId,
+        requestId: webhookEventId || null,
+        paymentStatus,
+        transitionedToPaid,
+      },
+    );
 
     return NextResponse.json({
       success: true,
@@ -484,11 +525,16 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     await conn.rollback();
-    console.error("[mercadopago-webhook] processing error", {
-      message: error instanceof Error ? error.message : "unknown_error",
-      paymentId,
-      webhookEventId: webhookEventId || null,
-    });
+    logger.error(
+      "payments.mercadopago.webhook_processing_error",
+      "Error procesando webhook de Mercado Pago",
+      {
+        ...requestContext,
+        paymentId,
+        requestId: webhookEventId || null,
+        error,
+      },
+    );
 
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(

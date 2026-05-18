@@ -21,6 +21,27 @@ function failWeakEnv(name: string, reason: string): never {
   throw new Error(`❌ Invalid environment variable ${name}: ${reason}`);
 }
 
+export type RuntimeEnvironment = "development" | "preview" | "production";
+
+export function getRuntimeEnvironment(): RuntimeEnvironment {
+  const nodeEnv = String(process.env.NODE_ENV ?? "")
+    .trim()
+    .toLowerCase();
+  const vercelEnv = String(process.env.VERCEL_ENV ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (nodeEnv !== "production") {
+    return "development";
+  }
+
+  if (vercelEnv === "preview") {
+    return "preview";
+  }
+
+  return "production";
+}
+
 function normalizeEnvValue(name: string, value: string | undefined | null) {
   const normalized = String(value ?? "").trim();
 
@@ -70,12 +91,14 @@ export function validateRuntimeEnv() {
     return;
   }
 
+  const runtimeEnvironment = getRuntimeEnvironment();
+
   getRequiredSecret("JWT_SECRET");
   validateOptionalSecret("NEXTAUTH_SECRET");
   validateOptionalSecret("SESSION_SECRET");
   validateOptionalSecret("ADMIN_SECRET");
 
-  if (process.env.NODE_ENV === "production") {
+  if (runtimeEnvironment === "production") {
     getRequiredSecret("MERCADOPAGO_WEBHOOK_SECRET");
   }
 
@@ -88,7 +111,7 @@ export const JWT_SECRET = (() => {
 })();
 
 export function getMercadoPagoWebhookSecret() {
-  if (process.env.NODE_ENV === "production") {
+  if (getRuntimeEnvironment() === "production") {
     return getRequiredSecret("MERCADOPAGO_WEBHOOK_SECRET");
   }
 

@@ -3,13 +3,14 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
   getExistingColumns,
   getShippingFeeSqlExpression,
   pickFirstExistingColumn,
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
-import { resolveDeliveryAccess } from "@/lib/delivery-access";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 
 type AvailableDeliveryRow = RowDataPacket & {
   order_id: number;
@@ -70,6 +71,7 @@ function buildAddress(parts: {
 }
 
 export async function GET(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   try {
     const authUser = getAuthUser(req);
 
@@ -116,7 +118,8 @@ export async function GET(req: NextRequest) {
       orderColumns,
       SHIPPING_FEE_COLUMN_CANDIDATES,
     );
-    const shippingFeeExpression = getShippingFeeSqlExpression(shippingFeeColumn);
+    const shippingFeeExpression =
+      getShippingFeeSqlExpression(shippingFeeColumn);
 
     const [availableRows] = await pool.query<AvailableDeliveryRow[]>(
       `
@@ -188,10 +191,9 @@ export async function GET(req: NextRequest) {
     );
 
     if (!availableRows.length) {
-      console.log(
-        "[api/delivery/available] Pedidos disponibles encontrados para repartidor:",
-        [],
-      );
+      logger.debug("delivery.available_empty", "No hay entregas disponibles", {
+        ...requestContext,
+      });
 
       return NextResponse.json({
         success: true,
@@ -231,7 +233,11 @@ export async function GET(req: NextRequest) {
       id: Number(row.order_id),
       folio: `FG-${String(row.order_id).padStart(4, "0")}`,
       businessName: row.business_name,
-      businessAddress: [row.business_address, row.business_district, row.business_city]
+      businessAddress: [
+        row.business_address,
+        row.business_district,
+        row.business_city,
+      ]
         .filter(Boolean)
         .join(", "),
       total: Number(row.total_amount ?? 0),
@@ -270,14 +276,11 @@ export async function GET(req: NextRequest) {
       },
     }));
 
-    console.log(
-      "[api/delivery/available] Pedidos disponibles encontrados para repartidor:",
-      deliveries.map((delivery) => ({
-        orderId: delivery.id,
-        businessName: delivery.businessName,
-        assignmentStatus: delivery.assignmentStatus,
-      })),
-    );
+    logger.info("delivery.available_listed", "Entregas disponibles listadas", {
+      ...requestContext,
+      availableCount: deliveries.length,
+      orderIds: deliveries.map((delivery) => delivery.id),
+    });
 
     return NextResponse.json({
       success: true,
@@ -285,14 +288,18 @@ export async function GET(req: NextRequest) {
       orders: deliveries,
     });
   } catch (error) {
-    console.error("Error GET /api/delivery/available:", error);
+    logger.error(
+      "delivery.available_error",
+      "Error cargando entregas disponibles",
+      {
+        ...requestContext,
+        error,
+      },
+    );
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar las entregas disponibles.",
+        error: "No se pudieron cargar las entregas disponibles.",
         deliveries: [],
       },
       { status: 500 },

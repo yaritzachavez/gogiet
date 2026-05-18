@@ -10,6 +10,7 @@ import {
   resolveBusinessAccess,
 } from "@/lib/business-panel";
 import pool from "@/lib/db";
+import { logger } from "@/lib/logger";
 import {
   createNotification,
   createNotificationForBusiness,
@@ -208,7 +209,14 @@ export async function requestCourierAssignment(params: {
   const connection = await pool.getConnection();
 
   try {
-    console.log("[delivery-assignment] order_id recibido:", params.orderId);
+    logger.info(
+      "delivery.assignment_requested",
+      "Solicitud de repartidor recibida",
+      {
+        orderId: params.orderId,
+        userId: params.userId,
+      },
+    );
 
     await connection.beginTransaction();
     await ensureOrdersDriverColumn(connection);
@@ -219,13 +227,15 @@ export async function requestCourierAssignment(params: {
       throw new DeliveryAssignmentError("Pedido no encontrado", 404);
     }
 
-    console.log("[delivery-assignment] pedidos listos:", [
+    logger.debug(
+      "delivery.assignment_order_state",
+      "Estado del pedido antes de solicitar repartidor",
       {
         orderId: Number(order.id),
         businessId: Number(order.business_id),
         status: order.order_status_name ?? "sin_status",
       },
-    ]);
+    );
 
     const currentOrderStatus = normalizeStatus(order.order_status_name);
 
@@ -322,11 +332,16 @@ export async function requestCourierAssignment(params: {
       },
     } as const;
 
-    console.log("[delivery-assignment] repartidores disponibles:", {
-      orderId: params.orderId,
-      couriers: availableCouriers,
-      supportsUnassignedDriver,
-    });
+    logger.info(
+      "delivery.courier_candidates",
+      "Repartidores evaluados para asignación",
+      {
+        orderId: params.orderId,
+        candidateCourierIds: availableCouriers.map((courier) => courier.id),
+        availableCourierCount: availableCouriers.length,
+        supportsUnassignedDriver,
+      },
+    );
 
     if (supportsUnassignedDriver) {
       const deliveryStatusId = await ensureDeliveryStatus(
@@ -419,16 +434,24 @@ export async function requestCourierAssignment(params: {
         connection,
       );
 
-      console.log("[delivery-assignment] Entrega creada para repartidor:", {
-        orderId: params.orderId,
-        deliveryStatusId,
-        businessId: Number(order.business_id),
-        availableCourierIds: availableCouriers.map((courier) => courier.id),
-      });
-      console.log("[delivery-assignment] Notificación creada:", {
-        orderId: params.orderId,
-        notifiedCourierIds: availableCouriers.map((courier) => courier.id),
-      });
+      logger.info(
+        "delivery.broadcast_created",
+        "Solicitud abierta de entrega creada",
+        {
+          orderId: params.orderId,
+          deliveryStatusId,
+          businessId: Number(order.business_id),
+          availableCourierIds: availableCouriers.map((courier) => courier.id),
+        },
+      );
+      logger.debug(
+        "delivery.broadcast_notified",
+        "Notificación enviada a repartidores",
+        {
+          orderId: params.orderId,
+          notifiedCourierIds: availableCouriers.map((courier) => courier.id),
+        },
+      );
 
       await connection.commit();
 
@@ -565,16 +588,24 @@ export async function requestCourierAssignment(params: {
       connection,
     );
 
-    console.log("[delivery-assignment] Entrega creada para repartidor:", {
-      orderId: params.orderId,
-      deliveryStatusId,
-      businessId: Number(order.business_id),
-      selectedCourierId: selectedCourier.id,
-    });
-    console.log("[delivery-assignment] Notificación creada:", {
-      orderId: params.orderId,
-      notifiedCourierIds: [selectedCourier.id],
-    });
+    logger.info(
+      "delivery.direct_assignment_created",
+      "Asignación directa de repartidor creada",
+      {
+        orderId: params.orderId,
+        deliveryStatusId,
+        businessId: Number(order.business_id),
+        selectedCourierId: selectedCourier.id,
+      },
+    );
+    logger.debug(
+      "delivery.direct_assignment_notified",
+      "Notificación enviada al repartidor asignado",
+      {
+        orderId: params.orderId,
+        notifiedCourierIds: [selectedCourier.id],
+      },
+    );
 
     await connection.commit();
 
