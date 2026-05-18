@@ -18,11 +18,8 @@ import {
   validatePasswordStrength,
 } from "@/lib/auth-account-shared";
 import pool from "@/lib/db";
-import {
-  assertColumnsExist,
-  assertTablesExist,
-  RuntimeSchemaError,
-} from "@/lib/runtime-schema";
+import { logger } from "@/lib/logger";
+import { RuntimeSchemaError } from "@/lib/runtime-schema";
 
 type ColumnRow = RowDataPacket & {
   Field?: string;
@@ -66,6 +63,20 @@ const DEFAULT_LOCK_THRESHOLD = 5;
 const DEFAULT_LOCK_MINUTES = 15;
 
 let ensuredAuthTables = false;
+let loggedAuthSchemaCheck = false;
+
+type AuthSchemaState = {
+  databaseName: string | null;
+  hasPasswordResetTokens: boolean;
+  hasAuthRateLimits: boolean;
+  hasAuthAuditLogs: boolean;
+  hasEmailVerified: boolean;
+  hasVerificationCode: boolean;
+  hasVerificationExpiresAt: boolean;
+  hasVerificationSentAt: boolean;
+  hasLoginAttempts: boolean;
+  hasLockedUntil: boolean;
+};
 
 export type PasswordResetTokenValidation =
   | {
@@ -157,6 +168,53 @@ export async function getUserColumns(connection?: PoolConnection) {
   );
 }
 
+async function getAuthSchemaState(connection?: PoolConnection) {
+  const executor = connection ?? pool;
+  const [databaseRows] = await executor.query<RowDataPacket[]>(
+    "SELECT DATABASE() AS db_name",
+  );
+  const databaseName =
+    typeof databaseRows[0]?.db_name === "string"
+      ? databaseRows[0].db_name
+      : null;
+
+  const tableChecks = await Promise.all(
+    ["password_reset_tokens", "auth_rate_limits", "auth_audit_logs"].map(
+      async (tableName) => {
+        const [rows] = await executor.query<RowDataPacket[]>(
+          "SHOW TABLES LIKE ?",
+          [tableName],
+        );
+
+        return [tableName, rows.length > 0] as const;
+      },
+    ),
+  );
+
+  const userColumns = await getUserColumns(connection);
+
+  return {
+    databaseName,
+    hasPasswordResetTokens:
+      tableChecks.find(
+        ([tableName]) => tableName === "password_reset_tokens",
+      )?.[1] ?? false,
+    hasAuthRateLimits:
+      tableChecks.find(
+        ([tableName]) => tableName === "auth_rate_limits",
+      )?.[1] ?? false,
+    hasAuthAuditLogs:
+      tableChecks.find(([tableName]) => tableName === "auth_audit_logs")?.[1] ??
+      false,
+    hasEmailVerified: userColumns.has("email_verified"),
+    hasVerificationCode: userColumns.has("verification_code"),
+    hasVerificationExpiresAt: userColumns.has("verification_expires_at"),
+    hasVerificationSentAt: userColumns.has("verification_sent_at"),
+    hasLoginAttempts: userColumns.has("login_attempts"),
+    hasLockedUntil: userColumns.has("locked_until"),
+  } satisfies AuthSchemaState;
+}
+
 export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
   if (ensuredAuthTables && !connection) {
     return;
@@ -165,19 +223,48 @@ export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
   const conn = connection ?? (await pool.getConnection());
 
   try {
-    await assertTablesExist(conn, [
-      "password_reset_tokens",
-      "auth_rate_limits",
-      "auth_audit_logs",
-    ]);
-    await assertColumnsExist(conn, "users", [
-      "email_verified",
-      "verification_code",
-      "verification_expires_at",
-      "verification_sent_at",
-      "login_attempts",
-      "locked_until",
-    ]);
+    const schemaState = await getAuthSchemaState(conn);
+
+    if (!loggedAuthSchemaCheck) {
+      logger.warn(
+        "auth.schema_runtime_check",
+        "[auth-schema] verificación runtime de auth",
+        schemaState,
+      );
+      loggedAuthSchemaCheck = true;
+    }
+
+    const missingTables = [
+      !schemaState.hasPasswordResetTokens ? "password_reset_tokens" : null,
+      !schemaState.hasAuthRateLimits ? "auth_rate_limits" : null,
+      !schemaState.hasAuthAuditLogs ? "auth_audit_logs" : null,
+    ].filter(Boolean) as string[];
+
+    if (missingTables.length > 0) {
+      throw new RuntimeSchemaError(
+        `Falta tabla requerida en runtime: ${missingTables.join(", ")}. Ejecuta migraciones con prisma migrate deploy antes de atender tráfico.`,
+      );
+    }
+
+    const missingUserColumns = [
+      !schemaState.hasEmailVerified ? "email_verified" : null,
+      !schemaState.hasVerificationCode ? "verification_code" : null,
+      !schemaState.hasVerificationExpiresAt ? "verification_expires_at" : null,
+      !schemaState.hasVerificationSentAt ? "verification_sent_at" : null,
+      !schemaState.hasLoginAttempts ? "login_attempts" : null,
+      !schemaState.hasLockedUntil ? "locked_until" : null,
+    ].filter(Boolean) as string[];
+
+    if (missingUserColumns.length > 0) {
+      logger.warn(
+        "auth.schema_users_columns_missing",
+        "[auth-schema] faltan columnas auxiliares en users",
+        {
+          databaseName: schemaState.databaseName,
+          missingUserColumns,
+        },
+      );
+    }
 
     ensuredAuthTables = true;
   } finally {
@@ -399,6 +486,21 @@ export async function assignRoleToUser(userId: number, roleName: string) {
 
 export async function registerFailedLoginAttempt(userId: number) {
   await ensureAuthSecuritySchema();
+  const schemaState = await getAuthSchemaState();
+
+  if (!schemaState.hasLoginAttempts || !schemaState.hasLockedUntil) {
+    logger.warn(
+      "auth.login_attempt_tracking_unavailable",
+      "[auth-schema] tracking de intentos no disponible",
+      {
+        databaseName: schemaState.databaseName,
+        hasLoginAttempts: schemaState.hasLoginAttempts,
+        hasLockedUntil: schemaState.hasLockedUntil,
+        userId,
+      },
+    );
+    return;
+  }
 
   await pool.query<ResultSetHeader>(
     `
@@ -418,6 +520,21 @@ export async function registerFailedLoginAttempt(userId: number) {
 
 export async function clearFailedLoginAttempts(userId: number) {
   await ensureAuthSecuritySchema();
+  const schemaState = await getAuthSchemaState();
+
+  if (!schemaState.hasLoginAttempts || !schemaState.hasLockedUntil) {
+    logger.warn(
+      "auth.login_attempt_clear_unavailable",
+      "[auth-schema] limpieza de intentos no disponible",
+      {
+        databaseName: schemaState.databaseName,
+        hasLoginAttempts: schemaState.hasLoginAttempts,
+        hasLockedUntil: schemaState.hasLockedUntil,
+        userId,
+      },
+    );
+    return;
+  }
 
   await pool.query<ResultSetHeader>(
     `
