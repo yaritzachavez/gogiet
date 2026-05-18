@@ -31,7 +31,8 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: () => Promise<void>;
+  loading: boolean;
+  login: () => Promise<User | null>;
   logout: () => void;
 }
 
@@ -40,9 +41,12 @@ const USER_UPDATED_EVENT = "gogi-user-updated";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
 
   const syncUserFromSession = useCallback(async () => {
+    setLoading(true);
+
     try {
       const currentUser = await getCurrentUser();
 
@@ -50,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setClientSessionActive(false);
         localStorage.removeItem("user");
         setUser(null);
-        return;
+        return null;
       }
 
       const nextUser = {
@@ -63,11 +67,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setClientSessionActive(true);
       localStorage.setItem("user", JSON.stringify(nextUser));
       setUser(nextUser);
+      return nextUser;
     } catch (error) {
       console.error("Error sincronizando usuario:", error);
       setClientSessionActive(false);
       localStorage.removeItem("user");
       setUser(null);
+      return null;
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -79,6 +87,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("user");
     setClientSessionActive(false);
     setUser(null);
+    setLoading(false);
     router.push("/login");
   }, [router]);
 
@@ -102,10 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async () => {
     clearLegacyAuthStorage();
-    await syncUserFromSession();
+    return syncUserFromSession();
   }, [syncUserFromSession]);
 
-  const value = useMemo(() => ({ user, login, logout }), [login, logout, user]);
+  const value = useMemo(
+    () => ({ user, loading, login, logout }),
+    [loading, login, logout, user],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -112,7 +112,7 @@ const CARDS: RoleCard[] = [
 ];
 
 export default function RoleMenu() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [accessState, setAccessState] = useState<AccessFlags | null>(null);
@@ -200,6 +200,16 @@ export default function RoleMenu() {
       return roles.includes(card.role);
     });
   }, [accessItems, accessState, roles]);
+
+  if (loading) {
+    return (
+      <main className="grid min-h-screen place-content-center bg-neutral-950 text-white">
+        <p className="px-8 py-6 text-center text-lg bg-white/5 border border-white/20 rounded-2xl shadow-xl">
+          Validando sesión...
+        </p>
+      </main>
+    );
+  }
 
   if (!user) {
     return (

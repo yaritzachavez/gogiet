@@ -51,8 +51,16 @@ function formatFullAddress(address: AddressRow) {
 }
 
 export async function GET(req: NextRequest) {
-  const json = (body: unknown, init?: ResponseInit) =>
-    withCors(req, NextResponse.json(body, init));
+  const json = (body: unknown, init?: ResponseInit) => {
+    const response = NextResponse.json(body, init);
+    response.headers.set(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate",
+    );
+    response.headers.set("Pragma", "no-cache");
+    response.headers.set("Expires", "0");
+    return withCors(req, response);
+  };
 
   try {
     const auth = await requireAuthenticatedUser(req);

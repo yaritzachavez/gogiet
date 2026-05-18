@@ -21,6 +21,29 @@ export default function LoginForm() {
   const { login } = useAuth();
   const notify = useNotify();
 
+  const resolvePostLoginRoute = (roles: string[] | undefined) => {
+    const normalizedRoles = Array.isArray(roles)
+      ? roles.map((role) => String(role).trim().toUpperCase())
+      : [];
+
+    if (normalizedRoles.includes("ADMIN_GENERAL")) {
+      return "/admin";
+    }
+
+    if (
+      normalizedRoles.includes("ADMIN_NEGOCIO") ||
+      normalizedRoles.includes("VENDEDOR")
+    ) {
+      return "/business";
+    }
+
+    if (normalizedRoles.includes("REPARTIDOR")) {
+      return "/delivery";
+    }
+
+    return "/shop";
+  };
+
   const getLoginErrorMessage = (
     status: number,
     data?: { error?: string; message?: string } | null,
@@ -89,9 +112,22 @@ export default function LoginForm() {
       } | null;
 
       if (res.ok && data?.success) {
-        await login();
+        const currentUser = await login();
+
+        if (!currentUser) {
+          notify.error(
+            "No pudimos validar tu sesión después del login. Intenta nuevamente.",
+            "Sesión no disponible",
+          );
+          return;
+        }
+
+        const targetRoute =
+          data.redirectTo || resolvePostLoginRoute(currentUser.roles);
+
         notify.success("Sesión iniciada correctamente.", "Bienvenido");
-        router.push(data.redirectTo || "/");
+        router.replace(targetRoute);
+        router.refresh();
       } else {
         const message = getLoginErrorMessage(res.status, data);
         notify.error(message, "No pudimos iniciar sesión");

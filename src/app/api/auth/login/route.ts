@@ -55,6 +55,25 @@ function genericLoginError() {
   return "Correo o contraseña incorrectos.";
 }
 
+function resolveLoginRedirect(publicRoles: string[]) {
+  if (publicRoles.includes("ADMIN_GENERAL")) {
+    return "/admin";
+  }
+
+  if (
+    publicRoles.includes("ADMIN_NEGOCIO") ||
+    publicRoles.includes("VENDEDOR")
+  ) {
+    return "/business";
+  }
+
+  if (publicRoles.includes("REPARTIDOR")) {
+    return "/delivery";
+  }
+
+  return "/shop";
+}
+
 export function OPTIONS(req: Request) {
   return handleCorsPreflight(req);
 }
@@ -208,8 +227,7 @@ export async function POST(req: Request) {
     const dbRoles = roles.map((role) => role.name);
     const publicRoles = mapDbRolesToPublicRoles(dbRoles);
     const primaryRole = publicRoles[0] ?? "customer";
-    const hasRoles = roles.length > 0;
-    const redirectTo = hasRoles ? "/pickdash" : "/";
+    const redirectTo = resolveLoginRedirect(publicRoles);
     const authCookieConfig = getAuthCookieConfig();
 
     const expiresIn = (process.env.JWT_EXPIRES_IN ??
@@ -226,28 +244,13 @@ export async function POST(req: Request) {
       { expiresIn },
     );
 
-    try {
-      await createUserSession({
-        userId: user.id,
-        token,
-        deviceName: getDeviceName(req.headers.get("user-agent")),
-        location: getLocationLabel(ip),
-        expiresAt: new Date(Date.now() + authCookieConfig.maxAge * 1000),
-      });
-    } catch (sessionError) {
-      logger.warn(
-        "auth.login_session_warning",
-        "No se pudo persistir la sesión de login",
-        {
-          ...requestContext,
-          userId: user.id,
-          message:
-            sessionError instanceof Error
-              ? sessionError.message
-              : String(sessionError),
-        },
-      );
-    }
+    await createUserSession({
+      userId: user.id,
+      token,
+      deviceName: getDeviceName(req.headers.get("user-agent")),
+      location: getLocationLabel(ip),
+      expiresAt: new Date(Date.now() + authCookieConfig.maxAge * 1000),
+    });
 
     try {
       await updateAuthUserLastLogin(user.id);
