@@ -8,12 +8,21 @@ import type {
 } from "mysql2/promise";
 
 import {
+  getPersistedSessionTokenValue,
+  getUserSessionsSchema,
+} from "@/lib/admin-security";
+import {
   isValidEmail,
   normalizeEmail,
   normalizePhone,
   validatePasswordStrength,
 } from "@/lib/auth-account-shared";
 import pool from "@/lib/db";
+import {
+  assertColumnsExist,
+  assertTablesExist,
+  RuntimeSchemaError,
+} from "@/lib/runtime-schema";
 
 type ColumnRow = RowDataPacket & {
   Field?: string;
@@ -148,23 +157,6 @@ export async function getUserColumns(connection?: PoolConnection) {
   );
 }
 
-async function ensureColumn(
-  connection: PoolConnection,
-  tableName: string,
-  columnSet: Set<string>,
-  columnName: string,
-  definition: string,
-) {
-  if (columnSet.has(columnName)) {
-    return;
-  }
-
-  await connection.query(
-    `ALTER TABLE \`${tableName}\` ADD COLUMN \`${columnName}\` ${definition}`,
-  );
-  columnSet.add(columnName);
-}
-
 export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
   if (ensuredAuthTables && !connection) {
     return;
@@ -173,97 +165,19 @@ export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
   const conn = connection ?? (await pool.getConnection());
 
   try {
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS password_reset_tokens (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        email VARCHAR(191) NOT NULL,
-        token_hash CHAR(64) NOT NULL,
-        expires_at DATETIME NOT NULL,
-        used_at DATETIME NULL,
-        requested_ip VARCHAR(64) NULL,
-        user_agent VARCHAR(255) NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_password_reset_tokens_hash (token_hash),
-        INDEX idx_password_reset_tokens_user (user_id),
-        INDEX idx_password_reset_tokens_email (email),
-        CONSTRAINT fk_password_reset_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS auth_rate_limits (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        action_type VARCHAR(80) NOT NULL,
-        identifier VARCHAR(191) NOT NULL,
-        attempts INT NOT NULL DEFAULT 0,
-        window_started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        blocked_until DATETIME NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_auth_rate_limits_action_identifier (action_type, identifier)
-      )
-    `);
-
-    await conn.query(`
-      CREATE TABLE IF NOT EXISTS auth_audit_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NULL,
-        action VARCHAR(100) NOT NULL,
-        email VARCHAR(191) NULL,
-        ip VARCHAR(64) NULL,
-        user_agent VARCHAR(255) NULL,
-        metadata JSON NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_auth_audit_logs_user (user_id),
-        INDEX idx_auth_audit_logs_action (action)
-      )
-    `);
-
-    const userColumns = await getUserColumns(conn);
-    await ensureColumn(
-      conn,
-      "users",
-      userColumns,
+    await assertTablesExist(conn, [
+      "password_reset_tokens",
+      "auth_rate_limits",
+      "auth_audit_logs",
+    ]);
+    await assertColumnsExist(conn, "users", [
       "email_verified",
-      "BOOLEAN NULL DEFAULT FALSE",
-    );
-    await ensureColumn(
-      conn,
-      "users",
-      userColumns,
       "verification_code",
-      "VARCHAR(12) NULL",
-    );
-    await ensureColumn(
-      conn,
-      "users",
-      userColumns,
       "verification_expires_at",
-      "DATETIME NULL",
-    );
-    await ensureColumn(
-      conn,
-      "users",
-      userColumns,
       "verification_sent_at",
-      "DATETIME NULL",
-    );
-    await ensureColumn(
-      conn,
-      "users",
-      userColumns,
       "login_attempts",
-      "INT NOT NULL DEFAULT 0",
-    );
-    await ensureColumn(
-      conn,
-      "users",
-      userColumns,
       "locked_until",
-      "DATETIME NULL",
-    );
+    ]);
 
     ensuredAuthTables = true;
   } finally {
@@ -281,7 +195,14 @@ export async function recordAuthAuditLog(params: {
   userAgent?: string | null;
   metadata?: AuditMetadata;
 }) {
-  await ensureAuthSecuritySchema();
+  try {
+    await ensureAuthSecuritySchema();
+  } catch (error) {
+    if (error instanceof RuntimeSchemaError) {
+      return;
+    }
+    throw error;
+  }
 
   await pool.query<ResultSetHeader>(
     `
@@ -313,7 +234,14 @@ export async function consumeRateLimit(params: {
   windowSeconds: number;
   blockSeconds?: number;
 }) {
-  await ensureAuthSecuritySchema();
+  try {
+    await ensureAuthSecuritySchema();
+  } catch (error) {
+    if (error instanceof RuntimeSchemaError) {
+      return { allowed: true as const, retryAfterSeconds: 0 };
+    }
+    throw error;
+  }
 
   const identifier = sanitizeText(params.identifier, 191);
   const blockSeconds = params.blockSeconds ?? params.windowSeconds;
@@ -515,51 +443,105 @@ export function isUserLocked(user: UserLoginSecurityRow) {
 }
 
 export async function invalidateUserSessions(userId: number) {
+  const schema = await getUserSessionsSchema();
+  const updates = ["status = 'revoked'"];
+
+  if (schema.hasRevokedAt) {
+    updates.push("revoked_at = COALESCE(revoked_at, NOW())");
+  }
+
+  if (schema.hasUpdatedAt) {
+    updates.push("updated_at = NOW()");
+  }
+
+  const where = ["user_id = ?"];
+
+  if (schema.hasStatus) {
+    where.push("status = 'active'");
+  }
+
+  if (schema.hasExpiresAt) {
+    where.push("expires_at > NOW()");
+  }
+
   await pool.query<ResultSetHeader>(
     `
       UPDATE user_sessions
-      SET
-        status = 'revoked',
-        revoked_at = COALESCE(revoked_at, NOW()),
-        updated_at = NOW()
-      WHERE user_id = ? AND status = 'active' AND expires_at > NOW()
+      SET ${updates.join(", ")}
+      WHERE ${where.join(" AND ")}
     `,
     [userId],
   );
 }
 
 export async function isSessionTokenActive(token: string) {
-  const tokenHash = hashOpaqueToken(token);
+  const schema = await getUserSessionsSchema();
+  const persistedToken = getPersistedSessionTokenValue(token, schema);
+  const where = [`${schema.tokenColumn} = ?`];
+
+  if (schema.hasStatus) {
+    where.push("status = 'active'");
+  }
+
+  if (schema.hasRevokedAt) {
+    where.push("revoked_at IS NULL");
+  }
+
+  if (schema.hasExpiresAt) {
+    where.push("expires_at > NOW()");
+  }
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `
       SELECT id
       FROM user_sessions
-      WHERE session_token_hash = ?
-        AND status = 'active'
-        AND revoked_at IS NULL
-        AND expires_at > NOW()
+      WHERE ${where.join(" AND ")}
       LIMIT 1
     `,
-    [tokenHash],
+    [persistedToken],
   );
 
   return rows.length > 0;
 }
 
 export async function touchSessionToken(token: string) {
-  const tokenHash = hashOpaqueToken(token);
+  const schema = await getUserSessionsSchema();
+  const persistedToken = getPersistedSessionTokenValue(token, schema);
+  const updates: string[] = [];
+
+  if (schema.hasLastActiveAt) {
+    updates.push("last_active_at = NOW()");
+  }
+
+  if (schema.hasUpdatedAt) {
+    updates.push("updated_at = NOW()");
+  }
+
+  if (updates.length === 0) {
+    return;
+  }
+
+  const where = [`${schema.tokenColumn} = ?`];
+
+  if (schema.hasStatus) {
+    where.push("status = 'active'");
+  }
+
+  if (schema.hasRevokedAt) {
+    where.push("revoked_at IS NULL");
+  }
+
+  if (schema.hasExpiresAt) {
+    where.push("expires_at > NOW()");
+  }
 
   await pool.query<ResultSetHeader>(
     `
       UPDATE user_sessions
-      SET last_active_at = NOW(), updated_at = NOW()
-      WHERE session_token_hash = ?
-        AND status = 'active'
-        AND revoked_at IS NULL
-        AND expires_at > NOW()
+      SET ${updates.join(", ")}
+      WHERE ${where.join(" AND ")}
     `,
-    [tokenHash],
+    [persistedToken],
   );
 }
 

@@ -10,7 +10,6 @@ import {
   clearFailedLoginAttempts,
   comparePassword,
   consumeRateLimit,
-  ensureAuthSecuritySchema,
   getAuthCookieConfig,
   getRequestIp,
   getRequestUserAgent,
@@ -29,6 +28,7 @@ import {
 import { JWT_SECRET } from "@/lib/env";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
+import { RuntimeSchemaError } from "@/lib/runtime-schema";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type AuthUserRecord = {
@@ -84,6 +84,16 @@ export async function POST(req: Request) {
   const requestContext = getRequestLoggerContext(req);
 
   try {
+    logger.info(
+      "auth.login_request_received",
+      "[auth-login] request recibido",
+      {
+        ...requestContext,
+        route: "/api/auth/login",
+        method: "POST",
+      },
+    );
+
     const body = (await req.json().catch(() => null)) as {
       email?: string;
       password?: string;
@@ -109,8 +119,6 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-
-    await ensureAuthSecuritySchema();
 
     const ipRateLimit = await consumeRateLimit({
       action: "login_ip",
@@ -152,6 +160,19 @@ export async function POST(req: Request) {
 
     const user = (await findAuthUserByEmail(email)) as AuthUserRecord | null;
 
+    logger.info(
+      "auth.login_user_lookup",
+      user
+        ? "[auth-login] usuario encontrado"
+        : "[auth-login] usuario no encontrado",
+      {
+        ...requestContext,
+        route: "/api/auth/login",
+        email,
+        userId: user?.id ?? null,
+      },
+    );
+
     if (!user) {
       await recordAuthAuditLog({
         action: "login_failed",
@@ -180,6 +201,19 @@ export async function POST(req: Request) {
 
     const passwordMatch = await comparePassword(password, user.password).catch(
       () => false,
+    );
+
+    logger.info(
+      "auth.login_password_checked",
+      passwordMatch
+        ? "[auth-login] password válida"
+        : "[auth-login] password inválida",
+      {
+        ...requestContext,
+        route: "/api/auth/login",
+        userId: user.id,
+        email,
+      },
     );
 
     if (!passwordMatch) {
@@ -252,6 +286,12 @@ export async function POST(req: Request) {
       expiresAt: new Date(Date.now() + authCookieConfig.maxAge * 1000),
     });
 
+    logger.info("auth.login_session_created", "[auth-login] sesión creada", {
+      ...requestContext,
+      route: "/api/auth/login",
+      userId: user.id,
+    });
+
     try {
       await updateAuthUserLastLogin(user.id);
     } catch {}
@@ -280,12 +320,87 @@ export async function POST(req: Request) {
 
     response.cookies.set("authToken", token, authCookieConfig);
 
+    logger.info("auth.login_cookie_set", "[auth-login] cookie seteada", {
+      ...requestContext,
+      route: "/api/auth/login",
+      userId: user.id,
+      cookieName: "authToken",
+      secure: authCookieConfig.secure,
+      sameSite: authCookieConfig.sameSite,
+      path: authCookieConfig.path,
+      maxAge: authCookieConfig.maxAge,
+    });
+
     return withCors(req, response);
   } catch (error) {
     const sqlError =
       typeof error === "object" && error !== null
         ? (error as SqlLikeError)
         : null;
+
+    if (error instanceof RuntimeSchemaError) {
+      logger.error(
+        "auth.login_schema_error",
+        "[auth-error] schema de autenticación no disponible",
+        {
+          ...requestContext,
+          route: "/api/auth/login",
+          error,
+        },
+      );
+
+      return json(
+        {
+          success: false,
+          error:
+            "La base de autenticación no está actualizada. Ejecuta migraciones antes de iniciar sesión.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (
+      sqlError?.code === "ER_NO_SUCH_TABLE" ||
+      sqlError?.code === "ER_BAD_FIELD_ERROR"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "La configuración de autenticación en base de datos está incompleta. Ejecuta migraciones y verifica el schema de sesiones.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (
+      sqlError?.code === "ER_TABLEACCESS_DENIED_ERROR" ||
+      sqlError?.code === "ER_COLUMNACCESS_DENIED_ERROR" ||
+      sqlError?.code === "ER_DBACCESS_DENIED_ERROR"
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "La base de datos rechazó una operación de autenticación. Revisa permisos del usuario de producción.",
+        },
+        { status: 503 },
+      );
+    }
+
+    if (
+      error instanceof Error &&
+      error.message.includes("Missing required environment variable")
+    ) {
+      return json(
+        {
+          success: false,
+          error:
+            "Falta una variable crítica de autenticación en el servidor. Revisa la configuración de producción.",
+        },
+        { status: 500 },
+      );
+    }
 
     logger.error("auth.login_error", "Error al iniciar sesión", {
       ...requestContext,

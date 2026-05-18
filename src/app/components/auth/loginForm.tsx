@@ -65,6 +65,9 @@ export default function LoginForm() {
     }
 
     if (status >= 500) {
+      if (data?.error?.trim()) {
+        return data.error.trim();
+      }
       return "Ocurrió un problema en el servidor. Intenta nuevamente.";
     }
 

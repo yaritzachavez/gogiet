@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
-import { hashOpaqueToken } from "@/lib/auth-security";
+import {
+  getAuthUser,
+  getPersistedSessionTokenValue,
+  getUserSessionsSchema,
+} from "@/lib/admin-security";
 import pool from "@/lib/db";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -17,18 +20,38 @@ export async function POST(req: Request) {
     const auth = getAuthUser(req);
 
     if (auth.token) {
+      const sessionSchema = await getUserSessionsSchema();
+      const persistedToken = getPersistedSessionTokenValue(
+        auth.token,
+        sessionSchema,
+      );
+      const updates = ["status = 'revoked'"];
+
+      if (sessionSchema.hasRevokedAt) {
+        updates.push("revoked_at = COALESCE(revoked_at, NOW())");
+      }
+
+      if (sessionSchema.hasUpdatedAt) {
+        updates.push("updated_at = NOW()");
+      }
+
+      const where = [`${sessionSchema.tokenColumn} = ?`];
+
+      if (sessionSchema.hasStatus) {
+        where.push("status = 'active'");
+      }
+
+      if (sessionSchema.hasRevokedAt) {
+        where.push("revoked_at IS NULL");
+      }
+
       await pool.query(
         `
           UPDATE user_sessions
-          SET
-            status = 'revoked',
-            revoked_at = COALESCE(revoked_at, NOW()),
-            updated_at = NOW()
-          WHERE session_token_hash = ?
-            AND status = 'active'
-            AND revoked_at IS NULL
+          SET ${updates.join(", ")}
+          WHERE ${where.join(" AND ")}
         `,
-        [hashOpaqueToken(auth.token)],
+        [persistedToken],
       );
     }
 

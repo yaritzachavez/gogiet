@@ -4,7 +4,11 @@ import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
-import { assertColumnsExist, assertTablesExist } from "@/lib/runtime-schema";
+import {
+  assertColumnsExist,
+  assertTablesExist,
+  RuntimeSchemaError,
+} from "@/lib/runtime-schema";
 
 export type JwtPayload = {
   id: number;
@@ -26,8 +30,76 @@ type AuthRequestLike = {
   };
 };
 
-function hashSessionToken(token: string) {
+export type UserSessionsSchema = {
+  tokenColumn: "session_token_hash" | "token";
+  hasDeviceName: boolean;
+  hasLocation: boolean;
+  hasLastActiveAt: boolean;
+  hasExpiresAt: boolean;
+  hasRevokedAt: boolean;
+  hasStatus: boolean;
+  hasUpdatedAt: boolean;
+};
+
+let cachedUserSessionsSchema: UserSessionsSchema | null = null;
+
+export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export async function getUserSessionsSchema() {
+  if (cachedUserSessionsSchema) {
+    return cachedUserSessionsSchema;
+  }
+
+  await assertTablesExist(pool, ["user_sessions"]);
+
+  const [rows] = await pool.query<RowDataPacket[]>(
+    "SHOW COLUMNS FROM user_sessions",
+  );
+  const columns = new Set(
+    rows
+      .map((row) =>
+        String(row.Field ?? "")
+          .trim()
+          .toLowerCase(),
+      )
+      .filter(Boolean),
+  );
+
+  const tokenColumn = columns.has("session_token_hash")
+    ? "session_token_hash"
+    : columns.has("token")
+      ? "token"
+      : null;
+
+  if (!tokenColumn) {
+    throw new RuntimeSchemaError(
+      "La tabla user_sessions no tiene una columna compatible de token de sesión.",
+    );
+  }
+
+  cachedUserSessionsSchema = {
+    tokenColumn,
+    hasDeviceName: columns.has("device_name"),
+    hasLocation: columns.has("location"),
+    hasLastActiveAt: columns.has("last_active_at"),
+    hasExpiresAt: columns.has("expires_at"),
+    hasRevokedAt: columns.has("revoked_at"),
+    hasStatus: columns.has("status"),
+    hasUpdatedAt: columns.has("updated_at"),
+  };
+
+  return cachedUserSessionsSchema;
+}
+
+export function getPersistedSessionTokenValue(
+  token: string,
+  schema: UserSessionsSchema,
+) {
+  return schema.tokenColumn === "session_token_hash"
+    ? hashSessionToken(token)
+    : token;
 }
 
 export function getAuthUser(req: AuthRequestLike) {
@@ -125,25 +197,48 @@ export async function createUserSession(params: {
   location: string;
   expiresAt: Date;
 }) {
+  const schema = await getUserSessionsSchema();
+  const columns = ["user_id", schema.tokenColumn];
+  const values: Array<string | number | Date | null> = [
+    params.userId,
+    getPersistedSessionTokenValue(params.token, schema),
+  ];
+
+  if (schema.hasDeviceName) {
+    columns.push("device_name");
+    values.push(params.deviceName);
+  }
+
+  if (schema.hasLocation) {
+    columns.push("location");
+    values.push(params.location);
+  }
+
+  if (schema.hasLastActiveAt) {
+    columns.push("last_active_at");
+  }
+
+  if (schema.hasExpiresAt) {
+    columns.push("expires_at");
+    values.push(params.expiresAt);
+  }
+
+  if (schema.hasStatus) {
+    columns.push("status");
+    values.push("active");
+  }
+
+  const placeholders = columns.map((columnName) =>
+    columnName === "last_active_at" ? "NOW()" : "?",
+  );
+
   await pool.query<ResultSetHeader>(
     `
       INSERT INTO user_sessions (
-        user_id,
-        session_token_hash,
-        device_name,
-        location,
-        last_active_at,
-        expires_at,
-        status
+        ${columns.join(", ")}
       )
-      VALUES (?, ?, ?, ?, NOW(), ?, 'active')
+      VALUES (${placeholders.join(", ")})
     `,
-    [
-      params.userId,
-      hashSessionToken(params.token),
-      params.deviceName,
-      params.location,
-      params.expiresAt,
-    ],
+    values,
   );
 }

@@ -3,6 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { ensureAddressesTable } from "@/lib/addresses-table";
 import pool from "@/lib/db";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { requireAuthenticatedUser } from "@/lib/permissions";
 import { mapDbRoleToPublicRole } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
@@ -51,6 +52,7 @@ function formatFullAddress(address: AddressRow) {
 }
 
 export async function GET(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   const json = (body: unknown, init?: ResponseInit) => {
     const response = NextResponse.json(body, init);
     response.headers.set(
@@ -65,6 +67,14 @@ export async function GET(req: NextRequest) {
   try {
     const auth = await requireAuthenticatedUser(req);
     if (!auth.ok) {
+      logger.info(
+        "auth.me_invalid_session",
+        "[auth-me] sesión inválida o ausente",
+        {
+          ...requestContext,
+          route: "/api/auth/me",
+        },
+      );
       return withCors(req, auth.response);
     }
 
@@ -103,6 +113,13 @@ export async function GET(req: NextRequest) {
 
     const address = addressRows[0] ?? null;
 
+    logger.info("auth.me_user_detected", "[auth-me] usuario detectado", {
+      ...requestContext,
+      route: "/api/auth/me",
+      userId: auth.access.userId,
+      role: auth.access.roles,
+    });
+
     return json({
       success: true,
       user: {
@@ -127,7 +144,11 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error GET /api/auth/me:", error);
+    logger.error("auth.me_error", "[auth-error] error técnico en auth/me", {
+      ...requestContext,
+      route: "/api/auth/me",
+      error,
+    });
     return json(
       {
         success: false,
