@@ -5,6 +5,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 import {
   getPersistedImageUrlError,
   normalizePersistedImageUrl,
@@ -12,12 +13,11 @@ import {
 
 function validateBearer(req: Request) {
   const authHeader = req.headers.get("authorization");
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
 
   if (!authHeader?.startsWith("Bearer ")) return false;
 
   try {
-    jwt.verify(authHeader.split(" ")[1], secret);
+    jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
     return true;
   } catch {
     return false;

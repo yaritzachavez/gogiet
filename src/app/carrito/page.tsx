@@ -26,6 +26,7 @@ import {
   readStoredCartSnapshot,
   writeStoredCartSnapshot,
 } from "@/lib/cart-storage";
+import { fetchWithSession } from "@/lib/client-auth";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import type { ShippingByAddressResult } from "@/lib/shipping";
@@ -292,11 +293,9 @@ export default function CarritoPage() {
     }
 
     try {
-      const token = window.localStorage.getItem("token");
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 12000);
-      const res = await fetch(`/api/cart?user_id=${user.id}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      const res = await fetchWithSession(`/api/cart?user_id=${user.id}`, {
         signal: controller.signal,
       });
       window.clearTimeout(timeoutId);
@@ -664,15 +663,6 @@ export default function CarritoPage() {
     user,
   ]);
 
-  useEffect(() => {
-    console.log("[checkout] cartItems:", cartItems);
-    console.log("[checkout] cart business state:", {
-      businessIds: cartBusinessState.businessIds,
-      invalidItems: cartBusinessState.invalidItems,
-      resolvedBusinessId: cartBusinessState.resolvedBusinessId,
-    });
-  }, [cartBusinessState, cartItems]);
-
   const canContinueToPayment = !checkoutBlockReason && !submittingOrder;
   const canSubmitOrder =
     !checkoutBlockReason && !submittingOrder && Boolean(selectedPaymentMethod);
@@ -715,13 +705,11 @@ export default function CarritoPage() {
       return;
     }
 
-    const token = window.localStorage.getItem("token");
     try {
-      await fetch("/api/cart/add-product", {
+      await fetchWithSession("/api/cart/add-product", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           cart_id: cartId,
@@ -743,13 +731,11 @@ export default function CarritoPage() {
     const nextItems = cartItems.filter((item) => item.id !== id);
     setCartItems(nextItems);
     if (cartId) {
-      const token = window.localStorage.getItem("token");
       try {
-        await fetch("/api/cart/remove-product", {
+        await fetchWithSession("/api/cart/remove-product", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({ cart_id: cartId, product_id: id }),
         });
@@ -765,19 +751,13 @@ export default function CarritoPage() {
   };
 
   const handleClearCart = async () => {
-    const token =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("token")
-        : null;
-
     if (cartId) {
       await Promise.all(
         cartItems.map((item) =>
-          fetch("/api/cart/remove-product", {
+          fetchWithSession("/api/cart/remove-product", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
             },
             body: JSON.stringify({
               cart_id: cartId,
@@ -798,14 +778,6 @@ export default function CarritoPage() {
 
   const handleCheckout = () => {
     setTransferError("");
-
-    console.log("[checkout] attempting checkout with business state:", {
-      cartId,
-      cartItems,
-      businessIds: cartBusinessState.businessIds,
-      invalidItems: cartBusinessState.invalidItems,
-      resolvedBusinessId: cartBusinessState.resolvedBusinessId,
-    });
 
     if (!user || !hasValidItems || !hasValidBusiness) {
       const message =
@@ -861,19 +833,12 @@ export default function CarritoPage() {
       if (!orderId) return;
 
       try {
-        const token = window.localStorage.getItem("token");
-
-        if (!token) {
-          throw new Error("Necesitas iniciar sesión para continuar.");
-        }
-
-        const preferenceRes = await fetch(
+        const preferenceRes = await fetchWithSession(
           "/api/payments/mercadopago/create-preference",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
               orderId,
@@ -943,11 +908,6 @@ export default function CarritoPage() {
 
     setSubmittingOrder(true);
     try {
-      const token = window.localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Necesitas iniciar sesión para continuar.");
-      }
-
       const checkoutPayload = {
         user_id: user?.id,
         address_id: savedAddress?.id,
@@ -976,13 +936,10 @@ export default function CarritoPage() {
         })),
       };
 
-      console.log("[checkout] payload to /api/orders:", checkoutPayload);
-
-      const res = await fetch("/api/orders", {
+      const res = await fetchWithSession("/api/orders", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(checkoutPayload),
       });
@@ -1037,13 +994,11 @@ export default function CarritoPage() {
     setTransferError("");
 
     try {
-      const token = window.localStorage.getItem("token");
       const formData = new FormData();
       formData.append("file", transferReceiptFile);
 
-      const uploadRes = await fetch("/api/upload/payment-proof", {
+      const uploadRes = await fetchWithSession("/api/upload/payment-proof", {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: formData,
       });
 

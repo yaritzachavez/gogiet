@@ -3,24 +3,24 @@ import type {
   ResultSetHeader,
   RowDataPacket,
 } from "mysql2/promise";
-
+import { recordAuditLog } from "@/lib/audit-log";
 import {
   ensureDeliveryStatus,
   findAvailableCourier,
   resolveBusinessAccess,
 } from "@/lib/business-panel";
-import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import {
   createNotification,
   createNotificationForBusiness,
+  createNotificationsForAdminGeneral,
   createNotificationsForUsers,
 } from "@/lib/notifications";
 import {
   applyValidatedOrderStatusTransition,
-  OrderStatusTransitionError,
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
+import { assertColumnsExist, assertTablesExist } from "@/lib/runtime-schema";
 
 type OrderRow = RowDataPacket & {
   id: number;
@@ -47,10 +47,6 @@ type CourierCapacityRow = RowDataPacket & {
 
 type DeliveryDriverColumnRow = RowDataPacket & {
   is_nullable: string;
-};
-
-type OrdersColumnRow = RowDataPacket & {
-  Field: string;
 };
 
 export class DeliveryAssignmentError extends Error {
@@ -128,22 +124,8 @@ async function deliverySupportsUnassignedDriver(connection: PoolConnection) {
 }
 
 async function ensureOrdersDriverColumn(connection: PoolConnection) {
-  const [rows] = await connection.query<OrdersColumnRow[]>(
-    "SHOW COLUMNS FROM orders",
-  );
-  const hasDriverId = rows.some((row) => row.Field === "driver_id");
-
-  if (hasDriverId) {
-    return;
-  }
-
-  await connection.query(
-    `
-      ALTER TABLE orders
-      ADD COLUMN driver_id INT NULL
-      AFTER business_id
-    `,
-  );
+  await assertTablesExist(connection, ["orders"]);
+  await assertColumnsExist(connection, "orders", ["driver_id"]);
 }
 
 async function getOrderForAssignment(
@@ -274,31 +256,71 @@ export async function requestCourierAssignment(params: {
     );
     const existingDeliveryIsActive =
       existingDelivery && !existingDelivery.delivery_status_is_final;
+    const existingDeliveryStatus = normalizeStatus(
+      existingDelivery?.delivery_status_name,
+    );
 
     if (existingDeliveryIsActive) {
+      await connection.commit();
+
+      if (Number(existingDelivery?.driver_user_id ?? 0) > 0) {
+        return {
+          courierId: Number(existingDelivery?.driver_user_id ?? 0),
+          courierName: null,
+          courierPhone: null,
+          courierAvatarUrl: null,
+          notifiedCourierIds: [],
+          deliveryRequested: true,
+          noActiveCouriers: false,
+          adminNotified: false,
+          message:
+            "Este pedido ya tiene un repartidor asignado o pendiente de confirmación.",
+        };
+      }
+
+      if (
+        existingDeliveryStatus === "pending_driver" ||
+        existingDeliveryStatus === "disponible" ||
+        existingDeliveryStatus === "available" ||
+        existingDeliveryStatus === "pendiente_aceptacion"
+      ) {
+        return {
+          courierId: null,
+          courierName: null,
+          courierPhone: null,
+          courierAvatarUrl: null,
+          notifiedCourierIds: [],
+          deliveryRequested: true,
+          noActiveCouriers: false,
+          adminNotified: false,
+          message:
+            "La solicitud de repartidor ya estaba activa para este pedido.",
+        };
+      }
+
       throw new DeliveryAssignmentError(
-        "Este pedido ya tiene un repartidor asignado o pendiente de respuesta.",
+        "Este pedido ya tiene una solicitud de repartidor activa.",
         409,
       );
     }
 
     const courierSearch = await findAvailableCourier(connection);
     const availableCouriers = courierSearch.availableCouriers;
-    const hasCourierUsers =
-      Array.isArray(courierSearch.debug.usuariosRepartidores) &&
-      courierSearch.debug.usuariosRepartidores.length > 0;
-
-    if (!hasCourierUsers) {
-      throw new DeliveryAssignmentError(
-        "No hay repartidores disponibles",
-        409,
-        courierSearch.debug,
-      );
-    }
-
     const selectedCourier = courierSearch.courier;
     const supportsUnassignedDriver =
       await deliverySupportsUnassignedDriver(connection);
+    const noActiveCouriers = availableCouriers.length === 0;
+    const adminAlertPayload = {
+      type: "delivery",
+      title: `Sin repartidores activos #FG-${String(params.orderId).padStart(4, "0")}`,
+      message: `El pedido de ${order.business_name} quedó listo, pero no hay repartidores activos para tomarlo en este momento.`,
+      relatedId: params.orderId,
+      dataJson: {
+        order_id: params.orderId,
+        business_id: Number(order.business_id),
+        issue: "no_active_couriers",
+      },
+    } as const;
 
     console.log("[delivery-assignment] repartidores disponibles:", {
       orderId: params.orderId,
@@ -368,6 +390,35 @@ export async function requestCourierAssignment(params: {
         connection,
       );
 
+      let adminNotified = false;
+
+      if (noActiveCouriers) {
+        await createNotificationsForAdminGeneral(adminAlertPayload, connection);
+        adminNotified = true;
+      }
+
+      await recordAuditLog(
+        {
+          userId: params.userId,
+          action: noActiveCouriers
+            ? "REQUEST_DELIVERY_NO_ACTIVE_COURIERS"
+            : "REQUEST_DELIVERY",
+          resourceType: "order",
+          resourceId: params.orderId,
+          oldValue: {
+            deliveryStatus: null,
+            orderStatus: order.order_status_name,
+          },
+          newValue: {
+            deliveryStatus: "pending_driver",
+            orderStatus: order.order_status_name,
+            notifiedCourierIds: availableCouriers.map((courier) => courier.id),
+            noActiveCouriers,
+          },
+        },
+        connection,
+      );
+
       console.log("[delivery-assignment] Entrega creada para repartidor:", {
         orderId: params.orderId,
         deliveryStatusId,
@@ -387,16 +438,49 @@ export async function requestCourierAssignment(params: {
         courierPhone: null,
         courierAvatarUrl: null,
         notifiedCourierIds: availableCouriers.map((courier) => courier.id),
-        message: "Entrega disponible para repartidores creada correctamente",
+        deliveryRequested: true,
+        noActiveCouriers,
+        adminNotified,
+        message: noActiveCouriers
+          ? "El pedido quedó listo y la solicitud se creó, pero no hay repartidores activos en este momento."
+          : "La solicitud de entrega ya quedó disponible para repartidores activos.",
       };
     }
 
     if (!selectedCourier) {
-      throw new DeliveryAssignmentError(
-        "Todos los repartidores están ocupados",
-        409,
-        courierSearch.debug,
+      await createNotificationsForAdminGeneral(adminAlertPayload, connection);
+      await recordAuditLog(
+        {
+          userId: params.userId,
+          action: "REQUEST_DELIVERY_NO_ACTIVE_COURIERS",
+          resourceType: "order",
+          resourceId: params.orderId,
+          oldValue: {
+            deliveryStatus: existingDelivery?.delivery_status_name ?? null,
+            orderStatus: order.order_status_name,
+          },
+          newValue: {
+            deliveryStatus: existingDelivery?.delivery_status_name ?? null,
+            orderStatus: order.order_status_name,
+            noActiveCouriers: true,
+          },
+        },
+        connection,
       );
+      await connection.commit();
+
+      return {
+        courierId: null,
+        courierName: null,
+        courierPhone: null,
+        courierAvatarUrl: null,
+        notifiedCourierIds: [],
+        deliveryRequested: false,
+        noActiveCouriers: true,
+        adminNotified: true,
+        message:
+          "No hay repartidores activos disponibles en este momento. Avisamos al administrador.",
+      };
     }
 
     const deliveryStatusId = await ensureDeliveryStatus(
@@ -462,6 +546,25 @@ export async function requestCourierAssignment(params: {
       connection,
     );
 
+    await recordAuditLog(
+      {
+        userId: params.userId,
+        action: "REQUEST_DELIVERY_DIRECT_ASSIGNMENT",
+        resourceType: "order",
+        resourceId: params.orderId,
+        oldValue: {
+          deliveryStatus: existingDelivery?.delivery_status_name ?? null,
+          orderStatus: order.order_status_name,
+        },
+        newValue: {
+          deliveryStatus: "pendiente_aceptacion",
+          orderStatus: order.order_status_name,
+          driverUserId: selectedCourier.id,
+        },
+      },
+      connection,
+    );
+
     console.log("[delivery-assignment] Entrega creada para repartidor:", {
       orderId: params.orderId,
       deliveryStatusId,
@@ -481,6 +584,9 @@ export async function requestCourierAssignment(params: {
       courierPhone: selectedCourier.phone,
       courierAvatarUrl: selectedCourier.avatarUrl,
       notifiedCourierIds: [selectedCourier.id],
+      deliveryRequested: true,
+      noActiveCouriers: false,
+      adminNotified: false,
       message: "Repartidor solicitado correctamente",
     };
   } catch (error) {

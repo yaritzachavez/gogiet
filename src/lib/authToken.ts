@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import type { NextRequest } from "next/server";
+import { JWT_SECRET } from "@/lib/env";
 
 export function validateAuth(req: NextRequest): boolean {
   const auth = req.headers.get("authorization");
@@ -8,7 +9,7 @@ export function validateAuth(req: NextRequest): boolean {
   const token = auth.split(" ")[1];
 
   try {
-    jwt.verify(token, process.env.JWT_SECRET || "gogi-dev-secret");
+    jwt.verify(token, JWT_SECRET);
     return true;
   } catch (error) {
     console.error("❌ Token inválido:", error);

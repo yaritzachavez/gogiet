@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
+import { fetchWithSession } from "@/lib/client-auth";
 
 type NotificationItem = {
   id: number;
@@ -46,22 +47,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     async function loadNotifications() {
       try {
-        const token =
-          localStorage.getItem("token") ||
-          localStorage.getItem("authToken") ||
-          localStorage.getItem("accessToken");
-
-        if (!token) {
-          setError("Debes iniciar sesión nuevamente");
-          setNotifications([]);
-          return;
-        }
-
-        const response = await fetch("/api/notifications", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetchWithSession("/api/notifications");
 
         const data = await response.json();
 
@@ -89,22 +75,10 @@ export default function NotificationsPage() {
 
   async function handleMarkAsRead(notificationId: number) {
     try {
-      const token =
-        localStorage.getItem("token") ||
-        localStorage.getItem("authToken") ||
-        localStorage.getItem("accessToken");
-
-      if (!token) {
-        return;
-      }
-
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/notifications/${notificationId}/read`,
         {
           method: "PATCH",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         },
       );
 

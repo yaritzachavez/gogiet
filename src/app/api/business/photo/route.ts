@@ -71,14 +71,6 @@ export async function POST(req: NextRequest) {
       remove,
     };
 
-    console.log("save-db-url userId:", userId);
-    console.log("BODY save-db-url:", body);
-    console.log("businessId recibido:", body.businessId);
-    console.log(
-      "business_id recibido:",
-      Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
-    );
-
     if (!body.businessId) {
       return buildImageErrorResponse("businessId inválido", 400);
     }
@@ -147,9 +139,6 @@ export async function POST(req: NextRequest) {
     }
 
     step = "save-db-url";
-    console.log("BODY recibido imagen negocio:", body);
-    console.log("businessId:", business.id);
-    console.log("imageUrl:", body.imageUrl);
     console.info("[business-photo] saving business logo", {
       businessId: business.id,
       businessName: business.name,

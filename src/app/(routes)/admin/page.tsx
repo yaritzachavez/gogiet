@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { fetchWithSession } from "@/lib/client-auth";
 
 type AdminUser = {
   id: number;
@@ -37,20 +38,6 @@ export default function AdminDashboardPage() {
 
   const loadDashboard = useCallback(async () => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        console.warn("No se encontró token para cargar el dashboard admin.");
-        setAdmins([]);
-        setAdminsError("Inicia sesión para ver los administradores.");
-        setDashboardError("Inicia sesión para ver el resumen.");
-        setOrdersToday([]);
-        setOrdersMonth([]);
-        setBusinesses([]);
-        setOpenSupportCount(0);
-        setSupportUnavailable(false);
-        return;
-      }
-
       const [
         adminsResponse,
         ordersTodayResponse,
@@ -58,25 +45,17 @@ export default function AdminDashboardPage() {
         businessesResponse,
         supportResponse,
       ] = await Promise.all([
-        fetch("/api/users/admins", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/admin/orders?period=day", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/admin/orders?period=month", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/business", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/admin/support/threads?status=open", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
+        fetchWithSession("/api/users/admins"),
+        fetchWithSession("/api/admin/orders?period=day"),
+        fetchWithSession("/api/admin/orders?period=month"),
+        fetchWithSession("/api/business"),
+        fetchWithSession("/api/admin/support/threads?status=open"),
       ]);
 
       const adminsData = await adminsResponse.json().catch(() => null);
-      const ordersTodayData = await ordersTodayResponse.json().catch(() => null);
+      const ordersTodayData = await ordersTodayResponse
+        .json()
+        .catch(() => null);
       const ordersMonthData = await ordersMonthResponse
         .json()
         .catch(() => null);

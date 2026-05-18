@@ -6,6 +6,11 @@ import type {
 } from "mysql2/promise";
 
 import pool from "@/lib/db";
+import {
+  assertColumnsExist,
+  assertIndexesExist,
+  assertTablesExist,
+} from "@/lib/runtime-schema";
 
 type Queryable = Pool | PoolConnection;
 
@@ -22,11 +27,6 @@ type NotificationRow = RowDataPacket & {
   data_json: string | null;
   created_at: string;
   updated_at: string;
-};
-
-type NotificationColumnRow = RowDataPacket & {
-  COLUMN_NAME: string;
-  IS_NULLABLE: string;
 };
 
 type NotificationPayload = {
@@ -81,136 +81,29 @@ function parseNotificationData(value: string | null) {
   }
 }
 
-async function getNotificationColumns(executor: Queryable = pool) {
-  const [rows] = await executor.query<NotificationColumnRow[]>(
-    `
-      SELECT COLUMN_NAME, IS_NULLABLE
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'notifications'
-    `,
-  );
-
-  return rows;
-}
-
-async function addNotificationColumnIfMissing(
-  columnName: string,
-  definition: string,
-  executor: Queryable = pool,
-) {
-  const columns = await getNotificationColumns(executor);
-  const hasColumn = columns.some((column) => column.COLUMN_NAME === columnName);
-
-  if (hasColumn) {
-    return;
-  }
-
-  await executor.query(
-    `ALTER TABLE notifications ADD COLUMN \`${columnName}\` ${definition}`,
-  );
-}
-
-async function addNotificationIndexIfMissing(
-  indexName: string,
-  definitionSql: string,
-  executor: Queryable = pool,
-) {
-  const [rows] = await executor.query<RowDataPacket[]>(
-    `
-      SELECT INDEX_NAME
-      FROM INFORMATION_SCHEMA.STATISTICS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'notifications'
-        AND INDEX_NAME = ?
-      LIMIT 1
-    `,
-    [indexName],
-  );
-
-  if (rows.length > 0) {
-    return;
-  }
-
-  await executor.query(
-    `ALTER TABLE notifications ADD INDEX ${indexName} ${definitionSql}`,
-  );
-}
-
 export async function ensureNotificationsTable(executor: Queryable = pool) {
-  await executor.query(
-    `
-      CREATE TABLE IF NOT EXISTS notifications (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NULL,
-        business_id INT NULL,
-        \`role\` VARCHAR(80) NULL,
-        type VARCHAR(50) NOT NULL,
-        title VARCHAR(160) NOT NULL,
-        message TEXT NOT NULL,
-        related_id INT NULL,
-        is_read BOOLEAN NOT NULL DEFAULT FALSE,
-        data_json JSON NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_notifications_user_id (user_id),
-        INDEX idx_notifications_business_id (business_id),
-        INDEX idx_notifications_role (\`role\`),
-        INDEX idx_notifications_is_read (is_read),
-        INDEX idx_notifications_created_at (created_at)
-      )
-    `,
-  );
-
-  await addNotificationColumnIfMissing("business_id", "INT NULL", executor);
-  await addNotificationColumnIfMissing("role", "VARCHAR(80) NULL", executor);
-  await addNotificationColumnIfMissing("related_id", "INT NULL", executor);
-  await addNotificationColumnIfMissing(
+  await assertTablesExist(executor, ["notifications"]);
+  await assertColumnsExist(executor, "notifications", [
+    "id",
+    "user_id",
+    "business_id",
+    "role",
+    "type",
+    "title",
+    "message",
+    "related_id",
     "is_read",
-    "BOOLEAN NOT NULL DEFAULT FALSE",
-    executor,
-  );
-  await addNotificationColumnIfMissing("data_json", "JSON NULL", executor);
-  await addNotificationColumnIfMissing(
+    "data_json",
+    "created_at",
     "updated_at",
-    "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-    executor,
-  );
-
-  const columns = await getNotificationColumns(executor);
-  const userIdColumn = columns.find(
-    (column) => column.COLUMN_NAME === "user_id",
-  );
-
-  if (userIdColumn?.IS_NULLABLE === "NO") {
-    await executor.query(
-      `
-        ALTER TABLE notifications
-        MODIFY COLUMN user_id INT NULL
-      `,
-    );
-  }
-
-  await addNotificationIndexIfMissing(
+  ]);
+  await assertIndexesExist(executor, "notifications", [
+    "idx_notifications_user_id",
     "idx_notifications_business_id",
-    "(business_id)",
-    executor,
-  );
-  await addNotificationIndexIfMissing(
     "idx_notifications_role",
-    "(`role`)",
-    executor,
-  );
-  await addNotificationIndexIfMissing(
     "idx_notifications_is_read",
-    "(is_read)",
-    executor,
-  );
-  await addNotificationIndexIfMissing(
     "idx_notifications_created_at",
-    "(created_at)",
-    executor,
-  );
+  ]);
 }
 
 export async function getAdminGeneralUserIds(executor: Queryable = pool) {

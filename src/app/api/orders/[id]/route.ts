@@ -4,15 +4,13 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 import { createNotificationsForAdminGeneral } from "@/lib/notifications";
 import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
 } from "@/lib/order-status";
-import {
-  ensureCanonicalOrderStatus,
-  ensureCoreOrderStatuses,
-} from "@/lib/order-status-server";
+import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
 
@@ -52,12 +50,11 @@ function getAuthUser(req: NextRequest): JwtPayload | null {
   const token = auth?.startsWith("Bearer ")
     ? auth.split(" ")[1]
     : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
 
   if (!token) return null;
 
   try {
-    return jwt.verify(token, secret) as JwtPayload;
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
   } catch {
     return null;
   }

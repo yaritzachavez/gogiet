@@ -4,7 +4,6 @@ type UploadImageAssetOptions = {
   businessId?: number | null;
   file: File;
   kind: UploadImageKind;
-  token: string;
 };
 
 type UploadImageApiPayload = {
@@ -20,7 +19,6 @@ export async function uploadImageAsset({
   businessId,
   file,
   kind,
-  token,
 }: UploadImageAssetOptions) {
   const formData = new FormData();
   formData.append("file", file);
@@ -32,9 +30,7 @@ export async function uploadImageAsset({
 
   const response = await fetch("/api/upload/image", {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    credentials: "include",
     body: formData,
   });
 

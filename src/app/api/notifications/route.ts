@@ -1,13 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
-import { logDbUsage } from "@/lib/db";
 import {
   createNotification,
   ensureNotificationsTable,
   getNotificationsForActor,
 } from "@/lib/notifications";
+import {
+  requireAdminGeneral,
+  requireAuthenticatedUser,
+} from "@/lib/permissions";
 
 function expandNotificationRoles(roles: string[]) {
   const normalizedRoles = new Set(
@@ -26,38 +28,17 @@ function expandNotificationRoles(roles: string[]) {
 
 export async function GET(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.token) {
-      return NextResponse.json(
-        { success: false, error: "Token faltante", notifications: [] },
-        { status: 401 },
-      );
+    const auth = await requireAuthenticatedUser(req);
+    if (!auth.ok) {
+      return auth.response;
     }
 
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido", notifications: [] },
-        { status: 401 },
-      );
-    }
-
-    const access = await resolveBusinessAccess(authUser.user.id);
-
-    console.log("GET /api/notifications endpoint:", "/api/notifications");
-    console.log("GET /api/notifications userId:", authUser.user.id);
-    console.log("GET /api/notifications email:", access.email);
-    console.log("GET /api/notifications role:", access.roles);
-    logDbUsage("/api/notifications", {
-      userId: authUser.user.id,
-      email: access.email,
-      role: access.roles,
-    });
+    const access = await resolveBusinessAccess(auth.access.userId);
 
     await ensureNotificationsTable();
     const actorRoles = expandNotificationRoles(access.roles);
     const notifications = await getNotificationsForActor({
-      userId: authUser.user.id,
+      userId: auth.access.userId,
       businessIds: access.businessIds,
       roles: actorRoles,
     });
@@ -76,7 +57,6 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: "No se pudieron cargar las notificaciones.",
-        details: error instanceof Error ? error.message : String(error),
         notifications: [],
       },
       { status: 500 },
@@ -86,13 +66,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+    const admin = await requireAdminGeneral(req);
+    if (!admin.ok) {
+      return admin.response;
     }
 
     await ensureNotificationsTable();
@@ -142,7 +118,6 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: "No se pudo crear la notificación.",
-        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
     );

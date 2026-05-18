@@ -1,6 +1,12 @@
 import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
+import {
+  assertColumnsExist,
+  assertIndexesExist,
+  assertTablesExist,
+} from "@/lib/runtime-schema";
 
 export type JwtPayload = {
   id: number;
@@ -23,23 +29,35 @@ type AuthRequestLike = {
 
 export function getAuthUser(req: AuthRequestLike) {
   const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies?.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
+  const bearerToken = auth?.startsWith("Bearer ")
+    ? auth.split(" ")[1]?.trim()
+    : null;
+  const cookieToken = req.cookies?.get("authToken")?.value ?? null;
+  const tokenCandidates = [bearerToken, cookieToken].filter(
+    (value): value is string =>
+      Boolean(
+        value &&
+          value !== "null" &&
+          value !== "undefined" &&
+          value.trim().length > 0,
+      ),
+  );
+  const token = tokenCandidates[0] ?? null;
 
   if (!token) {
     return { token: null, user: null };
   }
 
-  try {
-    return {
-      token,
-      user: jwt.verify(token, secret) as JwtPayload,
-    };
-  } catch {
-    return { token, user: null };
+  for (const candidate of tokenCandidates) {
+    try {
+      return {
+        token: candidate,
+        user: jwt.verify(candidate, JWT_SECRET) as JwtPayload,
+      };
+    } catch {}
   }
+
+  return { token, user: null };
 }
 
 export async function isAdminGeneral(userId: number) {
@@ -58,58 +76,37 @@ export async function isAdminGeneral(userId: number) {
 }
 
 export async function ensureAdminSettingsTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS admin_settings (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL UNIQUE,
-      language VARCHAR(20) NOT NULL DEFAULT 'es-MX',
-      timezone VARCHAR(64) NOT NULL DEFAULT 'America/Mexico_City',
-      realtime_notifications BOOLEAN NOT NULL DEFAULT TRUE,
-      dark_mode BOOLEAN NOT NULL DEFAULT FALSE,
-      two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      CONSTRAINT fk_admin_settings_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
-
-  const [columns] = await pool.query<RowDataPacket[]>(
-    `
-      SELECT COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'admin_settings'
-    `,
-  );
-
-  const hasTwoFactor = columns.some(
-    (column) => column.COLUMN_NAME === "two_factor_enabled",
-  );
-
-  if (!hasTwoFactor) {
-    await pool.query(`
-      ALTER TABLE admin_settings
-      ADD COLUMN two_factor_enabled BOOLEAN NOT NULL DEFAULT FALSE
-    `);
-  }
+  await assertTablesExist(pool, ["admin_settings"]);
+  await assertColumnsExist(pool, "admin_settings", [
+    "id",
+    "user_id",
+    "language",
+    "timezone",
+    "realtime_notifications",
+    "dark_mode",
+    "two_factor_enabled",
+    "created_at",
+    "updated_at",
+  ]);
 }
 
 export async function ensureUserSessionsTable() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS user_sessions (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      user_id INT NOT NULL,
-      token VARCHAR(512) NOT NULL,
-      device_name VARCHAR(120) NULL,
-      location VARCHAR(120) NULL,
-      last_active_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      status VARCHAR(30) NOT NULL DEFAULT 'active',
-      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX idx_user_sessions_user_id (user_id),
-      INDEX idx_user_sessions_status (status),
-      CONSTRAINT fk_user_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    )
-  `);
+  await assertTablesExist(pool, ["user_sessions"]);
+  await assertColumnsExist(pool, "user_sessions", [
+    "id",
+    "user_id",
+    "token",
+    "device_name",
+    "location",
+    "last_active_at",
+    "status",
+    "created_at",
+    "updated_at",
+  ]);
+  await assertIndexesExist(pool, "user_sessions", [
+    "idx_user_sessions_user_id",
+    "idx_user_sessions_status",
+  ]);
 }
 
 export function getDeviceName(userAgent: string | null) {

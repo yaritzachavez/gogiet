@@ -1,10 +1,11 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { updateAuthUserPassword } from "@/lib/auth-users";
 import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 
 type JwtPayload = {
   id: number;
@@ -15,12 +16,11 @@ function getAuthUser(req: NextRequest) {
   const token = auth?.startsWith("Bearer ")
     ? auth.split(" ")[1]
     : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
 
   if (!token) return null;
 
   try {
-    return jwt.verify(token, secret) as JwtPayload;
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
   } catch {
     return null;
   }

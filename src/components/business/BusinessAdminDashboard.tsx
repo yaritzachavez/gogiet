@@ -46,6 +46,10 @@ const TOKEN_STORAGE_KEYS = [
   "accessToken",
 ];
 
+function canMarkAdminOrderReady(status: string) {
+  return normalizeStatus(status) === "preparing";
+}
+
 type AdminSection =
   | "summary"
   | "orders"
@@ -549,7 +553,7 @@ export function BusinessAdminDashboard() {
   const [accessView, setAccessView] = useState<AccessView>("ready");
   const [error, setError] = useState("");
   const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
+    type: "success" | "error" | "warning";
     message: string;
   } | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<BusinessOrder | null>(
@@ -1368,10 +1372,13 @@ export function BusinessAdminDashboard() {
       }
 
       setFeedback({
-        type: "success",
+        type:
+          data.noActiveCouriers === true || data.deliveryRequested === false
+            ? "warning"
+            : "success",
         message:
           (typeof data.message === "string" && data.message) ||
-          "Pedido listo. Ahora puedes solicitar repartidor.",
+          "Pedido listo y solicitud de repartidor procesada.",
       });
       await refreshData();
     });
@@ -1400,7 +1407,10 @@ export function BusinessAdminDashboard() {
       }
 
       setFeedback({
-        type: "success",
+        type:
+          data.noActiveCouriers === true || data.deliveryRequested === false
+            ? "warning"
+            : "success",
         message:
           (typeof data.message === "string" && data.message) ||
           "Repartidor solicitado correctamente.",
@@ -1490,16 +1500,6 @@ export function BusinessAdminDashboard() {
       return;
     }
 
-    const token = getStoredToken();
-
-    if (!token) {
-      setFeedback({
-        type: "error",
-        message: "Tu sesión expiró. Inicia sesión nuevamente.",
-      });
-      return;
-    }
-
     const processedFile = await compressImageFile(file, {
       maxWidth: 1200,
       maxHeight: 1200,
@@ -1514,7 +1514,6 @@ export function BusinessAdminDashboard() {
       const { imageUrl } = await uploadImageAsset({
         file: processedFile,
         kind: "product",
-        token,
       });
 
       setEditingProduct((prev) =>
@@ -2105,14 +2104,6 @@ export function BusinessAdminDashboard() {
 
     const token = getStoredToken();
 
-    if (!token) {
-      setFeedback({
-        type: "error",
-        message: "Tu sesión expiró. Inicia sesión nuevamente.",
-      });
-      return;
-    }
-
     const processedFile = await compressImageFile(file, {
       maxWidth: 800,
       maxHeight: 800,
@@ -2130,7 +2121,6 @@ export function BusinessAdminDashboard() {
         businessId: business.id,
         file: processedFile,
         kind: "business",
-        token,
       });
       console.log("URL final enviada:", imageUrl);
 
@@ -2458,7 +2448,9 @@ export function BusinessAdminDashboard() {
               className={`mb-6 rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm ${
                 feedback.type === "success"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-rose-200 bg-rose-50 text-rose-700"
+                  : feedback.type === "warning"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-rose-200 bg-rose-50 text-rose-700"
               }`}
             >
               {feedback.message}
@@ -2758,14 +2750,18 @@ export function BusinessAdminDashboard() {
                           >
                             En preparación
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleOrderReady(order.id)}
-                            disabled={busyKey === `order-ready-${order.id}`}
-                            className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-60"
-                          >
-                            Marcar listo
-                          </button>
+                          {canMarkAdminOrderReady(
+                            order.statusCode || order.status,
+                          ) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOrderReady(order.id)}
+                              disabled={busyKey === `order-ready-${order.id}`}
+                              className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-60"
+                            >
+                              Marcar listo
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => handleRequestDriver(order.id)}
@@ -2779,7 +2775,7 @@ export function BusinessAdminDashboard() {
                             }
                             className="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-orange-700 disabled:opacity-60"
                           >
-                            Solicitar repartidor
+                            Reintentar repartidor
                           </button>
                         </div>
                       </div>

@@ -1,8 +1,8 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
+import { requireAdminGeneral } from "@/lib/permissions";
 
 type AdminUserRow = RowDataPacket & {
   id: number;
@@ -16,35 +16,9 @@ type AdminUserRow = RowDataPacket & {
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = getAuthUser(req);
-    const token = auth?.token ?? null;
-    const decodedUser = auth?.user ?? null;
-
-    console.log("ADMIN API TOKEN:", token ? "EXISTE" : "NO EXISTE");
-    console.log("ADMIN API USER:", decodedUser);
-
-    if (!token || !decodedUser) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Token inválido o faltante",
-          admins: [],
-        },
-        { status: 401 },
-      );
-    }
-
-    const canAccess = await isAdminGeneral(decodedUser.id);
-
-    if (!canAccess) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "No autorizado para consultar administradores",
-          admins: [],
-        },
-        { status: 403 },
-      );
+    const admin = await requireAdminGeneral(req);
+    if (!admin.ok) {
+      return admin.response;
     }
 
     const [rows] = await pool.query<AdminUserRow[]>(
@@ -74,9 +48,6 @@ export async function GET(req: NextRequest) {
       status_id: row.status_id === null ? null : Number(row.status_id),
       role_name: row.role_name ?? null,
     }));
-
-    console.log("ADMIN API ADMINS COUNT:", admins.length);
-
     return NextResponse.json({
       success: true,
       admins,
@@ -87,7 +58,6 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: "No pudimos cargar los administradores en este momento.",
-        details: error instanceof Error ? error.message : String(error),
         admins: [],
       },
       { status: 500 },

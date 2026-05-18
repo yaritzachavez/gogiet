@@ -26,6 +26,7 @@ import {
   getActiveAuthStatusId,
   updateAuthUserLastLogin,
 } from "@/lib/auth-users";
+import { JWT_SECRET } from "@/lib/env";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -73,7 +74,10 @@ export async function POST(req: Request) {
 
     if (!email || !password) {
       return json(
-        { success: false, error: "Completa tu correo y contraseña para continuar." },
+        {
+          success: false,
+          error: "Completa tu correo y contraseña para continuar.",
+        },
         { status: 400 },
       );
     }
@@ -99,7 +103,8 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "Demasiados intentos de inicio de sesión. Intenta nuevamente más tarde.",
+          error:
+            "Demasiados intentos de inicio de sesión. Intenta nuevamente más tarde.",
         },
         { status: 429 },
       );
@@ -117,7 +122,8 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "Demasiados intentos de inicio de sesión. Intenta nuevamente más tarde.",
+          error:
+            "Demasiados intentos de inicio de sesión. Intenta nuevamente más tarde.",
         },
         { status: 429 },
       );
@@ -134,20 +140,26 @@ export async function POST(req: Request) {
         metadata: { reason: "user_not_found" },
       });
 
-      return json({ success: false, error: genericLoginError() }, { status: 401 });
+      return json(
+        { success: false, error: genericLoginError() },
+        { status: 401 },
+      );
     }
 
     if (isUserLocked(user)) {
       return json(
         {
           success: false,
-          error: "Tu cuenta está bloqueada temporalmente. Intenta nuevamente en unos minutos.",
+          error:
+            "Tu cuenta está bloqueada temporalmente. Intenta nuevamente en unos minutos.",
         },
         { status: 429 },
       );
     }
 
-    const passwordMatch = await comparePassword(password, user.password).catch(() => false);
+    const passwordMatch = await comparePassword(password, user.password).catch(
+      () => false,
+    );
 
     if (!passwordMatch) {
       await registerFailedLoginAttempt(user.id);
@@ -160,14 +172,20 @@ export async function POST(req: Request) {
         metadata: { reason: "invalid_password" },
       });
 
-      return json({ success: false, error: genericLoginError() }, { status: 401 });
+      return json(
+        { success: false, error: genericLoginError() },
+        { status: 401 },
+      );
     }
 
     const activeStatusId = await getActiveAuthStatusId();
 
     if (Number(user.statusId ?? 0) !== activeStatusId) {
       return json(
-        { success: false, error: "Tu cuenta está inactiva. Contacta a soporte." },
+        {
+          success: false,
+          error: "Tu cuenta está inactiva. Contacta a soporte.",
+        },
         { status: 403 },
       );
     }
@@ -191,8 +209,6 @@ export async function POST(req: Request) {
     const hasRoles = roles.length > 0;
     const redirectTo = hasRoles ? "/pickdash" : "/";
 
-    const secret: jwt.Secret =
-      (process.env.JWT_SECRET as string) || "gogi-dev-secret";
     const expiresIn = (process.env.JWT_EXPIRES_IN ??
       process.env.JWT_EXPIRATION ??
       "9h") as unknown as SignOptions["expiresIn"];
@@ -203,7 +219,7 @@ export async function POST(req: Request) {
         name: `${user.firstName} ${user.lastName ?? ""}`.trim(),
         roles: dbRoles,
       },
-      secret,
+      JWT_SECRET as jwt.Secret,
       { expiresIn },
     );
 
@@ -217,7 +233,9 @@ export async function POST(req: Request) {
     } catch (sessionError) {
       console.warn("LOGIN SESSION WARNING:", {
         message:
-          sessionError instanceof Error ? sessionError.message : String(sessionError),
+          sessionError instanceof Error
+            ? sessionError.message
+            : String(sessionError),
       });
     }
 
@@ -237,7 +255,6 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       message: "Login exitoso",
-      token,
       redirectTo,
       user: {
         id: user.id,
@@ -253,7 +270,9 @@ export async function POST(req: Request) {
     return withCors(req, response);
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+      typeof error === "object" && error !== null
+        ? (error as SqlLikeError)
+        : null;
 
     console.error("LOGIN ERROR:", {
       code: sqlError?.code ?? null,

@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
 import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import { requireSellerAccess } from "@/lib/permissions";
 import {
   uploadImageToCloudinary,
   validateImageFile,
@@ -11,17 +11,18 @@ export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
   try {
-    console.error(
-      "[product-image] usando endpoint Cloudinary /api/upload/product-image",
+    const formData = await req.formData();
+    const requestedBusinessId = Number(formData.get("businessId"));
+    const businessId = Number.isFinite(requestedBusinessId)
+      ? requestedBusinessId
+      : null;
+    const sellerAccess = await requireSellerAccess(
+      req,
+      businessId,
+      "No puedes subir imágenes para productos de otro negocio.",
     );
-
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+    if (!sellerAccess.ok) {
+      return sellerAccess.response;
     }
 
     const cloudinaryStatus = getCloudinaryConfigStatus();
@@ -36,7 +37,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const formData = await req.formData();
     const file = formData.get("file");
 
     if (!(file instanceof File)) {
@@ -56,6 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await uploadImageToCloudinary(file, {
+      businessId,
       kind: "product",
     });
 

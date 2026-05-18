@@ -45,6 +45,9 @@ export async function POST(
     return NextResponse.json({
       success: true,
       assignedDeliveryUserId: result.courierId,
+      deliveryRequested: result.deliveryRequested,
+      noActiveCouriers: result.noActiveCouriers,
+      adminNotified: result.adminNotified,
       message: result.message,
     });
   } catch (error) {

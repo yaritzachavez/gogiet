@@ -1,28 +1,24 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import {
   ensureNotificationsTable,
   markAllNotificationsReadForActor,
 } from "@/lib/notifications";
+import { requireAuthenticatedUser } from "@/lib/permissions";
 
 export async function PATCH(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+    const auth = await requireAuthenticatedUser(req);
+    if (!auth.ok) {
+      return auth.response;
     }
 
     await ensureNotificationsTable();
 
-    const access = await resolveBusinessAccess(authUser.user.id);
+    const access = await resolveBusinessAccess(auth.access.userId);
     const affectedRows = await markAllNotificationsReadForActor({
-      userId: authUser.user.id,
+      userId: auth.access.userId,
       businessIds: access.businessIds,
       roles: access.roles,
     });
@@ -37,7 +33,6 @@ export async function PATCH(req: NextRequest) {
       {
         success: false,
         error: "No se pudieron marcar las notificaciones como leídas.",
-        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
     );

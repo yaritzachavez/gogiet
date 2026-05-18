@@ -1,15 +1,25 @@
-import { getEmailFromAddress, getResendClient, hasResendApiKey } from "@/lib/resend";
+import { areInternalToolsEnabled } from "@/lib/internal-tools";
+import {
+  getEmailFromAddress,
+  getResendClient,
+  hasResendApiKey,
+} from "@/lib/resend";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  if (!hasResendApiKey()) {
-    console.error("/api/test-email: falta RESEND_API_KEY");
+  if (!areInternalToolsEnabled()) {
+    return Response.json(
+      { success: false, error: "Not Found" },
+      { status: 404 },
+    );
+  }
 
+  if (!hasResendApiKey()) {
     return Response.json(
       {
         success: false,
-        error: "Falta configurar RESEND_API_KEY",
+        error: "No se pudo enviar el correo de prueba.",
       },
       { status: 500 },
     );
@@ -30,7 +40,8 @@ export async function GET() {
 
     return Response.json({
       success: true,
-      data,
+      message: "Correo de prueba enviado.",
+      id: data?.data?.id ?? null,
     });
   } catch (error) {
     console.error("/api/test-email error:", error);
@@ -38,10 +49,7 @@ export async function GET() {
     return Response.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo enviar el correo de prueba",
+        error: "No se pudo enviar el correo de prueba.",
       },
       { status: 500 },
     );

@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { CART_UPDATED_EVENT, getStoredCartCount } from "@/lib/cart-storage";
+import { fetchWithSession } from "@/lib/client-auth";
 
 const NOTIFICATIONS_POLL_INTERVAL_MS = 15_000;
 
@@ -203,27 +204,12 @@ export default function Navbar() {
     let isActive = true;
 
     const loadNotifications = async (showLoading = false) => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        if (isActive) {
-          setNotifications([]);
-          setUnreadCount(0);
-          setNotificationsError(null);
-        }
-        return;
-      }
-
       if (showLoading && isActive) {
         setNotificationsLoading(true);
       }
 
       try {
-        const res = await fetch("/api/notifications", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const res = await fetchWithSession("/api/notifications");
 
         const data = (await res.json().catch(() => null)) as {
           success?: boolean;
@@ -303,23 +289,13 @@ export default function Navbar() {
   };
 
   const handleMarkNotificationAsRead = async (notificationId: number) => {
-    const token =
-      typeof window === "undefined"
-        ? null
-        : window.localStorage.getItem("token");
-
-    if (!token) {
-      setNotificationsError("No se encontró tu sesión para notificaciones.");
-      return;
-    }
-
     try {
-      const res = await fetch(`/api/notifications/${notificationId}/read`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const res = await fetchWithSession(
+        `/api/notifications/${notificationId}/read`,
+        {
+          method: "PATCH",
         },
-      });
+      );
 
       const data = (await res.json().catch(() => null)) as {
         success?: boolean;
@@ -350,24 +326,11 @@ export default function Navbar() {
   };
 
   const handleMarkAllNotificationsAsRead = async () => {
-    const token =
-      typeof window === "undefined"
-        ? null
-        : window.localStorage.getItem("token");
-
-    if (!token) {
-      setNotificationsError("No se encontró tu sesión para notificaciones.");
-      return;
-    }
-
     try {
       setMarkingAllNotifications(true);
 
-      const res = await fetch("/api/notifications/read-all", {
+      const res = await fetchWithSession("/api/notifications/read-all", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       const data = (await res.json().catch(() => null)) as {

@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import adminImg from "@/../public/admi.jpg";
 import deliveryImg from "@/../public/repartidor-2.jpg";
 import { useAuth } from "@/context/AuthContext";
+import { fetchWithSession } from "@/lib/client-auth";
 
 type RoleName = "DELIVERY" | "MANAGER" | "OWNER" | "ADMIN";
 
@@ -113,10 +114,12 @@ const CARDS: RoleCard[] = [
 export default function RoleMenu() {
   const { user } = useAuth();
   const router = useRouter();
-  
+
   const [accessState, setAccessState] = useState<AccessFlags | null>(null);
-  const [accessItems, setAccessItems] = useState<Array<{ key: string; title: string; href: string }>>([]);
-  const [accessLoading, setAccessLoading] = useState(true);
+  const [accessItems, setAccessItems] = useState<
+    Array<{ key: string; title: string; href: string }>
+  >([]);
+  const [_accessLoading, setAccessLoading] = useState(true);
 
   const roles: RoleName[] = (
     Array.isArray(user?.roles) ? user.roles : user?.roles ? [user.roles] : []
@@ -132,19 +135,16 @@ export default function RoleMenu() {
 
     async function fetchAccessCenter() {
       try {
-        const token = localStorage.getItem("token") || localStorage.getItem("authToken");
-        if (!token) { router.push("/login"); return; }
-
-        const response = await fetch("/api/auth/access-center", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await fetchWithSession("/api/auth/access-center");
 
         const responseText = await response.text();
         let payload: AccessCenterResponse = {};
 
         try {
           payload = responseText ? JSON.parse(responseText) : {};
-        } catch { payload = {}; }
+        } catch {
+          payload = {};
+        }
 
         if (!response.ok || payload.success === false) {
           setAccessState(null);
@@ -159,7 +159,13 @@ export default function RoleMenu() {
         setAccessItems(payload.access ?? []);
         setAccessState(payload.accessFlags ?? null);
 
-        if (payload.accessFlags?.customer && !payload.accessFlags?.admin && !payload.accessFlags?.businessOwner && !payload.accessFlags?.businessManager && !payload.accessFlags?.delivery) {
+        if (
+          payload.accessFlags?.customer &&
+          !payload.accessFlags?.admin &&
+          !payload.accessFlags?.businessOwner &&
+          !payload.accessFlags?.businessManager &&
+          !payload.accessFlags?.delivery
+        ) {
           router.push("/");
         }
       } catch (error) {
@@ -181,9 +187,16 @@ export default function RoleMenu() {
     if (!accessState) return [];
     return CARDS.filter((card) => {
       if (card.role === "ADMIN") return accessState.admin;
-      if (card.role === "OWNER") return accessState.admin || accessState.businessOwner;
-      if (card.role === "MANAGER") return accessState.admin || accessState.businessManager || accessState.businessOwner;
-      if (card.role === "DELIVERY") return accessState.admin || accessState.delivery;
+      if (card.role === "OWNER")
+        return accessState.admin || accessState.businessOwner;
+      if (card.role === "MANAGER")
+        return (
+          accessState.admin ||
+          accessState.businessManager ||
+          accessState.businessOwner
+        );
+      if (card.role === "DELIVERY")
+        return accessState.admin || accessState.delivery;
       return roles.includes(card.role);
     });
   }, [accessItems, accessState, roles]);
@@ -199,21 +212,23 @@ export default function RoleMenu() {
   }
 
   return (
-    <main className="min-h-screen bg-center bg-cover bg-fixed" style={{ backgroundImage: "url('/fondo.png')" }}>
+    <main
+      className="min-h-screen bg-center bg-cover bg-fixed"
+      style={{ backgroundImage: "url('/fondo.png')" }}
+    >
       <div className="min-h-screen bg-[linear-gradient(180deg,rgba(0,0,0,0.86)_0%,rgba(0,0,0,0.74)_45%,rgba(0,0,0,0.92)_100%)]">
         <section className="flex flex-col justify-center gap-8 px-4 py-10 mx-auto min-h-screen max-w-7xl sm:gap-10 sm:px-6 lg:px-10">
           {/* Header y Grid de Cards... */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
-              {visibleCards.map((card) => (
-                <Card key={card.role} {...card} />
-              ))}
+            {visibleCards.map((card) => (
+              <Card key={card.role} {...card} />
+            ))}
           </div>
         </section>
       </div>
     </main>
   );
 } // <--- ESTA LLAVE CIERRA EL COMPONENTE RoleMenu
-
 
 function Card({
   title,
@@ -265,7 +280,8 @@ function Card({
       >
         <div className="space-y-4">
           <span
-            className={`inline-flex max-w-full items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[9px] font-semibold uppercase leading-5 tracking-[0.16em] backdrop-blur-sm xl:text-[10px] ${chip}`}>
+            className={`inline-flex max-w-full items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[9px] font-semibold uppercase leading-5 tracking-[0.16em] backdrop-blur-sm xl:text-[10px] ${chip}`}
+          >
             {chipLabel}
           </span>
 

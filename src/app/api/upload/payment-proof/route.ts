@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
 import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import {
+  requireAuthenticatedUser,
+  requireOrderOwnership,
+} from "@/lib/permissions";
 
 export const runtime = "nodejs";
 
@@ -23,13 +26,9 @@ async function uploadPaymentProof(file: File) {
 
 export async function POST(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+    const auth = await requireAuthenticatedUser(req);
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const cloudinaryStatus = getCloudinaryConfigStatus();
@@ -46,6 +45,18 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData();
     const file = formData.get("file");
+    const orderId = Number(formData.get("orderId"));
+
+    if (Number.isFinite(orderId) && orderId > 0) {
+      const orderAccess = await requireOrderOwnership(
+        req,
+        orderId,
+        "No puedes adjuntar comprobantes a pedidos ajenos.",
+      );
+      if (!orderAccess.ok) {
+        return orderAccess.response;
+      }
+    }
 
     if (!(file instanceof File)) {
       return NextResponse.json(
@@ -77,7 +88,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.error("[payment-proof] usando endpoint Cloudinary");
     const result = await uploadPaymentProof(file);
 
     return NextResponse.json({

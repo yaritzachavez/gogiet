@@ -202,13 +202,6 @@ export default function NewProductClient({
         quality: 0.82,
         outputType: "image/jpeg",
       });
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-      if (!token) {
-        throw new Error("Tu sesión expiró. Inicia sesión nuevamente.");
-      }
-
       const localPreview = URL.createObjectURL(processedFile);
       setImageUrl(null);
       setUploadingImage(true);
@@ -219,7 +212,6 @@ export default function NewProductClient({
       const uploadedImage = await uploadImageAsset({
         file: processedFile,
         kind: "product",
-        token,
       });
 
       URL.revokeObjectURL(localPreview);

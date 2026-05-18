@@ -1,6 +1,8 @@
-import jwt from "jsonwebtoken";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+
 import pool from "@/lib/db";
+import { requireAdminGeneral } from "@/lib/permissions";
 
 const roleAliases: Record<string, string> = {
   ADMIN: "admin_general",
@@ -16,7 +18,7 @@ function normalizeRole(role: unknown) {
 }
 
 export async function PUT(
-  req: Request,
+  req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   const { id } = await context.params;
@@ -29,15 +31,10 @@ export async function PUT(
   const connection = await pool.getConnection();
 
   try {
-    const auth = req.headers.get("authorization");
-    if (!auth?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Token no proporcionado" },
-        { status: 401 },
-      );
+    const admin = await requireAdminGeneral(req);
+    if (!admin.ok) {
+      return admin.response;
     }
-
-    jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET as string);
 
     const body = await req.json();
     const { roles, ...fields } = body;
@@ -127,7 +124,6 @@ export async function PUT(
     return NextResponse.json(
       {
         error: "Error al actualizar usuario",
-        details: (error as Error).message,
       },
       { status: 500 },
     );

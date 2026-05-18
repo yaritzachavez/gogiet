@@ -52,6 +52,9 @@ export async function POST(req: NextRequest) {
       delivery_name: result.courierName,
       delivery_phone: result.courierPhone,
       delivery_profile_image_url: result.courierAvatarUrl,
+      deliveryRequested: result.deliveryRequested,
+      noActiveCouriers: result.noActiveCouriers,
+      adminNotified: result.adminNotified,
       message: result.message,
     });
   } catch (error) {

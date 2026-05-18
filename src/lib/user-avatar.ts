@@ -1,6 +1,7 @@
 import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
 
 import pool from "@/lib/db";
+import { assertTablesExist } from "@/lib/runtime-schema";
 
 type Queryable = {
   query: (...args: unknown[]) => Promise<unknown>;
@@ -15,15 +16,10 @@ export type UserAvatarColumns = {
   hasAvatarUrl: boolean;
 };
 
-function isDuplicateColumnError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-
-  return message.toLowerCase().includes("duplicate column name");
-}
-
 export async function getUserAvatarColumns(
   executor: Queryable | PoolConnection | Pool = pool,
 ): Promise<UserAvatarColumns> {
+  await assertTablesExist(executor as Pool | PoolConnection, ["users"]);
   const [rows] = (await executor.query(
     `
       SELECT column_name
@@ -47,33 +43,6 @@ export async function getUserAvatarColumns(
 export async function ensureUserAvatarColumn(
   executor: Queryable | PoolConnection | Pool = pool,
 ) {
-  let currentColumns = await getUserAvatarColumns(executor);
-
-  if (!currentColumns.hasProfileImageUrl) {
-    try {
-      await executor.query(`
-        ALTER TABLE users
-        ADD COLUMN profile_image_url TEXT NULL
-      `);
-    } catch (error) {
-      if (!isDuplicateColumnError(error)) {
-        throw error;
-      }
-    }
-
-    currentColumns = await getUserAvatarColumns(executor);
-
-    if (currentColumns.hasAvatarUrl) {
-      await executor.query(`
-        UPDATE users
-        SET profile_image_url = avatar_url
-        WHERE profile_image_url IS NULL
-          AND avatar_url IS NOT NULL
-          AND TRIM(avatar_url) <> ''
-      `);
-    }
-  }
-
   return getUserAvatarColumns(executor);
 }
 

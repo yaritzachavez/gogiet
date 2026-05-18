@@ -1,30 +1,18 @@
-import jwt from "jsonwebtoken";
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
+import { requireAdminGeneral } from "@/lib/permissions";
 
-function validateBearer(req: Request) {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return false;
-
-  try {
-    jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET || "gogi-dev-secret");
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
     await ensureBusinessLogoColumn();
 
-    if (!validateBearer(req)) {
-      return NextResponse.json(
-        { error: "Token no proporcionado o inválido" },
-        { status: 401 },
-      );
+    const admin = await requireAdminGeneral(req);
+    if (!admin.ok) {
+      return admin.response;
     }
 
     const [rows] = await pool.query(`
@@ -66,24 +54,19 @@ export async function GET(req: Request) {
     return NextResponse.json({ message: "OK", negocios }, { status: 200 });
   } catch (error) {
     console.error("Error al obtener negocios:", error);
-    return NextResponse.json(
-      { error: "Error interno", details: (error as Error).message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   const connection = await pool.getConnection();
 
   try {
     await ensureBusinessLogoColumn();
 
-    if (!validateBearer(req)) {
-      return NextResponse.json(
-        { error: "Token no proporcionado o inválido" },
-        { status: 401 },
-      );
+    const admin = await requireAdminGeneral(req);
+    if (!admin.ok) {
+      return admin.response;
     }
 
     const body = await req.json();
@@ -202,10 +185,7 @@ export async function POST(req: Request) {
   } catch (error) {
     await connection.rollback();
     console.error("Error al crear negocio:", error);
-    return NextResponse.json(
-      { error: "Error interno", details: (error as Error).message },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   } finally {
     connection.release();
   }

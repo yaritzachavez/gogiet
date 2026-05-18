@@ -5,13 +5,14 @@ import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 
 function validateAuth(req: NextRequest): boolean {
   const auth = req.headers.get("authorization");
   if (!auth?.startsWith("Bearer ")) return false;
 
   try {
-    jwt.verify(auth.split(" ")[1], process.env.JWT_SECRET || "gogi-dev-secret");
+    jwt.verify(auth.split(" ")[1], JWT_SECRET);
     return true;
   } catch {
     return false;

@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { areInternalToolsEnabled } from "@/lib/internal-tools";
 
 export function getEmailFromAddress() {
   return process.env.EMAIL_FROM || "Gogi Eats <onboarding@resend.dev>";
@@ -22,9 +23,16 @@ export function getEmailDiagnostics() {
 }
 
 export function logEmailDiagnostics(context: string) {
+  if (!areInternalToolsEnabled()) {
+    return;
+  }
+
   const diagnostics = getEmailDiagnostics();
 
-  console.log(`${context} EMAIL_VERIFICATION_ENABLED:`, diagnostics.emailVerificationEnabled);
+  console.log(
+    `${context} EMAIL_VERIFICATION_ENABLED:`,
+    diagnostics.emailVerificationEnabled,
+  );
   console.log(`${context} SMTP_HOST existe:`, diagnostics.hasSmtpHost);
   console.log(`${context} SMTP_USER existe:`, diagnostics.hasSmtpUser);
   console.log(`${context} SMTP_PASS existe:`, diagnostics.hasSmtpPass);

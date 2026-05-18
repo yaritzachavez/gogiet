@@ -1,7 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
 import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
+import {
+  requireAuthenticatedUser,
+  requireBusinessAccess,
+} from "@/lib/permissions";
 import {
   type UploadImageKind,
   uploadImageToCloudinary,
@@ -22,13 +25,9 @@ function resolveKind(value: FormDataEntryValue | null): UploadImageKind {
 
 export async function POST(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+    const auth = await requireAuthenticatedUser(req);
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const cloudinaryStatus = getCloudinaryConfigStatus();
@@ -69,6 +68,30 @@ export async function POST(req: NextRequest) {
       ? requestedBusinessId
       : null;
 
+    if (businessId || kind === "business" || kind === "product") {
+      if (!businessId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Se requiere businessId para subir imágenes de negocio o producto.",
+          },
+          { status: 400 },
+        );
+      }
+
+      const businessAccess = await requireBusinessAccess(
+        req,
+        businessId,
+        "MANAGE_OWN_BUSINESS_PRODUCTS",
+        "No puedes subir imágenes a un negocio que no te pertenece.",
+      );
+
+      if (!businessAccess.ok) {
+        return businessAccess.response;
+      }
+    }
+
     const result = await uploadImageToCloudinary(file, {
       businessId,
       kind,
@@ -94,7 +117,6 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: "No se pudo subir la imagen",
-        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 },
     );

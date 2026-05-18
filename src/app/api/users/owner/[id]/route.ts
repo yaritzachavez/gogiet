@@ -1,25 +1,26 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import jwt from "jsonwebtoken";
+
 import pool from "@/lib/db";
+import { requireSelfOrAdmin } from "@/lib/permissions";
 
 export async function GET(
-  req: Request,
-  context: { params: Promise<{ id: string }> }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    // 1️⃣ Validar token
-    const auth = req.headers.get("authorization");
-    if (!auth?.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Token no proporcionado" }, { status: 401 });
+    const { id: userId } = await context.params;
+    const numericUserId = Number(userId);
+
+    if (!Number.isFinite(numericUserId) || numericUserId <= 0) {
+      return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
-    const token = auth.split(" ")[1];
-    jwt.verify(token, process.env.JWT_SECRET as string);
+    const access = await requireSelfOrAdmin(req, numericUserId);
+    if (!access.ok) {
+      return access.response;
+    }
 
-    // 2️⃣ Obtener ID del usuario desde la URL
-    const { id: userId } = await context.params;
-
-    // 3️⃣ Obtener negocios donde ese user_id es owner
     const [businesses] = await pool.query<any[]>(
       `
       SELECT 
@@ -33,7 +34,7 @@ export async function GET(
       INNER JOIN business b ON b.id = bo.business_id
       WHERE bo.user_id = ?;
       `,
-      [userId]
+      [numericUserId],
     );
 
     return NextResponse.json({
@@ -41,9 +42,6 @@ export async function GET(
     });
   } catch (error) {
     console.error("❌ Error GET /users/:id/businesses", error);
-    return NextResponse.json(
-      { error: "Error interno", details: (error as Error).message },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }

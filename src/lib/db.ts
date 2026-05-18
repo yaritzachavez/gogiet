@@ -1,9 +1,7 @@
 import mysql from "mysql2/promise";
 
 import { getDbSslSummary, resolveDbSslCaContent } from "@/lib/db-ssl";
-
-console.log("DB_HOST:", process.env.DB_HOST);
-console.log("DATABASE_URL:", process.env.DATABASE_URL);
+import { areInternalToolsEnabled } from "@/lib/internal-tools";
 
 type DbRuntimeConfig = {
   host: string;
@@ -140,11 +138,10 @@ declare global {
   var __gogiDbLogged: boolean | undefined;
 }
 
-if (!globalThis.__gogiDbLogged) {
+if (!globalThis.__gogiDbLogged && areInternalToolsEnabled()) {
   console.log("[db] Conectando a MySQL", {
     DB_HOST: dbConfig.host,
     DB_NAME: dbConfig.database,
-    DB_USER: dbConfig.user,
     DB_PORT: dbConfig.port,
     DB_SSL: dbConfig.useSsl,
     DATABASE_URL_EXISTS: Boolean(process.env.DATABASE_URL),
@@ -187,13 +184,15 @@ export function logDbUsage(
     role?: string | string[] | null;
   },
 ) {
+  if (!areInternalToolsEnabled()) {
+    return;
+  }
+
   console.log("[db] endpoint", {
     endpoint,
     DB_HOST: dbConfig.host,
     DB_NAME: dbConfig.database,
-    connectedUser: dbConfig.user,
     userId: payload?.userId ?? null,
-    email: payload?.email ?? null,
     role: payload?.role ?? null,
   });
 }

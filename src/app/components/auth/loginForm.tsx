@@ -84,23 +84,13 @@ export default function LoginForm() {
       const data = (await res.json().catch(() => null)) as {
         success?: boolean;
         error?: string;
-        token?: string;
         redirectTo?: string;
         user?: { id: number; name: string; roles?: string[] };
       } | null;
 
-      if (res.ok && data?.success && data?.token && data?.user) {
-        localStorage.setItem("token", data.token);
-        login(
-          {
-            id: data.user.id,
-            name: data.user.name,
-            roles: data.user.roles ?? [],
-          },
-          data.token,
-        );
+      if (res.ok && data?.success) {
+        await login();
         notify.success("Sesión iniciada correctamente.", "Bienvenido");
-        // Redirigir según rol
         router.push(data.redirectTo || "/");
       } else {
         const message = getLoginErrorMessage(res.status, data);

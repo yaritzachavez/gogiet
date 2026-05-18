@@ -4,6 +4,25 @@ const { seedMarketplaceProducts } = require("./seed-products");
 
 const prisma = new PrismaClient();
 
+function getOptionalSeedValue(name) {
+  const value = process.env[name];
+  if (value == null) {
+    return null;
+  }
+
+  const normalized = String(value).trim();
+  return normalized === "" ? null : normalized;
+}
+
+function getRequiredSeedValue(name) {
+  const value = getOptionalSeedValue(name);
+  if (!value) {
+    throw new Error(`Missing required environment variable for seed: ${name}`);
+  }
+
+  return value;
+}
+
 const ROLE_SEEDS = [
   {
     id: 1,
@@ -966,13 +985,30 @@ async function main() {
     throw new Error("No se pudo crear el rol admin_general.");
   }
 
-  const adminEmail = (process.env.ADMIN_INITIAL_EMAIL || "admin@gogieats.local")
-    .trim()
-    .toLowerCase();
-  const adminPassword = process.env.ADMIN_INITIAL_PASSWORD || "Admin12345!";
-  const adminFirstName = process.env.ADMIN_INITIAL_FIRST_NAME || "Admin";
-  const adminLastName = process.env.ADMIN_INITIAL_LAST_NAME || "General";
-  const adminPhone = process.env.ADMIN_INITIAL_PHONE || null;
+  const adminEmailEnv = getOptionalSeedValue("ADMIN_INITIAL_EMAIL");
+  const adminPasswordEnv = getOptionalSeedValue("ADMIN_INITIAL_PASSWORD");
+  const adminFirstNameEnv = getOptionalSeedValue("ADMIN_INITIAL_FIRST_NAME");
+  const adminLastNameEnv = getOptionalSeedValue("ADMIN_INITIAL_LAST_NAME");
+
+  const hasAnyAdminSeedValue = [
+    adminEmailEnv,
+    adminPasswordEnv,
+    adminFirstNameEnv,
+    adminLastNameEnv,
+  ].some(Boolean);
+
+  if (!hasAnyAdminSeedValue) {
+    console.log(
+      "Seed seguro completado. No se creo administrador inicial porque no se configuraron ADMIN_INITIAL_*.",
+    );
+    return;
+  }
+
+  const adminEmail = getRequiredSeedValue("ADMIN_INITIAL_EMAIL").toLowerCase();
+  const adminPassword = getRequiredSeedValue("ADMIN_INITIAL_PASSWORD");
+  const adminFirstName = getRequiredSeedValue("ADMIN_INITIAL_FIRST_NAME");
+  const adminLastName = getRequiredSeedValue("ADMIN_INITIAL_LAST_NAME");
+  const adminPhone = getOptionalSeedValue("ADMIN_INITIAL_PHONE");
 
   const pepper = process.env.PASSWORD_PEPPER || "";
   const saltRounds = Number(process.env.SALT_ROUNDS || 12);

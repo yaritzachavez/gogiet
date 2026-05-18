@@ -6,6 +6,7 @@ import Link from "next/link";
 
 import { isSessionTokenActive } from "@/lib/auth-security";
 import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 
 type BusinessLayoutProps = {
   children: React.ReactNode;
@@ -81,11 +82,10 @@ async function getBusinessPanelAccessState(): Promise<BusinessAccessState> {
     return { kind: "guest" };
   }
 
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
   let userId: number | null = null;
 
   try {
-    const payload = jwt.verify(token, secret) as { id?: unknown };
+    const payload = jwt.verify(token, JWT_SECRET) as { id?: unknown };
     const parsedUserId = Number(payload.id ?? 0);
     userId =
       Number.isFinite(parsedUserId) && parsedUserId > 0 ? parsedUserId : null;

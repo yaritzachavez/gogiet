@@ -2,10 +2,18 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
-import { getMercadoPagoPayment } from "@/lib/mercadopago";
+import {
+  getMercadoPagoPayment,
+  verifyMercadoPagoWebhookSignature,
+} from "@/lib/mercadopago";
+import {
+  createNotificationForBusinessSafely,
+  createNotificationsForAdminGeneralSafely,
+} from "@/lib/notifications";
 import {
   ensureOrderPaymentColumns,
   ensurePaymentsTable,
+  findPaymentByWebhookEventId,
   upsertPaymentRecord,
 } from "@/lib/order-payments";
 import {
@@ -14,15 +22,29 @@ import {
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
 import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
-import {
-  createNotificationForBusinessSafely,
-  createNotificationsForAdminGeneralSafely,
-} from "@/lib/notifications";
 
 type OrderRow = RowDataPacket & {
   id: number;
   business_id: number;
+  user_id: number;
+  total_amount: string | number;
+  payment_method: string | null;
+  payment_provider: string | null;
+  provider_payment_id: string | null;
+  payment_status: string | null;
   current_status: string | null;
+};
+
+type WebhookPayload = {
+  id?: number | string;
+  type?: string;
+  topic?: string;
+  action?: string;
+  live_mode?: boolean;
+  data?: {
+    id?: string | number;
+  };
+  [key: string]: unknown;
 };
 
 function parseOrderIdFromReference(reference: unknown) {
@@ -31,59 +53,209 @@ function parseOrderIdFromReference(reference: unknown) {
   return match ? Number(match[1]) : null;
 }
 
+function parseUserIdFromReference(reference: unknown) {
+  const value = String(reference ?? "").trim();
+  const match = value.match(/user:(\d+)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function parsePositiveNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 function normalizePaymentStatus(value: unknown) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
 }
 
-export async function POST(req: NextRequest) {
-  const searchParams = new URL(req.url).searchParams;
-  const body = await req.json().catch(() => null);
+function normalizeTopic(payload: WebhookPayload) {
+  return String(payload.type ?? payload.topic ?? "")
+    .trim()
+    .toLowerCase();
+}
 
-  const paymentId =
-    String(
-      searchParams.get("data.id") ??
-        searchParams.get("id") ??
-        body?.data?.id ??
-        body?.id ??
-        "",
-    ).trim();
+function roundMoney(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
+}
+
+function mapWebhookPaymentStatusToOrderStatus(paymentStatus: string) {
+  if (paymentStatus === "approved") {
+    return "paid" as const;
+  }
+
+  if (paymentStatus === "pending" || paymentStatus === "in_process") {
+    return "pending_payment" as const;
+  }
+
+  if (
+    paymentStatus === "rejected" ||
+    paymentStatus === "cancelled" ||
+    paymentStatus === "refunded" ||
+    paymentStatus === "charged_back"
+  ) {
+    return "payment_failed" as const;
+  }
+
+  return null;
+}
+
+function shouldSkipOrderStatusUpdate(params: {
+  currentStatus: string | null;
+  nextStatus: "paid" | "pending_payment" | "payment_failed" | null;
+}) {
+  const currentStatus = String(params.currentStatus ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (!params.nextStatus) {
+    return true;
+  }
+
+  if (currentStatus === params.nextStatus) {
+    return true;
+  }
+
+  if (
+    (currentStatus === "paid" ||
+      currentStatus === "accepted" ||
+      currentStatus === "preparing" ||
+      currentStatus === "ready_for_pickup" ||
+      currentStatus === "driver_assigned" ||
+      currentStatus === "on_the_way" ||
+      currentStatus === "delivered") &&
+    params.nextStatus !== "paid"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+export async function POST(req: NextRequest) {
+  const url = new URL(req.url);
+  const searchParams = url.searchParams;
+  const body = (await req.json().catch(() => null)) as WebhookPayload | null;
+  const topic = normalizeTopic(body ?? {});
+  const signatureHeader = req.headers.get("x-signature");
+  const requestIdHeader = req.headers.get("x-request-id");
+  const signatureDataId =
+    searchParams.get("data.id") ?? searchParams.get("id") ?? null;
+  const paymentId = String(
+    signatureDataId ?? body?.data?.id ?? body?.id ?? "",
+  ).trim();
+  const webhookEventId = String(requestIdHeader ?? "").trim();
+  const notificationId = String(body?.id ?? "").trim() || null;
+
+  let signatureCheck: ReturnType<
+    typeof verifyMercadoPagoWebhookSignature
+  > | null = null;
+
+  try {
+    signatureCheck = verifyMercadoPagoWebhookSignature({
+      signatureHeader,
+      requestIdHeader,
+      dataId: signatureDataId,
+    });
+  } catch (error) {
+    console.error("[mercadopago-webhook] configuration error", {
+      message: error instanceof Error ? error.message : "unknown_error",
+    });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Webhook de pagos no disponible por configuración incompleta.",
+      },
+      { status: 500 },
+    );
+  }
+
+  if (!signatureCheck?.ok) {
+    console.warn("[mercadopago-webhook] invalid signature", {
+      reason: signatureCheck?.reason ?? "unknown",
+      requestId: webhookEventId || null,
+      topic: topic || null,
+    });
+    return NextResponse.json(
+      { success: false, error: "Firma de webhook inválida." },
+      { status: 400 },
+    );
+  }
 
   if (!paymentId) {
-    return NextResponse.json({ success: true, ignored: true });
+    return NextResponse.json(
+      { success: false, error: "No se recibió un payment_id válido." },
+      { status: 400 },
+    );
+  }
+
+  if (topic && topic !== "payment") {
+    return NextResponse.json({ success: true, ignored: true, topic });
   }
 
   const conn = await pool.getConnection();
 
   try {
-    const payment = await getMercadoPagoPayment(paymentId);
-    const paymentStatus = normalizePaymentStatus(payment.status);
-    const externalReference =
-      payment.external_reference ??
-      body?.external_reference ??
-      body?.data?.external_reference ??
-      payment.metadata?.orderId;
-    const orderIdFromMetadata = Number(payment.metadata?.orderId ?? 0);
-    const orderId =
-      parseOrderIdFromReference(externalReference) ??
-      (Number.isFinite(orderIdFromMetadata) && orderIdFromMetadata > 0
-        ? orderIdFromMetadata
-        : null);
-
-    if (!orderId) {
-      return NextResponse.json({ success: true, ignored: true });
-    }
-
     await conn.beginTransaction();
     await ensureOrderPaymentColumns(conn);
     await ensurePaymentsTable(conn);
     await ensureCoreOrderStatuses(conn);
 
+    if (webhookEventId) {
+      const existingEvent = await findPaymentByWebhookEventId(
+        conn,
+        "MERCADOPAGO",
+        webhookEventId,
+      );
+
+      if (existingEvent?.processed_at) {
+        await conn.rollback();
+        return NextResponse.json({
+          success: true,
+          duplicate: true,
+          paymentId,
+          webhookEventId,
+        });
+      }
+    }
+
+    const payment = await getMercadoPagoPayment(paymentId);
+    const paymentStatus = normalizePaymentStatus(payment.status);
+    const externalReference = String(payment.external_reference ?? "").trim();
+    const metadataOrderId = parsePositiveNumber(payment.metadata?.orderId);
+    const metadataUserId = parsePositiveNumber(payment.metadata?.userId);
+    const orderId =
+      parseOrderIdFromReference(externalReference) ?? metadataOrderId;
+    const userIdFromReference = parseUserIdFromReference(externalReference);
+    const amount = roundMoney(payment.transaction_amount);
+    const currency = String(payment.currency_id ?? "")
+      .trim()
+      .toUpperCase();
+
+    if (!orderId) {
+      await conn.rollback();
+      return NextResponse.json(
+        { success: false, error: "No pudimos asociar el pago a un pedido." },
+        { status: 422 },
+      );
+    }
+
     const [orderRows] = await conn.query<OrderRow[]>(
       `
-        SELECT o.id, o.business_id, osc.name AS current_status
+        SELECT
+          o.id,
+          o.business_id,
+          o.user_id,
+          o.total_amount,
+          COALESCE(o.payment_method, pm.name) AS payment_method,
+          o.payment_provider,
+          o.provider_payment_id,
+          o.payment_status,
+          osc.name AS current_status
         FROM orders o
+        LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         WHERE o.id = ?
         LIMIT 1
@@ -95,26 +267,99 @@ export async function POST(req: NextRequest) {
 
     if (!order) {
       await conn.rollback();
-      return NextResponse.json({ success: true, ignored: true });
+      return NextResponse.json(
+        { success: false, error: "El pedido asociado al webhook no existe." },
+        { status: 404 },
+      );
     }
 
-    let nextStatus: "paid" | "pending_payment" | "payment_failed" | null =
-      null;
-
-    if (paymentStatus === "approved") {
-      nextStatus = "paid";
-    } else if (paymentStatus === "pending" || paymentStatus === "in_process") {
-      nextStatus = "pending_payment";
-    } else if (
-      paymentStatus === "rejected" ||
-      paymentStatus === "cancelled" ||
-      paymentStatus === "refunded" ||
-      paymentStatus === "charged_back"
+    if (
+      String(order.payment_method ?? "")
+        .trim()
+        .toLowerCase() !== "mercadopago"
     ) {
-      nextStatus = "payment_failed";
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El pedido no está configurado para pagos con Mercado Pago.",
+        },
+        { status: 409 },
+      );
     }
 
-    if (nextStatus) {
+    if (currency !== "MXN") {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: "La moneda del pago no coincide con la esperada.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (amount !== roundMoney(order.total_amount)) {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El monto del pago no coincide con el pedido.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (metadataOrderId && metadataOrderId !== Number(order.id)) {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: "La metadata del pago no coincide con el pedido.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (
+      (metadataUserId && metadataUserId !== Number(order.user_id)) ||
+      (userIdFromReference && userIdFromReference !== Number(order.user_id))
+    ) {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El pago no pertenece al usuario del pedido.",
+        },
+        { status: 409 },
+      );
+    }
+
+    if (
+      String(order.current_status ?? "")
+        .trim()
+        .toLowerCase() === "cancelled" &&
+      paymentStatus === "approved"
+    ) {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: "No se puede marcar como pagado un pedido ya cancelado.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const nextStatus = mapWebhookPaymentStatusToOrderStatus(paymentStatus);
+    let transitionedToPaid = false;
+
+    if (
+      !shouldSkipOrderStatusUpdate({
+        currentStatus: order.current_status,
+        nextStatus,
+      })
+    ) {
       const { currentStatus } = validateOrderStatusTransition({
         currentStatus: order.current_status,
         nextStatus,
@@ -122,13 +367,13 @@ export async function POST(req: NextRequest) {
         order: {
           id: orderId,
           businessId: Number(order.business_id),
-          customerUserId: 0,
+          customerUserId: Number(order.user_id),
           driverUserId: null,
           paymentMethod: "mercadopago",
           currentStatus: String(order.current_status ?? ""),
         },
         actorUserId: 0,
-        reason: `webhook:${paymentStatus}`,
+        reason: `mercadopago_webhook:${paymentStatus}`,
       });
 
       await applyValidatedOrderStatusTransition(conn, {
@@ -141,46 +386,57 @@ export async function POST(req: NextRequest) {
         metadata: {
           endpoint: "/api/payments/mercadopago/webhook",
           payment_id: paymentId,
+          webhook_event_id: webhookEventId || null,
+          notification_id: notificationId,
         },
       });
 
-      await conn.query(
-        `
-          UPDATE orders
-          SET
-            payment_provider = 'MERCADOPAGO',
-            provider_payment_id = ?,
-            payment_status = ?,
-            paid_at = CASE WHEN ? = 'approved' THEN COALESCE(paid_at, NOW()) ELSE paid_at END,
-            amount_paid = CASE
-              WHEN ? = 'approved' THEN ?
-              ELSE amount_paid
-            END,
-            updated_at = NOW()
-          WHERE id = ?
-        `,
-        [
-          paymentId,
-          paymentStatus,
-          paymentStatus,
-          paymentStatus,
-          Number(payment.transaction_amount ?? 0),
-          orderId,
-        ],
-      );
+      transitionedToPaid = nextStatus === "paid";
     }
+
+    await conn.query(
+      `
+        UPDATE orders
+        SET
+          payment_provider = 'MERCADOPAGO',
+          provider_payment_id = ?,
+          payment_status = ?,
+          paid_at = CASE
+            WHEN ? = 'approved' THEN COALESCE(paid_at, NOW())
+            ELSE paid_at
+          END,
+          amount_paid = CASE
+            WHEN ? = 'approved' THEN ?
+            ELSE amount_paid
+          END,
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [paymentId, paymentStatus, paymentStatus, paymentStatus, amount, orderId],
+    );
 
     await upsertPaymentRecord(conn, {
       orderId,
       provider: "MERCADOPAGO",
       providerPaymentId: paymentId,
+      webhookEventId: webhookEventId || notificationId,
       status: paymentStatus || "unknown",
-      amount: Number(payment.transaction_amount ?? 0),
-      currency: String(payment.currency_id ?? "MXN"),
+      amount,
+      currency,
+      rawEvent: {
+        headers: {
+          x_request_id: webhookEventId || null,
+          x_signature_present: Boolean(signatureHeader),
+        },
+        query: Object.fromEntries(searchParams.entries()),
+        body,
+      },
       rawResponse: payment,
+      signatureValidatedAt: signatureCheck.validatedAt,
+      processedAt: new Date(),
     });
 
-    if (paymentStatus === "approved") {
+    if (transitionedToPaid) {
       await createNotificationForBusinessSafely(
         Number(order.business_id),
         {
@@ -212,16 +468,35 @@ export async function POST(req: NextRequest) {
 
     await conn.commit();
 
-    return NextResponse.json({ success: true });
+    console.info("[mercadopago-webhook] processed", {
+      orderId,
+      paymentId,
+      webhookEventId: webhookEventId || null,
+      paymentStatus,
+      transitionedToPaid,
+    });
+
+    return NextResponse.json({
+      success: true,
+      orderId,
+      paymentId,
+      paymentStatus,
+    });
   } catch (error) {
     await conn.rollback();
-    console.error("Error POST /api/payments/mercadopago/webhook:", error);
+    console.error("[mercadopago-webhook] processing error", {
+      message: error instanceof Error ? error.message : "unknown_error",
+      paymentId,
+      webhookEventId: webhookEventId || null,
+    });
+
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(
         { success: false, error: error.message },
         { status: error.statusCode },
       );
     }
+
     return NextResponse.json(
       { success: false, error: "No pudimos procesar la notificación de pago." },
       { status: 500 },

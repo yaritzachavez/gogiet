@@ -234,6 +234,10 @@ function getOrderStatusKey(order: Pick<OrderTicket, "estado" | "statusCode">) {
   return normalizeBusinessStatus(order.statusCode || order.estado);
 }
 
+function canMarkOrderReady(order: Pick<OrderTicket, "estado" | "statusCode">) {
+  return getOrderStatusKey(order) === "preparing";
+}
+
 export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
   const pathname = usePathname();
   const [orders, setOrders] = useState<OrderTicket[]>([]);
@@ -268,7 +272,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
     type: "video" | "test" | null;
   }>({ assignmentId: null, type: null });
   const [actionFeedback, setActionFeedback] = useState<{
-    type: "success" | "error";
+    type: "success" | "error" | "warning";
     message: string;
   } | null>(null);
 
@@ -860,10 +864,13 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       }
 
       setActionFeedback({
-        type: "success",
+        type:
+          data.noActiveCouriers === true || data.deliveryRequested === false
+            ? "warning"
+            : "success",
         message:
           (typeof data.message === "string" && data.message) ||
-          "Pedido listo. Ahora puedes solicitar repartidor.",
+          "Pedido listo y solicitud de repartidor procesada.",
       });
       await loadOrders();
     } catch (error) {
@@ -920,7 +927,10 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       }
 
       setActionFeedback({
-        type: "success",
+        type:
+          data.noActiveCouriers === true || data.deliveryRequested === false
+            ? "warning"
+            : "success",
         message:
           (typeof data.message === "string" && data.message) ||
           "Repartidor solicitado correctamente.",
@@ -1147,7 +1157,9 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
               className={`rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm ${
                 actionFeedback.type === "success"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                  : "border-rose-200 bg-rose-50 text-rose-700"
+                  : actionFeedback.type === "warning"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-rose-200 bg-rose-50 text-rose-700"
               }`}
             >
               {actionFeedback.message}
@@ -1331,22 +1343,25 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                                     ))}
                                   </ul>
                                   <div className="mt-3 flex flex-wrap gap-2 border-t border-orange-100 pt-3">
-                                    <button
-                                      type="button"
-                                      className="rounded-xl bg-orange-600 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-orange-300"
-                                      onClick={() =>
-                                        handleOrderReady(order.orderId)
-                                      }
-                                      disabled={
-                                        actionLoading.orderId === order.orderId
-                                      }
-                                    >
-                                      {actionLoading.orderId ===
-                                        order.orderId &&
-                                      actionLoading.type === "ready"
-                                        ? "Procesando..."
-                                        : "Pedido listo"}
-                                    </button>
+                                    {canMarkOrderReady(order) ? (
+                                      <button
+                                        type="button"
+                                        className="rounded-xl bg-orange-600 px-4 py-2 text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:bg-orange-300"
+                                        onClick={() =>
+                                          handleOrderReady(order.orderId)
+                                        }
+                                        disabled={
+                                          actionLoading.orderId ===
+                                          order.orderId
+                                        }
+                                      >
+                                        {actionLoading.orderId ===
+                                          order.orderId &&
+                                        actionLoading.type === "ready"
+                                          ? "Procesando..."
+                                          : "Pedido listo"}
+                                      </button>
+                                    ) : null}
                                     {normalizeBusinessStatus(
                                       order.statusCode || order.estado,
                                     ) === "ready_for_pickup" &&
@@ -1367,7 +1382,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
                                           order.orderId &&
                                         actionLoading.type === "delivery"
                                           ? "Procesando..."
-                                          : "Solicitar repartidor"}
+                                          : "Reintentar repartidor"}
                                       </button>
                                     ) : null}
                                   </div>

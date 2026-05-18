@@ -353,7 +353,6 @@ export default function BusinessDetailPage() {
       }
 
       const createCartPayload = { user_id: user.id };
-      console.log("ADD TO CART payload:", createCartPayload);
 
       const createCartResponse = await fetch("/api/cart", {
         method: "POST",
@@ -365,7 +364,6 @@ export default function BusinessDetailPage() {
       });
 
       const createCartData = await createCartResponse.json();
-      console.log("ADD TO CART response:", createCartData);
 
       if (!createCartResponse.ok || !createCartData.success) {
         throw new Error(
@@ -379,8 +377,6 @@ export default function BusinessDetailPage() {
         throw new Error("No se pudo obtener el carrito activo");
       }
 
-      console.log("PRODUCT BEFORE CART:", selectedProduct);
-
       const payload = {
         cart_id: cartId,
         product_id: selectedProduct.id,
@@ -388,8 +384,6 @@ export default function BusinessDetailPage() {
         business_id: businessId,
         price: getProductPrice(selectedProduct),
       };
-
-      console.log("ADD TO CART payload:", payload);
 
       const response = await fetch("/api/cart/add-product", {
         method: "POST",
@@ -401,7 +395,6 @@ export default function BusinessDetailPage() {
       });
 
       const responseData = await response.json();
-      console.log("ADD TO CART response:", responseData);
 
       if (!response.ok || !responseData.success) {
         throw new Error(

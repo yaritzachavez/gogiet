@@ -8,6 +8,7 @@ import type {
 import type { NextRequest } from "next/server";
 
 import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 
 type Queryable = Pool | PoolConnection;
 
@@ -193,10 +194,7 @@ export async function getSupportAuthUser(
   if (!token) return null;
 
   try {
-    const payload = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "gogi-dev-secret",
-    ) as JwtPayload;
+    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
     const userId = Number(payload.id);
     if (!Number.isInteger(userId) || userId <= 0) {

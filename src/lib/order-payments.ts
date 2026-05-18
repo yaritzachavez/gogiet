@@ -4,99 +4,98 @@ import type {
   ResultSetHeader,
   RowDataPacket,
 } from "mysql2/promise";
+import {
+  assertColumnsExist,
+  assertIndexesExist,
+  assertTablesExist,
+} from "@/lib/runtime-schema";
 
 type Queryable = Pool | PoolConnection;
 
-type ColumnRow = RowDataPacket & {
-  Field: string;
-};
-
 export async function ensureOrderPaymentColumns(conn: Queryable) {
-  const [columns] = await conn.query<ColumnRow[]>("SHOW COLUMNS FROM orders");
-  const columnNames = new Set(columns.map((column) => String(column.Field)));
-
-  if (!columnNames.has("payment_provider")) {
-    await conn.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN payment_provider VARCHAR(50) NULL
-        AFTER payment_method
-      `,
-    );
-  }
-
-  if (!columnNames.has("provider_payment_id")) {
-    await conn.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN provider_payment_id VARCHAR(120) NULL
-        AFTER payment_provider
-      `,
-    );
-  }
-
-  if (!columnNames.has("payment_status")) {
-    await conn.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN payment_status VARCHAR(50) NULL
-        AFTER provider_payment_id
-      `,
-    );
-  }
-
-  if (!columnNames.has("paid_at")) {
-    await conn.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN paid_at DATETIME NULL
-        AFTER cancelled_at
-      `,
-    );
-  }
-
-  if (!columnNames.has("amount_paid")) {
-    await conn.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN amount_paid DECIMAL(10,2) NULL
-        AFTER paid_at
-      `,
-    );
-  }
+  await assertTablesExist(conn, ["orders"]);
+  await assertColumnsExist(conn, "orders", [
+    "payment_provider",
+    "provider_payment_id",
+    "payment_status",
+    "paid_at",
+    "amount_paid",
+  ]);
 }
 
 export async function ensurePaymentsTable(conn: Queryable) {
-  await conn.query(
-    `
-      CREATE TABLE IF NOT EXISTS payments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        order_id INT NOT NULL,
-        provider VARCHAR(50) NOT NULL,
-        provider_payment_id VARCHAR(120) NULL,
-        status VARCHAR(50) NOT NULL,
-        amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        currency VARCHAR(10) NOT NULL DEFAULT 'MXN',
-        raw_response MEDIUMTEXT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_payments_order_id (order_id),
-        INDEX idx_payments_provider (provider),
-        INDEX idx_payments_provider_payment_id (provider_payment_id)
-      )
-    `,
-  );
+  await assertTablesExist(conn, ["payments"]);
+  await assertColumnsExist(conn, "payments", [
+    "id",
+    "order_id",
+    "provider",
+    "provider_payment_id",
+    "webhook_event_id",
+    "status",
+    "amount",
+    "currency",
+    "raw_event",
+    "raw_response",
+    "signature_validated_at",
+    "processed_at",
+    "created_at",
+    "updated_at",
+  ]);
+  await assertIndexesExist(conn, "payments", [
+    "idx_payments_order_id",
+    "idx_payments_provider",
+    "idx_payments_provider_payment_id",
+    "idx_payments_webhook_event_id",
+  ]);
 }
 
 type UpsertPaymentRecordInput = {
   orderId: number;
   provider: string;
   providerPaymentId?: string | null;
+  webhookEventId?: string | null;
   status: string;
   amount: number;
   currency?: string | null;
+  rawEvent?: unknown;
   rawResponse?: unknown;
+  signatureValidatedAt?: string | Date | null;
+  processedAt?: string | Date | null;
 };
+
+function normalizeDatetimeInput(value: string | Date | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+export async function findPaymentByWebhookEventId(
+  conn: Queryable,
+  provider: string,
+  webhookEventId: string,
+) {
+  await ensurePaymentsTable(conn);
+
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `
+      SELECT id, order_id, provider_payment_id, status, processed_at
+      FROM payments
+      WHERE provider = ? AND webhook_event_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [provider, webhookEventId],
+  );
+
+  return rows[0] ?? null;
+}
 
 export async function upsertPaymentRecord(
   conn: Queryable,
@@ -109,19 +108,40 @@ export async function upsertPaymentRecord(
     input.providerPaymentId.trim().length > 0
       ? input.providerPaymentId.trim()
       : null;
+  const webhookEventId =
+    typeof input.webhookEventId === "string" &&
+    input.webhookEventId.trim().length > 0
+      ? input.webhookEventId.trim()
+      : null;
 
+  const serializedRawEvent =
+    input.rawEvent == null ? null : JSON.stringify(input.rawEvent);
   const serializedRawResponse =
     input.rawResponse == null ? null : JSON.stringify(input.rawResponse);
+  const signatureValidatedAt = normalizeDatetimeInput(
+    input.signatureValidatedAt,
+  );
+  const processedAt = normalizeDatetimeInput(input.processedAt);
 
-  if (providerPaymentId) {
+  if (providerPaymentId || webhookEventId) {
     const [existingRows] = await conn.query<RowDataPacket[]>(
       `
         SELECT id
         FROM payments
-        WHERE provider = ? AND provider_payment_id = ?
+        WHERE provider = ?
+          AND (
+            (? IS NOT NULL AND provider_payment_id = ?)
+            OR (? IS NOT NULL AND webhook_event_id = ?)
+          )
         LIMIT 1
       `,
-      [input.provider, providerPaymentId],
+      [
+        input.provider,
+        providerPaymentId,
+        providerPaymentId,
+        webhookEventId,
+        webhookEventId,
+      ],
     );
 
     if (existingRows[0]?.id) {
@@ -130,19 +150,29 @@ export async function upsertPaymentRecord(
           UPDATE payments
           SET
             order_id = ?,
+            provider_payment_id = COALESCE(?, provider_payment_id),
+            webhook_event_id = COALESCE(?, webhook_event_id),
             status = ?,
             amount = ?,
             currency = ?,
+            raw_event = COALESCE(?, raw_event),
             raw_response = ?,
+            signature_validated_at = COALESCE(?, signature_validated_at),
+            processed_at = COALESCE(?, processed_at),
             updated_at = NOW()
           WHERE id = ?
         `,
         [
           input.orderId,
+          providerPaymentId,
+          webhookEventId,
           input.status,
           input.amount,
           input.currency ?? "MXN",
+          serializedRawEvent,
           serializedRawResponse,
+          signatureValidatedAt,
+          processedAt,
           existingRows[0].id,
         ],
       );
@@ -168,19 +198,27 @@ export async function upsertPaymentRecord(
         UPDATE payments
         SET
           provider_payment_id = COALESCE(?, provider_payment_id),
+          webhook_event_id = COALESCE(?, webhook_event_id),
           status = ?,
           amount = ?,
           currency = ?,
+          raw_event = COALESCE(?, raw_event),
           raw_response = ?,
+          signature_validated_at = COALESCE(?, signature_validated_at),
+          processed_at = COALESCE(?, processed_at),
           updated_at = NOW()
         WHERE id = ?
       `,
       [
         providerPaymentId,
+        webhookEventId,
         input.status,
         input.amount,
         input.currency ?? "MXN",
+        serializedRawEvent,
         serializedRawResponse,
+        signatureValidatedAt,
+        processedAt,
         latestRows[0].id,
       ],
     );
@@ -194,23 +232,31 @@ export async function upsertPaymentRecord(
         order_id,
         provider,
         provider_payment_id,
+        webhook_event_id,
         status,
         amount,
         currency,
+        raw_event,
         raw_response,
+        signature_validated_at,
+        processed_at,
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `,
     [
       input.orderId,
       input.provider,
       providerPaymentId,
+      webhookEventId,
       input.status,
       input.amount,
       input.currency ?? "MXN",
+      serializedRawEvent,
       serializedRawResponse,
+      signatureValidatedAt,
+      processedAt,
     ],
   );
 

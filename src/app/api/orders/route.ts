@@ -8,6 +8,7 @@ import type {
 import { type NextRequest, NextResponse } from "next/server";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 import {
   createNotificationForBusinessSafely,
   createNotificationsForAdminGeneralSafely,
@@ -93,11 +94,10 @@ function getAuthUser(req: NextRequest): JwtPayload | null {
   const token = auth?.startsWith("Bearer ")
     ? auth.split(" ")[1]
     : req.cookies.get("authToken")?.value;
-  const secret = process.env.JWT_SECRET || "gogi-dev-secret";
   if (!token) return null;
 
   try {
-    return jwt.verify(token, secret) as JwtPayload;
+    return jwt.verify(token, JWT_SECRET) as JwtPayload;
   } catch {
     return null;
   }
@@ -802,17 +802,6 @@ export async function POST(req: NextRequest) {
       ? (body.items as OrderItemInput[])
       : [];
 
-    console.log("POST /api/orders payload summary:", {
-      authUserId: authUser.id,
-      requestedUserId,
-      cartId: toPositiveNumber(body.cart_id),
-      businessIdReceived: body.business_id ?? null,
-      addressIdReceived: body.delivery_address_id ?? body.address_id ?? null,
-      paymentMethod: body.payment_method ?? null,
-      status: body.status ?? null,
-      items,
-    });
-
     if (!userId) {
       return NextResponse.json(
         {
@@ -840,8 +829,6 @@ export async function POST(req: NextRequest) {
       notes: item.notes ?? null,
       customizations: item.customizations ?? null,
     }));
-
-    console.log("POST /api/orders normalized items:", normalizedItems);
 
     if (normalizedItems.some((item) => !item.product_id || !item.quantity)) {
       return NextResponse.json(
@@ -951,17 +938,10 @@ export async function POST(req: NextRequest) {
       WHERE id IN (${placeholders})
     `;
 
-    console.log("POST /api/orders products query:", {
-      query: productsQuery,
-      productIds,
-    });
-
     const [products] = await conn.query<ProductRow[]>(
       productsQuery,
       productIds,
     );
-
-    console.log("POST /api/orders products found:", products);
 
     if (products.length !== new Set(productIds).size) {
       await conn.rollback();
