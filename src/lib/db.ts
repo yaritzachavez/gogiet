@@ -178,6 +178,8 @@ declare global {
   var __gogiDbPool: mysql.Pool | undefined;
   // eslint-disable-next-line no-var
   var __gogiDbLogged: boolean | undefined;
+  // eslint-disable-next-line no-var
+  var __gogiDbRuntimeSummaryLogged: boolean | undefined;
 }
 
 if (!globalThis.__gogiDbLogged && areInternalToolsEnabled()) {
@@ -195,6 +197,37 @@ if (!globalThis.__gogiDbLogged && areInternalToolsEnabled()) {
     sslIgnoredSources: dbSslSummary.ignoredSources,
   });
   globalThis.__gogiDbLogged = true;
+}
+
+if (
+  !globalThis.__gogiDbRuntimeSummaryLogged &&
+  getRuntimeEnvironment() === "production"
+) {
+  let databaseUrlHost: string | null = null;
+  try {
+    databaseUrlHost = process.env.DATABASE_URL
+      ? new URL(process.env.DATABASE_URL).hostname
+      : null;
+  } catch {}
+
+  logger.warn(
+    "db.runtime_config_summary",
+    "Resumen seguro de configuración DB en producción",
+    {
+      sourceOfTruth: "DATABASE_URL",
+      databaseUrlExists: Boolean(process.env.DATABASE_URL),
+      databaseUrlHost,
+      dbHost: process.env.DB_HOST?.trim() ?? null,
+      dbName: dbConfig.database,
+      dbPort: dbConfig.port,
+      sslEnabled: dbConfig.useSsl,
+      hostMismatch:
+        Boolean(databaseUrlHost) &&
+        Boolean(process.env.DB_HOST?.trim()) &&
+        databaseUrlHost !== process.env.DB_HOST?.trim(),
+    },
+  );
+  globalThis.__gogiDbRuntimeSummaryLogged = true;
 }
 
 const pool =
