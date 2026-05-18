@@ -1,7 +1,4 @@
 import type { NextConfig } from "next";
-import { validateRuntimeEnv } from "./src/lib/env";
-
-validateRuntimeEnv();
 
 const nextConfig: NextConfig = {
   experimental: {},

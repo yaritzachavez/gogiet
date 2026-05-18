@@ -106,7 +106,6 @@ export function validateRuntimeEnv() {
 }
 
 export const JWT_SECRET = (() => {
-  validateRuntimeEnv();
   return getRequiredSecret("JWT_SECRET");
 })();
 
