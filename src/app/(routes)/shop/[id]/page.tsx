@@ -35,6 +35,7 @@ import {
   readStoredCartSnapshot,
   writeStoredCartSnapshot,
 } from "@/lib/cart-storage";
+import { fetchWithSession } from "@/lib/client-auth";
 
 // --- Constantes y Helpers ---
 const ITEMS_PER_PAGE = 12;
@@ -344,21 +345,12 @@ export default function BusinessDetailPage() {
 
     setAddingProductId(selectedProduct.id);
     try {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        const message = "Necesitas iniciar sesión para comprar.";
-        notify.warning(message, "Acceso requerido");
-        return;
-      }
-
       const createCartPayload = { user_id: user.id };
 
-      const createCartResponse = await fetch("/api/cart", {
+      const createCartResponse = await fetchWithSession("/api/cart", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(createCartPayload),
       });
@@ -385,11 +377,10 @@ export default function BusinessDetailPage() {
         price: getProductPrice(selectedProduct),
       };
 
-      const response = await fetch("/api/cart/add-product", {
+      const response = await fetchWithSession("/api/cart/add-product", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });

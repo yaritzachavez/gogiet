@@ -20,6 +20,9 @@ import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { useAuth } from "@/context/AuthContext";
+import { useNotify } from "@/context/NotificationContext";
+import { fetchWithSession } from "@/lib/client-auth";
 import BusinessCard from "./components/BusinessCard";
 
 type Business = {
@@ -247,7 +250,7 @@ async function fetchJsonSafely<T>(
   init?: RequestInit,
 ): Promise<SafeFetchResult<T>> {
   try {
-    const response = await fetch(url, init);
+    const response = await fetchWithSession(url, init);
     let data: T | null = null;
 
     try {
@@ -303,6 +306,8 @@ async function fetchJsonSafely<T>(
 
 export default function ShopPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const notify = useNotify();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedFilter, setSelectedFilter] = useState("Todos");
   const [searchQuery, setSearchQuery] = useState("");
@@ -418,11 +423,7 @@ export default function ShopPage() {
 
   useEffect(() => {
     async function fetchFavorites() {
-      if (typeof window === "undefined") return;
-
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
+      if (!user) {
         setFavoriteBusinessIds([]);
         return;
       }
@@ -430,11 +431,7 @@ export default function ShopPage() {
       try {
         const result = await fetchJsonSafely<{
           favorites?: Array<{ target_id?: number }>;
-        }>("/api/favorites?type=business", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        }>("/api/favorites?type=business");
 
         if (!result.success) {
           setFavoriteBusinessIds([]);
@@ -457,15 +454,11 @@ export default function ShopPage() {
     }
 
     void fetchFavorites();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     async function fetchActiveOrders() {
-      if (typeof window === "undefined") return;
-
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
+      if (!user) {
         setActiveOrders([]);
         setActiveOrdersLoading(false);
         setActiveOrdersWarning("");
@@ -475,11 +468,7 @@ export default function ShopPage() {
       try {
         setActiveOrdersWarning("");
         const url = "/api/orders/active";
-        const result = await fetchJsonSafely<{ orders?: ActiveOrder[] }>(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const result = await fetchJsonSafely<{ orders?: ActiveOrder[] }>(url);
 
         if (!result.success) {
           setActiveOrders([]);
@@ -501,7 +490,7 @@ export default function ShopPage() {
     }
 
     fetchActiveOrders();
-  }, []);
+  }, [user]);
 
   const categoryFilters = useMemo(() => {
     const categories = Array.from(
@@ -577,12 +566,11 @@ export default function ShopPage() {
   );
 
   const handleToggleFavorite = async (businessId: number | string) => {
-    if (typeof window === "undefined") return;
-
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      window.alert("Inicia sesión para guardar favoritos.");
+    if (!user) {
+      notify.warning(
+        "Inicia sesión para guardar favoritos.",
+        "Acceso requerido",
+      );
       return;
     }
 
@@ -597,7 +585,6 @@ export default function ShopPage() {
         method: isFavorite ? "DELETE" : "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           favorite_type: "business",
@@ -611,7 +598,10 @@ export default function ShopPage() {
           error: result.error,
           status: result.status,
         });
-        window.alert(result.error || "No se pudo actualizar el favorito.");
+        notify.error(
+          result.error || "No se pudo actualizar el favorito.",
+          "Intenta de nuevo",
+        );
         return;
       }
 
@@ -622,7 +612,7 @@ export default function ShopPage() {
       );
     } catch (error) {
       console.error("Error actualizando favorito:", error);
-      window.alert("No se pudo actualizar el favorito.");
+      notify.error("No se pudo actualizar el favorito.", "Intenta de nuevo");
     }
   };
 

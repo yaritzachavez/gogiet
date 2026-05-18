@@ -34,17 +34,9 @@ import {
 
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { AppImage } from "@/components/ui/app-image";
+import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
 import { compressImageFile } from "@/lib/client-image";
 import { uploadImageAsset } from "@/lib/client-upload";
-
-const TOKEN_STORAGE_KEYS = [
-  "token",
-  "authToken",
-  "access_token",
-  "gogi_token",
-  "userToken",
-  "accessToken",
-];
 
 function canMarkAdminOrderReady(status: string) {
   return normalizeStatus(status) === "preparing";
@@ -319,17 +311,7 @@ const MXN = new Intl.NumberFormat("es-MX", {
 });
 
 function getStoredToken() {
-  if (typeof window === "undefined") return null;
-
-  for (const key of TOKEN_STORAGE_KEYS) {
-    const value = window.localStorage.getItem(key);
-
-    if (value?.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
+  return getClientAuthToken();
 }
 
 function clearStoredBusinessSelection() {
@@ -414,7 +396,7 @@ async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    return await fetch(input, {
+    return await fetchWithSession(input, {
       ...init,
       signal: controller.signal,
     });
@@ -736,7 +718,6 @@ export function BusinessAdminDashboard() {
       setError("");
       const authHeaders = {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       };
 
       const accessResponse = await fetchWithTimeout("/api/auth/access-center", {
@@ -1074,12 +1055,11 @@ export function BusinessAdminDashboard() {
         setSellerSearchLoading(true);
         setSellerSearchMessage("Buscando...");
 
-        const response = await fetch(
+        const response = await fetchWithSession(
           `/api/business/users/search?business_id=${business.id}&q=${encodeURIComponent(trimmedSearch)}`,
           {
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             signal: controller.signal,
           },
@@ -1333,14 +1313,16 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`order-prep-${orderId}`, async () => {
-      const response = await fetch(`/api/business/orders/${orderId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "en_preparacion" }),
         },
-        body: JSON.stringify({ status: "en_preparacion" }),
-      });
+      );
       const data = await parseJsonResponse(response);
 
       if (!response.ok || data.success === false) {
@@ -1363,14 +1345,16 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`order-accept-${orderId}`, async () => {
-      const response = await fetch(`/api/business/orders/${orderId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "accepted" }),
         },
-        body: JSON.stringify({ status: "accepted" }),
-      });
+      );
       const data = await parseJsonResponse(response);
 
       if (!response.ok || data.success === false) {
@@ -1393,13 +1377,15 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`order-ready-${orderId}`, async () => {
-      const response = await fetch(`/api/business/orders/${orderId}/ready`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/orders/${orderId}/ready`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       const data = await parseJsonResponse(response);
 
       if (!response.ok || data.success === false) {
@@ -1427,14 +1413,16 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`order-driver-${orderId}`, async () => {
-      const response = await fetch("/api/business/orders/request-delivery", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        "/api/business/orders/request-delivery",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ order_id: orderId }),
         },
-        body: JSON.stringify({ order_id: orderId }),
-      });
+      );
       const data = await parseJsonResponse(response);
 
       if (!response.ok || data.success === false) {
@@ -1465,11 +1453,10 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`product-save-${editingProduct.id}`, async () => {
-      const response = await fetch("/api/business/products", {
+      const response = await fetchWithSession("/api/business/products", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           id: editingProduct.id,
@@ -1604,13 +1591,15 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`product-delete-${productId}`, async () => {
-      const response = await fetch(`/api/business/products?id=${productId}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/products?id=${productId}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       const data = await parseJsonResponse(response);
 
       if (!response.ok || data.success === false) {
@@ -1635,11 +1624,10 @@ export function BusinessAdminDashboard() {
     const nextStatusId = Number(product.status_id ?? 0) === 1 ? 2 : 1;
 
     await runAction(`product-toggle-${product.id}`, async () => {
-      const response = await fetch("/api/business/products", {
+      const response = await fetchWithSession("/api/business/products", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           id: product.id,
@@ -1673,11 +1661,10 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction("seller-create", async () => {
-      const response = await fetch("/api/business/team", {
+      const response = await fetchWithSession("/api/business/team", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           ...sellerForm,
@@ -1696,13 +1683,12 @@ export function BusinessAdminDashboard() {
       const sellerUserId = Number(data.seller_user_id ?? 0);
 
       if (assignInitialTraining && initialTrainingId && sellerUserId > 0) {
-        const assignmentResponse = await fetch(
+        const assignmentResponse = await fetchWithSession(
           "/api/business/training-assignments",
           {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
               business_id: business.id,
@@ -1769,11 +1755,10 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction("training-create", async () => {
-      const response = await fetch("/api/business/trainings", {
+      const response = await fetchWithSession("/api/business/trainings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           business_id: business.id,
@@ -1829,19 +1814,21 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction("training-assign", async () => {
-      const response = await fetch("/api/business/training-assignments", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        "/api/business/training-assignments",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            business_id: business.id,
+            user_id: Number(trainingAssignmentForm.user_id),
+            training_id: Number(trainingAssignmentForm.training_id),
+            due_date: trainingAssignmentForm.due_date || null,
+          }),
         },
-        body: JSON.stringify({
-          business_id: business.id,
-          user_id: Number(trainingAssignmentForm.user_id),
-          training_id: Number(trainingAssignmentForm.training_id),
-          due_date: trainingAssignmentForm.due_date || null,
-        }),
-      });
+      );
       const data = await parseJsonResponse(response);
 
       if (!response.ok || data.success === false) {
@@ -1870,13 +1857,12 @@ export function BusinessAdminDashboard() {
     if (!token || !business) return;
 
     await runAction(`seller-update-${seller.id}`, async () => {
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/business/team/${seller.id}?business_id=${business.id}`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             business_id: business.id,
@@ -1909,13 +1895,12 @@ export function BusinessAdminDashboard() {
     if (!token || !business) return;
 
     await runAction(`seller-delete-${sellerId}`, async () => {
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/business/team/${sellerId}?business_id=${business.id}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -1962,11 +1947,10 @@ export function BusinessAdminDashboard() {
         };
 
     await runAction("promotion-save", async () => {
-      const response = await fetch(endpoint, {
+      const response = await fetchWithSession(endpoint, {
         method,
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(body),
       });
@@ -2000,11 +1984,10 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`promotion-toggle-${promotionId}`, async () => {
-      const response = await fetch("/api/business/promotions", {
+      const response = await fetchWithSession("/api/business/promotions", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           id: promotionId,
@@ -2033,13 +2016,12 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction(`promotion-delete-${promotionId}`, async () => {
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/business/promotions?id=${promotionId}`,
         {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -2068,11 +2050,10 @@ export function BusinessAdminDashboard() {
     if (!token) return;
 
     await runAction("business-settings", async () => {
-      const response = await fetch(`/api/business/${business.id}`, {
+      const response = await fetchWithSession(`/api/business/${business.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           owner_id: business.ownerId,
@@ -2140,8 +2121,6 @@ export function BusinessAdminDashboard() {
       return;
     }
 
-    const token = getStoredToken();
-
     const processedFile = await compressImageFile(file, {
       maxWidth: 800,
       maxHeight: 800,
@@ -2172,10 +2151,9 @@ export function BusinessAdminDashboard() {
       }
       setAvatarPreview(imageUrl);
 
-      const saveResponse = await fetch("/api/business/photo", {
+      const saveResponse = await fetchWithSession("/api/business/photo", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -2249,11 +2227,8 @@ export function BusinessAdminDashboard() {
       formData.append("remove", "1");
       console.log("businessId enviado a save-db-url:", business.id);
 
-      const response = await fetch("/api/business/photo", {
+      const response = await fetchWithSession("/api/business/photo", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
       const payload = (await response.json().catch(() => null)) as Record<

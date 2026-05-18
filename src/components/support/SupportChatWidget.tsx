@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/context/AuthContext";
+import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
 
 type SupportRole = "cliente" | "repartidor" | "vendedor" | "negocio";
 
@@ -53,29 +55,8 @@ type CreateConversationResponse = {
   error?: string;
 };
 
-const TOKEN_STORAGE_KEYS = [
-  "token",
-  "authToken",
-  "access_token",
-  "gogi_token",
-  "userToken",
-  "accessToken",
-];
-
 function getStoredToken() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  for (const key of TOKEN_STORAGE_KEYS) {
-    const value = window.localStorage.getItem(key);
-
-    if (value?.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
+  return getClientAuthToken();
 }
 
 function formatDateTime(value: string) {
@@ -158,7 +139,17 @@ export function SupportChatWidget({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [actionError, setActionError] = useState("");
-  const localUser = useMemo(() => getStoredUser(), []);
+  const { user } = useAuth();
+  const localUser = useMemo(
+    () =>
+      user
+        ? {
+            id: user.id,
+            roles: Array.isArray(user.roles) ? user.roles : [],
+          }
+        : getStoredUser(),
+    [user],
+  );
 
   const conversationsQuery = useQuery({
     queryKey: ["support-conversations", requesterRole],
@@ -169,11 +160,14 @@ export function SupportChatWidget({
         throw new Error("Debes iniciar sesión nuevamente.");
       }
 
-      const response = await fetch(`/api/support/conversations?mine=true`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/support/conversations?mine=true`,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       const payload = (await response.json()) as ConversationListResponse;
 
       if (requesterRole === "repartidor") {
@@ -231,11 +225,10 @@ export function SupportChatWidget({
         throw new Error("Debes iniciar sesión nuevamente.");
       }
 
-      const response = await fetch("/api/support/conversations", {
+      const response = await fetchWithSession("/api/support/conversations", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           requester_role: requesterRole,
@@ -283,11 +276,11 @@ export function SupportChatWidget({
         });
       }
 
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/support/conversations/${activeConversation.id}/messages`,
         {
           headers: {
-            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         },
       );
@@ -325,13 +318,12 @@ export function SupportChatWidget({
         throw new Error("Escribe un mensaje antes de enviarlo.");
       }
 
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/support/conversations/${activeConversation.id}/messages`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             message,

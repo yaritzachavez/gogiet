@@ -10,6 +10,7 @@ import { recordAuditLog } from "@/lib/audit-log";
 import { ensureDeliveryStatus } from "@/lib/business-panel";
 import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import pool from "@/lib/db";
+import { ensureDeliveryEvidenceRuntimeSchema } from "@/lib/delivery-evidence-schema";
 import {
   COURIER_EARNING_RATE,
   DEFAULT_DELIVERY_FEE_RATE,
@@ -49,55 +50,8 @@ type BusinessUserRow = RowDataPacket & {
   user_id: number;
 };
 
-type DeliveryEvidenceColumnRow = RowDataPacket & {
-  Field: string;
-};
-
 async function ensureDeliveryEvidenceTable(connection: PoolConnection) {
-  await connection.query(
-    `
-      CREATE TABLE IF NOT EXISTS delivery_evidence (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        delivery_id INT NOT NULL,
-        order_id INT NOT NULL,
-        driver_user_id INT NOT NULL,
-        photo_url TEXT NOT NULL,
-        note TEXT NULL,
-        latitude DECIMAL(10,7) NULL,
-        longitude DECIMAL(10,7) NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_delivery_evidence_delivery_id (delivery_id),
-        KEY idx_delivery_evidence_order_id (order_id),
-        KEY idx_delivery_evidence_driver_user_id (driver_user_id)
-      )
-    `,
-  );
-
-  const [columns] = await connection.query<DeliveryEvidenceColumnRow[]>(
-    "SHOW COLUMNS FROM delivery_evidence",
-  );
-  const columnNames = new Set(columns.map((column) => String(column.Field)));
-
-  if (!columnNames.has("latitude")) {
-    await connection.query(
-      `
-        ALTER TABLE delivery_evidence
-        ADD COLUMN latitude DECIMAL(10,7) NULL
-        AFTER note
-      `,
-    );
-  }
-
-  if (!columnNames.has("longitude")) {
-    await connection.query(
-      `
-        ALTER TABLE delivery_evidence
-        ADD COLUMN longitude DECIMAL(10,7) NULL
-        AFTER latitude
-      `,
-    );
-  }
+  await ensureDeliveryEvidenceRuntimeSchema(connection);
 }
 
 async function getBusinessUserIds(

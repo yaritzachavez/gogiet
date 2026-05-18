@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/context/AuthContext";
+import { fetchWithSession } from "@/lib/client-auth";
 
 type Device = {
   id: number;
@@ -95,23 +96,11 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     const loadProfile = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setProfileError("Debes iniciar sesión nuevamente.");
-        setProfileLoading(false);
-        return;
-      }
-
       try {
         setProfileLoading(true);
         setProfileError("");
 
-        const response = await fetch("/api/admin/profile", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetchWithSession("/api/admin/profile");
 
         const data = await response.json();
 
@@ -137,21 +126,10 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     const loadSecurity = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setSecurityError("Debes iniciar sesión nuevamente.");
-        return;
-      }
-
       try {
         setSecurityError("");
 
-        const response = await fetch("/api/admin/security", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetchWithSession("/api/admin/security");
 
         const data = await response.json();
 
@@ -192,21 +170,10 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     const loadSettings = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setSettingsError("Debes iniciar sesión nuevamente.");
-        return;
-      }
-
       try {
         setSettingsError("");
 
-        const response = await fetch("/api/admin/settings", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetchWithSession("/api/admin/settings");
 
         const data = await response.json();
 
@@ -274,22 +241,14 @@ export default function AdminSettingsPage() {
   }, [toastMessage]);
 
   const handleSaveProfile = async () => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setProfileError("Debes iniciar sesión nuevamente.");
-      return;
-    }
-
     try {
       setSavingProfile(true);
       setProfileError("");
 
-      const response = await fetch("/api/admin/profile", {
+      const response = await fetchWithSession("/api/admin/profile", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           name: profileName,
@@ -330,22 +289,14 @@ export default function AdminSettingsPage() {
   };
 
   const handleUpdatePassword = async () => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setPasswordError("Debes iniciar sesión nuevamente.");
-      return;
-    }
-
     try {
       setSavingPassword(true);
       setPasswordError("");
 
-      const response = await fetch("/api/admin/password", {
+      const response = await fetchWithSession("/api/admin/password", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           newPassword,
@@ -369,22 +320,14 @@ export default function AdminSettingsPage() {
   };
 
   const handleToggleTwoFactor = async (nextValue: boolean) => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setSecurityError("Debes iniciar sesión nuevamente.");
-      return;
-    }
-
     try {
       setSavingSecurity(true);
       setSecurityError("");
 
-      const response = await fetch("/api/admin/security", {
+      const response = await fetchWithSession("/api/admin/security", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           twoFactorEnabled: nextValue,
@@ -412,13 +355,6 @@ export default function AdminSettingsPage() {
   };
 
   const handleLogoutAllDevices = async () => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setSecurityError("Debes iniciar sesión nuevamente.");
-      return;
-    }
-
     const confirmed = window.confirm(
       "¿Seguro que deseas cerrar sesión en todos los dispositivos?",
     );
@@ -431,11 +367,8 @@ export default function AdminSettingsPage() {
       setLoggingOutAll(true);
       setSecurityError("");
 
-      const response = await fetch("/api/admin/security/logout-all", {
+      const response = await fetchWithSession("/api/admin/security/logout-all", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       const data = await response.json();
@@ -457,22 +390,14 @@ export default function AdminSettingsPage() {
   };
 
   const handleSaveQuickSettings = async () => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setSettingsError("Debes iniciar sesión nuevamente.");
-      return;
-    }
-
     try {
       setSavingSettings(true);
       setSettingsError("");
 
-      const response = await fetch("/api/admin/settings", {
+      const response = await fetchWithSession("/api/admin/settings", {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           language,
@@ -511,13 +436,6 @@ export default function AdminSettingsPage() {
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setProfileError("Debes iniciar sesión nuevamente.");
-      event.target.value = "";
-      return;
-    }
 
     if (!file) {
       return;
@@ -530,11 +448,8 @@ export default function AdminSettingsPage() {
       const formData = new FormData();
       formData.append("avatar", file);
 
-      const response = await fetch("/api/admin/upload-avatar", {
+      const response = await fetchWithSession("/api/admin/upload-avatar", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
 

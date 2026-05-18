@@ -7,6 +7,11 @@ import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
 import { createNotificationsForAdminGeneral } from "@/lib/notifications";
 import {
+  ensureAdminMessagesRuntimeSchema,
+  ensureOrderItemsRuntimeSchema,
+  ensureOrdersRuntimeSchema,
+} from "@/lib/order-schema";
+import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
 } from "@/lib/order-status";
@@ -23,10 +28,6 @@ type RouteContext = {
   params: Promise<{ id: string }>;
 };
 
-type ColumnRow = RowDataPacket & {
-  Field: string;
-};
-
 type AdminMessageRow = RowDataPacket & {
   id: number;
   order_id: number;
@@ -39,6 +40,12 @@ type AdminMessageRow = RowDataPacket & {
 
 type AdminRoleRow = RowDataPacket & {
   id: number;
+};
+
+type OrderWithRelations = RowDataPacket & {
+  items: RowDataPacket[];
+  notes: RowDataPacket[];
+  admin_messages: AdminMessageRow[];
 };
 
 function unauthorized(message = "Token inválido o faltante") {
@@ -66,157 +73,15 @@ function normalizeId(value: string) {
 }
 
 async function ensureOrdersColumns() {
-  await pool.query(
-    `
-      CREATE TABLE IF NOT EXISTS orders (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        user_id INT NOT NULL,
-        cart_id INT NULL,
-        business_id INT NOT NULL,
-        driver_id INT NULL,
-        address_id INT NOT NULL,
-        payment_method_id INT NOT NULL,
-        payment_method VARCHAR(50) NULL,
-        payment_receipt_url MEDIUMTEXT NULL,
-        comprobante_pago_url MEDIUMTEXT NULL,
-        order_status_id INT NOT NULL,
-        subtotal DECIMAL(10,2) NOT NULL,
-        terminal_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        delivery_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        service_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        driver_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        tip_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-        total_amount DECIMAL(10,2) NOT NULL,
-        customer_notes VARCHAR(255) NULL,
-        placed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        confirmed_at DATETIME NULL,
-        delivered_at DATETIME NULL,
-        cancelled_at DATETIME NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX fk_orders_user (user_id),
-        INDEX fk_orders_cart (cart_id),
-        INDEX fk_orders_business (business_id),
-        INDEX fk_orders_address (address_id),
-        INDEX fk_orders_payment_method (payment_method_id),
-        INDEX fk_orders_order_status (order_status_id)
-      )
-    `,
-  );
-
-  const [columns] = await pool.query<ColumnRow[]>("SHOW COLUMNS FROM orders");
-  const columnNames = new Set(columns.map((column) => String(column.Field)));
-
-  if (!columnNames.has("terminal_fee")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN terminal_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
-        AFTER subtotal
-      `,
-    );
-  }
-
-  if (!columnNames.has("payment_method")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN payment_method VARCHAR(50) NULL
-        AFTER payment_method_id
-      `,
-    );
-  }
-
-  if (!columnNames.has("comprobante_pago_url")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN comprobante_pago_url MEDIUMTEXT NULL
-        AFTER payment_method
-      `,
-    );
-  }
-
-  if (!columnNames.has("payment_receipt_url")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN payment_receipt_url MEDIUMTEXT NULL
-        AFTER payment_method
-      `,
-    );
-  }
-
-  if (!columnNames.has("driver_id")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN driver_id INT NULL
-        AFTER business_id
-      `,
-    );
-  }
-
-  if (!columnNames.has("platform_fee")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
-        AFTER service_fee
-      `,
-    );
-  }
-
-  if (!columnNames.has("driver_fee")) {
-    await pool.query(
-      `
-        ALTER TABLE orders
-        ADD COLUMN driver_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00
-        AFTER platform_fee
-      `,
-    );
-  }
+  await ensureOrdersRuntimeSchema(pool);
 }
 
 async function ensureOrderItemsTable() {
-  await pool.query(
-    `
-      CREATE TABLE IF NOT EXISTS order_items (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        order_id INT NOT NULL,
-        product_id INT NOT NULL,
-        product_name_snapshot VARCHAR(120) NOT NULL,
-        unit_price DECIMAL(10,2) NOT NULL,
-        quantity INT NOT NULL DEFAULT 1,
-        subtotal DECIMAL(10,2) NOT NULL,
-        notes VARCHAR(255) NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX fk_order_items_order (order_id),
-        INDEX fk_order_items_product (product_id)
-      )
-    `,
-  );
+  await ensureOrderItemsRuntimeSchema(pool);
 }
 
 async function ensureAdminMessagesTable() {
-  await pool.query(
-    `
-      CREATE TABLE IF NOT EXISTS admin_messages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        order_id INT NOT NULL,
-        user_id INT NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        message TEXT NOT NULL,
-        file_url MEDIUMTEXT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_admin_messages_order_id (order_id),
-        INDEX idx_admin_messages_user_id (user_id)
-      )
-    `,
-  );
+  await ensureAdminMessagesRuntimeSchema(pool);
 }
 
 function normalizeCatalogName(value: unknown, fallback: string) {
@@ -300,7 +165,9 @@ async function getOrCreateCatalogIdByName(
   return result.insertId;
 }
 
-async function getOrderById(orderId: number): Promise<any | null> {
+async function getOrderById(
+  orderId: number,
+): Promise<OrderWithRelations | null> {
   await ensureOrdersColumns();
   await ensureOrderItemsTable();
   await ensureCoreOrderStatuses();

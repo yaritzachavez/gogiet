@@ -1,20 +1,23 @@
 "use client";
 
-import Link from "next/link";
 import { ReceiptText } from "lucide-react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
+import { useAuth } from "@/context/AuthContext";
+import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
 } from "@/lib/order-status";
+import { getTransferAccountConfig } from "@/lib/transfer-config";
 
 type OrderItem = {
   id: number;
@@ -139,35 +142,14 @@ function buildAddress(order: OrderDetail) {
     .join(", ");
 }
 
-const TOKEN_STORAGE_KEYS = [
-  "token",
-  "authToken",
-  "access_token",
-  "gogi_token",
-  "userToken",
-  "accessToken",
-];
-
 function getStoredToken() {
-  if (typeof window === "undefined") return null;
-
-  for (const key of TOKEN_STORAGE_KEYS) {
-    const value = window.localStorage.getItem(key);
-
-    if (value?.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
+  return getClientAuthToken();
 }
 
 function clearStoredSession() {
   if (typeof window === "undefined") return;
 
-  for (const key of [...TOKEN_STORAGE_KEYS, "user"]) {
-    window.localStorage.removeItem(key);
-  }
+  window.localStorage.removeItem("user");
 }
 
 const moneyFormatter = new Intl.NumberFormat("es-MX", {
@@ -184,6 +166,7 @@ function formatMoney(value: number) {
 export default function OrderTrackingPage() {
   const params = useParams<{ orderId?: string; id?: string }>();
   const router = useRouter();
+  const { user } = useAuth();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -191,37 +174,11 @@ export default function OrderTrackingPage() {
   const [paymentActionLoading, setPaymentActionLoading] = useState(false);
   const orderId = params.orderId ?? params.id ?? "";
 
-  const loadOrder = async (showLoader = false) => {
-    const token = getStoredToken();
+  const loadOrder = useCallback(
+    async (showLoader = false) => {
+      const token = getStoredToken();
 
-    if (!token) {
-      setErrorMessage("Tu sesión expiró. Inicia sesión nuevamente.");
-      setLoading(false);
-      window.setTimeout(() => {
-        router.replace("/login");
-      }, 1200);
-      return;
-    }
-
-    try {
-      if (showLoader) {
-        setLoading(true);
-      }
-
-      const response = await fetch(`/api/orders/${orderId}`, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = (await response.json().catch(() => null)) as Record<
-        string,
-        unknown
-      > | null;
-
-      if (response.status === 401 || response.status === 403) {
-        clearStoredSession();
+      if (!token) {
         setErrorMessage("Tu sesión expiró. Inicia sesión nuevamente.");
         setLoading(false);
         window.setTimeout(() => {
@@ -230,45 +187,59 @@ export default function OrderTrackingPage() {
         return;
       }
 
-      if (!response.ok || !data?.order) {
+      try {
+        if (showLoader) {
+          setLoading(true);
+        }
+
+        const response = await fetchWithSession(`/api/orders/${orderId}`, {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        const data = (await response.json().catch(() => null)) as Record<
+          string,
+          unknown
+        > | null;
+
+        if (response.status === 401 || response.status === 403) {
+          clearStoredSession();
+          setErrorMessage("Tu sesión expiró. Inicia sesión nuevamente.");
+          setLoading(false);
+          window.setTimeout(() => {
+            router.replace("/login");
+          }, 1200);
+          return;
+        }
+
+        if (!response.ok || !data?.order) {
+          setErrorMessage(
+            formatApiError(
+              response.status,
+              data,
+              "No pudimos cargar la información del pedido.",
+            ),
+          );
+          return;
+        }
+
+        setOrder(data.order as OrderDetail);
+        setErrorMessage("");
+      } catch (error) {
+        console.warn("No pudimos cargar el seguimiento del pedido.", error);
         setErrorMessage(
-          formatApiError(
-            response.status,
-            data,
-            "No pudimos cargar la información del pedido.",
+          getFriendlyErrorMessage(
+            error,
+            "No pudimos cargar el seguimiento de tu pedido.",
           ),
         );
-        return;
+      } finally {
+        setLoading(false);
       }
-
-      setOrder(data.order as OrderDetail);
-      setErrorMessage("");
-      try {
-        const rawUser = window.localStorage.getItem("user");
-        const parsedUser = rawUser ? JSON.parse(rawUser) : null;
-        const userRoles = Array.isArray(parsedUser?.roles)
-          ? parsedUser.roles
-          : [];
-        setIsAdminGeneral(
-          userRoles.includes("ADMIN_GENERAL") ||
-            userRoles.includes("admin_general"),
-        );
-      } catch (parseError) {
-        console.warn("No se pudieron leer los roles del usuario.", parseError);
-        setIsAdminGeneral(false);
-      }
-    } catch (error) {
-      console.warn("No pudimos cargar el seguimiento del pedido.", error);
-      setErrorMessage(
-        getFriendlyErrorMessage(
-          error,
-          "No pudimos cargar el seguimiento de tu pedido.",
-        ),
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [orderId, router],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -290,7 +261,15 @@ export default function OrderTrackingPage() {
     return () => {
       isMounted = false;
     };
-  }, [orderId, router]);
+  }, [orderId, loadOrder]);
+
+  useEffect(() => {
+    const userRoles = Array.isArray(user?.roles) ? user.roles : [];
+    setIsAdminGeneral(
+      userRoles.includes("ADMIN_GENERAL") ||
+        userRoles.includes("admin_general"),
+    );
+  }, [user?.roles]);
 
   const steps = useMemo(() => {
     if (!order) return BASE_STEPS;
@@ -355,10 +334,7 @@ export default function OrderTrackingPage() {
       ?.filter((note) => String(note.note_text ?? "").includes("Motivo:"))
       .at(-1)?.note_text ?? "";
 
-  const transferAccount = {
-    bank: "BBVA",
-    holder: "Gogi Eats",
-  };
+  const transferAccount = getTransferAccountConfig();
 
   const handlePaymentValidation = async (action: "approve" | "reject") => {
     const token = getStoredToken();
@@ -384,17 +360,19 @@ export default function OrderTrackingPage() {
 
     try {
       setPaymentActionLoading(true);
-      const response = await fetch(`/api/admin/orders/${order.id}/payment`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/admin/orders/${order.id}/payment`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action,
+            reason: action === "reject" ? reason : undefined,
+          }),
         },
-        body: JSON.stringify({
-          action,
-          reason: action === "reject" ? reason : undefined,
-        }),
-      });
+      );
 
       const data = (await response.json().catch(() => null)) as Record<
         string,
@@ -717,7 +695,8 @@ export default function OrderTrackingPage() {
                         {item.product_name}
                       </p>
                       <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-orange-300">
-                        {Number(item.quantity ?? 0)} unidad{Number(item.quantity ?? 0) === 1 ? "" : "es"}
+                        {Number(item.quantity ?? 0)} unidad
+                        {Number(item.quantity ?? 0) === 1 ? "" : "es"}
                       </p>
                     </div>
                     <p className="shrink-0 text-sm font-bold text-orange-200">
@@ -778,14 +757,26 @@ export default function OrderTrackingPage() {
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 text-sm text-[#d0d0d0]">
-                <p>
-                  <span className="font-semibold">Banco:</span>{" "}
-                  {transferAccount.bank}
-                </p>
-                <p>
-                  <span className="font-semibold">Titular:</span>{" "}
-                  {transferAccount.holder}
-                </p>
+                {transferAccount ? (
+                  <>
+                    <p>
+                      <span className="font-semibold">Banco:</span>{" "}
+                      {transferAccount.bank}
+                    </p>
+                    <p>
+                      <span className="font-semibold">Titular:</span>{" "}
+                      {transferAccount.holder}
+                    </p>
+                    <p>
+                      <span className="font-semibold">CLABE:</span>{" "}
+                      {transferAccount.clabe}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[#bdbdbd]">
+                    La transferencia no está disponible en este momento.
+                  </p>
+                )}
                 <p>
                   <span className="font-semibold">Total del pedido:</span>{" "}
                   {formatMoney(Number(order.total_amount ?? 0))}
@@ -806,7 +797,9 @@ export default function OrderTrackingPage() {
               </div>
 
               <div className="space-y-2 text-sm text-[#d0d0d0]">
-                <p className="font-semibold text-[#f5f5f5]">Comprobante de transferencia</p>
+                <p className="font-semibold text-[#f5f5f5]">
+                  Comprobante de transferencia
+                </p>
                 {order.payment_receipt_url || order.comprobante_pago_url ? (
                   <a
                     href={
@@ -821,9 +814,7 @@ export default function OrderTrackingPage() {
                     Ver comprobante
                   </a>
                 ) : (
-                  <p className="text-[#bdbdbd]">
-                    No hay comprobante cargado.
-                  </p>
+                  <p className="text-[#bdbdbd]">No hay comprobante cargado.</p>
                 )}
               </div>
             </div>

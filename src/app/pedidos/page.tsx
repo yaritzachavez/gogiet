@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionCard } from "@/components/ui/section-card";
+import { fetchWithSession } from "@/lib/client-auth";
 import { getOrderStatusLabel } from "@/lib/order-status";
 
 type OrderProduct = {
@@ -41,18 +42,10 @@ export default function PedidosPage() {
 
   useEffect(() => {
     const loadOrders = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setErrorMessage("Debes iniciar sesión para ver tus pedidos.");
-        setLoading(false);
-        return;
-      }
-
       try {
-        const response = await fetch("/api/orders", {
+        const response = await fetchWithSession("/api/orders", {
           headers: {
-            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         });
 
@@ -116,10 +109,7 @@ export default function PedidosPage() {
         ) : null}
 
         {orders.map((order) => (
-          <SectionCard
-            key={order.id}
-            className="p-6"
-          >
+          <SectionCard key={order.id} className="p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-orange-950">

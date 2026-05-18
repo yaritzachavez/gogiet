@@ -30,6 +30,7 @@ import { fetchWithSession } from "@/lib/client-auth";
 import { formatApiError, getFriendlyErrorMessage } from "@/lib/friendly-errors";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import type { ShippingByAddressResult } from "@/lib/shipping";
+import { getTransferAccountConfig } from "@/lib/transfer-config";
 
 // --- Tipos y Constantes ---
 type StoredCartItem = {
@@ -167,17 +168,18 @@ function formatMoney(value: number) {
   return `${moneyFormatter.format(Number.isFinite(value) ? value : 0)} MXN`;
 }
 
-const TRANSFER_ACCOUNT = {
-  bank: "BBVA",
-  holder: "Gogi Eats",
-  clabe: "012345678901234567",
-  accountNumber: "0123456789",
-};
-
 export default function CarritoPage() {
   const router = useRouter();
   const { user } = useAuth();
   const notify = useNotify();
+  const transferAccount = getTransferAccountConfig();
+  const paymentMethodOptions = useMemo(
+    () =>
+      PAYMENT_METHOD_OPTIONS.filter(
+        (option) => option.id !== "transferencia" || transferAccount,
+      ),
+    [transferAccount],
+  );
 
   const mapToSavedAddress = useCallback(
     (address: RawAddressLike): SavedAddress => {
@@ -667,6 +669,12 @@ export default function CarritoPage() {
   const canSubmitOrder =
     !checkoutBlockReason && !submittingOrder && Boolean(selectedPaymentMethod);
 
+  useEffect(() => {
+    if (selectedPaymentMethod === "transferencia" && !transferAccount) {
+      setSelectedPaymentMethod("efectivo");
+    }
+  }, [selectedPaymentMethod, transferAccount]);
+
   // --- Handlers ---
   const handleQuantityChange = async (id: string, delta: number) => {
     const item = cartItems.find((i) => i.id === id);
@@ -822,6 +830,13 @@ export default function CarritoPage() {
     }
 
     if (selectedPaymentMethod === "transferencia") {
+      if (!transferAccount) {
+        const message =
+          "La transferencia no está disponible en este momento. Elige otro método de pago.";
+        setTransferError(message);
+        notify.warning(message, "Método no disponible");
+        return;
+      }
       setPaymentDialogOpen(false);
       setTransferDialogOpen(true);
       return;
@@ -908,6 +923,12 @@ export default function CarritoPage() {
 
     setSubmittingOrder(true);
     try {
+      if (selectedPaymentMethod === "transferencia" && !transferAccount) {
+        throw new Error(
+          "La transferencia no está disponible en este momento. Elige otro método de pago.",
+        );
+      }
+
       const checkoutPayload = {
         user_id: user?.id,
         address_id: savedAddress?.id,
@@ -1359,7 +1380,7 @@ export default function CarritoPage() {
             </p>
           </div>
           <div className="grid gap-2.5 sm:gap-3">
-            {PAYMENT_METHOD_OPTIONS.map((opt) => (
+            {paymentMethodOptions.map((opt) => (
               <button
                 type="button"
                 key={opt.id}
@@ -1394,14 +1415,19 @@ export default function CarritoPage() {
           </DialogHeader>
           <div className="space-y-1 rounded-[22px] bg-black/60 p-3.5 text-sm sm:rounded-[24px] sm:p-4">
             <p>
-              <strong>Banco:</strong> {TRANSFER_ACCOUNT.bank}
+              <strong>Banco:</strong> {transferAccount?.bank}
             </p>
             <p>
-              <strong>CLABE:</strong> {TRANSFER_ACCOUNT.clabe}
+              <strong>CLABE:</strong> {transferAccount?.clabe}
             </p>
             <p>
-              <strong>Titular:</strong> {TRANSFER_ACCOUNT.holder}
+              <strong>Titular:</strong> {transferAccount?.holder}
             </p>
+            {transferAccount?.accountNumber ? (
+              <p>
+                <strong>Cuenta:</strong> {transferAccount.accountNumber}
+              </p>
+            ) : null}
             <p className="pt-2 text-center font-black text-orange-300">
               Total a pagar: {formatMoney(commissionBreakdown.total)}
             </p>

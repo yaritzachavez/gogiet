@@ -4,6 +4,7 @@ import { CalendarRange, PackageSearch, Store } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { fetchWithSession } from "@/lib/client-auth";
 import LoadingRow from "../components/LoadingRow";
 import SummaryCard from "../components/SummaryCard";
 
@@ -87,15 +88,6 @@ export default function AdminOrdersPage() {
 
   const loadOrders = useCallback(
     async (silent = false) => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setError("Debes iniciar sesión nuevamente");
-        setData(null);
-        setLoading(false);
-        return;
-      }
-
       try {
         if (!silent) {
           setLoading(true);
@@ -118,14 +110,14 @@ export default function AdminOrdersPage() {
         }
 
         const [ordersResponse, couriersResponse] = await Promise.all([
-          fetch(`/api/admin/orders?${params.toString()}`, {
+          fetchWithSession(`/api/admin/orders?${params.toString()}`, {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           }),
-          fetch("/api/admin/deliveries/repartidores", {
+          fetchWithSession("/api/admin/deliveries/repartidores", {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           }),
         ]);
@@ -204,12 +196,6 @@ export default function AdminOrdersPage() {
 
   const handleAssignCourier = async (orderId: number) => {
     const courierId = selectedCouriers[orderId];
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setError("Debes iniciar sesión nuevamente");
-      return;
-    }
 
     if (!courierId) {
       setError("Selecciona un repartidor antes de asignar.");
@@ -220,16 +206,18 @@ export default function AdminOrdersPage() {
       setAssigningOrderId(orderId);
       setError("");
 
-      const response = await fetch(`/api/admin/orders/${orderId}/delivery`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/admin/orders/${orderId}/delivery`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            driver_user_id: Number(courierId),
+          }),
         },
-        body: JSON.stringify({
-          driver_user_id: Number(courierId),
-        }),
-      });
+      );
 
       const payload = (await response.json()) as {
         success?: boolean;

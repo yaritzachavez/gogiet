@@ -27,6 +27,7 @@ import {
   useState,
 } from "react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
 
 const DEFAULT_BUSINESS = {
   id: null,
@@ -37,15 +38,6 @@ const DEFAULT_BUSINESS = {
   productsCount: 0,
   updatedAt: null as string | null,
 };
-
-const TOKEN_STORAGE_KEYS = [
-  "token",
-  "authToken",
-  "access_token",
-  "gogi_token",
-  "userToken",
-  "accessToken",
-];
 
 const MXN_CURRENCY_FORMATTER = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -145,17 +137,7 @@ type SellerTrainingAssignment = {
 };
 
 function getStoredToken() {
-  if (typeof window === "undefined") return null;
-
-  for (const key of TOKEN_STORAGE_KEYS) {
-    const value = window.localStorage.getItem(key);
-
-    if (value?.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
+  return getClientAuthToken();
 }
 
 function toSafeNumber(value: unknown): number {
@@ -399,10 +381,9 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
     try {
       setBusinessError("");
 
-      const response = await fetch("/api/business/me", {
+      const response = await fetchWithSession("/api/business/me", {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
       const responseText = await response.text();
@@ -506,10 +487,9 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
         }
         setOrdersError("");
 
-        const response = await fetch("/api/business/orders", {
+        const response = await fetchWithSession("/api/business/orders", {
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
         });
         const responseText = await response.text();
@@ -627,10 +607,9 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       setTrainingsLoading(true);
       setTrainingsError("");
 
-      const response = await fetch("/api/seller/trainings", {
+      const response = await fetchWithSession("/api/seller/trainings", {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
       const responseText = await response.text();
@@ -849,13 +828,15 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       setActionFeedback(null);
       console.log("Marcando pedido listo", orderId);
 
-      const response = await fetch(`/api/business/orders/${orderId}/ready`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/orders/${orderId}/ready`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
       const responseText = await response.text();
       let data: Record<string, unknown> = {};
 
@@ -913,14 +894,16 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       setActionLoading({ orderId, type: "delivery" });
       setActionFeedback(null);
 
-      const response = await fetch(`/api/business/orders/${orderId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "accepted" }),
         },
-        body: JSON.stringify({ status: "accepted" }),
-      });
+      );
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok || data.success === false) {
@@ -964,14 +947,16 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       setActionLoading({ orderId, type: "delivery" });
       setActionFeedback(null);
 
-      const response = await fetch(`/api/business/orders/${orderId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/business/orders/${orderId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status: "en_preparacion" }),
         },
-        body: JSON.stringify({ status: "en_preparacion" }),
-      });
+      );
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok || data.success === false) {
@@ -1015,14 +1000,16 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       setActionLoading({ orderId, type: "delivery" });
       setActionFeedback(null);
 
-      const response = await fetch("/api/business/orders/request-delivery", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        "/api/business/orders/request-delivery",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ order_id: orderId }),
         },
-        body: JSON.stringify({ order_id: orderId }),
-      });
+      );
       const responseText = await response.text();
       let data: Record<string, unknown> = {};
 
@@ -1090,13 +1077,12 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
 
     try {
       setTrainingActionLoading({ assignmentId, type: "video" });
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/seller/trainings/${assignmentId}/video`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
         },
       );
@@ -1162,13 +1148,12 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
         assignmentId: assignment.assignment_id,
         type: "test",
       });
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/seller/trainings/${assignment.assignment_id}/test`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ answers }),
         },

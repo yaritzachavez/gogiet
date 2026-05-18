@@ -17,6 +17,7 @@ import type {
 import { UserAvatar } from "@/components/shared/user-avatar";
 import { SupportChatWidget } from "@/components/support/SupportChatWidget";
 import { useAuth } from "@/context/AuthContext";
+import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
 
 const EMPTY_EARNINGS: DeliveryEarnings = {
   currency: "MXN",
@@ -27,15 +28,6 @@ const EMPTY_EARNINGS: DeliveryEarnings = {
   percentageToGoal: 0,
   comparisonToYesterday: 0,
 };
-
-const TOKEN_STORAGE_KEYS = [
-  "token",
-  "authToken",
-  "access_token",
-  "gogi_token",
-  "userToken",
-  "accessToken",
-];
 
 const EMPTY_DASHBOARD_STATS = {
   activeDeliveries: 0,
@@ -132,23 +124,12 @@ function formatDeliveredAt(value: string) {
 }
 
 function getStoredToken() {
-  if (typeof window === "undefined") return null;
-
-  for (const key of TOKEN_STORAGE_KEYS) {
-    const value = window.localStorage.getItem(key);
-
-    if (value?.trim()) {
-      return value.trim();
-    }
-  }
-
-  return null;
+  return getClientAuthToken();
 }
 
-function buildAuthHeaders(token: string) {
+function buildAuthHeaders() {
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
   };
 }
 
@@ -303,14 +284,13 @@ export default function DeliveryDashboardPage() {
   const [profileError, setProfileError] = useState("");
   const [profileSuccess, setProfileSuccess] = useState("");
   const [deliveryEvidenceOpen, setDeliveryEvidenceOpen] = useState(false);
-  const [deliveryEvidence, setDeliveryEvidence] = useState<DeliveryEvidenceDraft>(
-    {
+  const [deliveryEvidence, setDeliveryEvidence] =
+    useState<DeliveryEvidenceDraft>({
       orderId: "",
       note: "",
       photo: null,
       error: "",
-    },
-  );
+    });
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -334,8 +314,8 @@ export default function DeliveryDashboardPage() {
 
     try {
       setProfileLoading(true);
-      const response = await fetch("/api/delivery/profile", {
-        headers: buildAuthHeaders(token),
+      const response = await fetchWithSession("/api/delivery/profile", {
+        headers: buildAuthHeaders(),
       });
       const payload = (await response.json().catch(() => null)) as Record<
         string,
@@ -386,8 +366,8 @@ export default function DeliveryDashboardPage() {
     }
 
     try {
-      const response = await fetch("/api/delivery/earnings", {
-        headers: buildAuthHeaders(token),
+      const response = await fetchWithSession("/api/delivery/earnings", {
+        headers: buildAuthHeaders(),
       });
       const responseText = await response.text();
       let payload: Record<string, unknown> = {};
@@ -476,20 +456,20 @@ export default function DeliveryDashboardPage() {
         activeOrderResponse,
         notificationsResponse,
       ] = await Promise.all([
-        fetch("/api/delivery/dashboard", {
-          headers: buildAuthHeaders(token),
+        fetchWithSession("/api/delivery/dashboard", {
+          headers: buildAuthHeaders(),
         }),
-        fetch("/api/delivery/orders", {
-          headers: buildAuthHeaders(token),
+        fetchWithSession("/api/delivery/orders", {
+          headers: buildAuthHeaders(),
         }),
-        fetch("/api/delivery/available", {
-          headers: buildAuthHeaders(token),
+        fetchWithSession("/api/delivery/available", {
+          headers: buildAuthHeaders(),
         }),
-        fetch("/api/delivery/active-order", {
-          headers: buildAuthHeaders(token),
+        fetchWithSession("/api/delivery/active-order", {
+          headers: buildAuthHeaders(),
         }),
-        fetch("/api/delivery/notifications", {
-          headers: buildAuthHeaders(token),
+        fetchWithSession("/api/delivery/notifications", {
+          headers: buildAuthHeaders(),
         }),
       ]);
       const dashboardResponseText = await dashboardResponse.text();
@@ -812,8 +792,8 @@ export default function DeliveryDashboardPage() {
       setHistoryLoading(true);
       setHistoryError("");
 
-      const response = await fetch("/api/delivery/history", {
-        headers: buildAuthHeaders(token),
+      const response = await fetchWithSession("/api/delivery/history", {
+        headers: buildAuthHeaders(),
       });
       const responseText = await response.text();
       let payload: Record<string, unknown> = {};
@@ -932,14 +912,16 @@ export default function DeliveryDashboardPage() {
       try {
         setAssignmentActionOrderId(orderId);
 
-        const response = await fetch(`/api/delivery/assignments/${orderId}`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+        const response = await fetchWithSession(
+          `/api/delivery/assignments/${orderId}`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ action }),
           },
-          body: JSON.stringify({ action }),
-        });
+        );
         const responseText = await response.text();
         let payload: Record<string, unknown> = {};
 
@@ -1014,71 +996,66 @@ export default function DeliveryDashboardPage() {
       formData.append("note", deliveryEvidence.note.trim());
       formData.append("photo", deliveryEvidence.photo);
 
-      const response = await fetch("/api/delivery/complete", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          body: formData,
-        });
-        const responseText = await response.text();
-        let payload: Record<string, unknown> = {};
+      const response = await fetchWithSession("/api/delivery/complete", {
+        method: "POST",
+        body: formData,
+      });
+      const responseText = await response.text();
+      let payload: Record<string, unknown> = {};
 
-        try {
-          payload = responseText ? JSON.parse(responseText) : {};
-        } catch {
-          payload = { raw: responseText };
-        }
+      try {
+        payload = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        payload = { raw: responseText };
+      }
 
-        if (isAuthErrorStatus(response.status)) {
-          setDeliveryEvidence((current) => ({
-            ...current,
-            error: "Tu sesión expiró o no tienes permisos de repartidor.",
-          }));
-          return;
-        }
-
-        if (!response.ok || payload.success === false) {
-          const message =
-            (typeof payload.error === "string" && payload.error) ||
-            (typeof payload.message === "string" && payload.message) ||
-            "No se pudo marcar el pedido como entregado.";
-          setDeliveryEvidence((current) => ({
-            ...current,
-            error: message,
-          }));
-          return;
-        }
-
-        const successMessage =
-          (typeof payload.message === "string" && payload.message) ||
-          "Pedido marcado como entregado";
-
-        setOrdersError("");
-        console.log("[delivery-panel] pedido entregado, refrescando panel:", {
-          orderId: deliveryEvidence.orderId,
-        });
-        setDeliveryEvidenceOpen(false);
-        setDeliveryEvidence({
-          orderId: "",
-          note: "",
-          photo: null,
-          error: "",
-        });
-        await refreshDeliveryPanel();
-        setOrdersError(successMessage);
-      } catch (error) {
-        console.error("Error completando entrega:", error);
+      if (isAuthErrorStatus(response.status)) {
         setDeliveryEvidence((current) => ({
           ...current,
-          error: "No se pudo marcar el pedido como entregado.",
+          error: "Tu sesión expiró o no tienes permisos de repartidor.",
         }));
-      } finally {
-        setAssignmentActionOrderId(null);
+        return;
       }
-    },
-    [deliveryEvidence, refreshDeliveryPanel],
-  );
+
+      if (!response.ok || payload.success === false) {
+        const message =
+          (typeof payload.error === "string" && payload.error) ||
+          (typeof payload.message === "string" && payload.message) ||
+          "No se pudo marcar el pedido como entregado.";
+        setDeliveryEvidence((current) => ({
+          ...current,
+          error: message,
+        }));
+        return;
+      }
+
+      const successMessage =
+        (typeof payload.message === "string" && payload.message) ||
+        "Pedido marcado como entregado";
+
+      setOrdersError("");
+      console.log("[delivery-panel] pedido entregado, refrescando panel:", {
+        orderId: deliveryEvidence.orderId,
+      });
+      setDeliveryEvidenceOpen(false);
+      setDeliveryEvidence({
+        orderId: "",
+        note: "",
+        photo: null,
+        error: "",
+      });
+      await refreshDeliveryPanel();
+      setOrdersError(successMessage);
+    } catch (error) {
+      console.error("Error completando entrega:", error);
+      setDeliveryEvidence((current) => ({
+        ...current,
+        error: "No se pudo marcar el pedido como entregado.",
+      }));
+    } finally {
+      setAssignmentActionOrderId(null);
+    }
+  }, [deliveryEvidence, refreshDeliveryPanel]);
 
   const handleDeliveryStatusUpdate = useCallback(
     async (orderId: string, status: "recogido" | "on_the_way") => {
@@ -1094,14 +1071,16 @@ export default function DeliveryDashboardPage() {
       try {
         setAssignmentActionOrderId(orderId);
 
-        const response = await fetch(`/api/delivery/orders/${orderId}/status`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+        const response = await fetchWithSession(
+          `/api/delivery/orders/${orderId}/status`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ status }),
           },
-          body: JSON.stringify({ status }),
-        });
+        );
         const responseText = await response.text();
         let payload: Record<string, unknown> = {};
 
@@ -1222,11 +1201,8 @@ export default function DeliveryDashboardPage() {
         formData.append("avatar", avatarFile);
       }
 
-      const response = await fetch("/api/delivery/profile", {
+      const response = await fetchWithSession("/api/delivery/profile", {
         method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
       const payload = (await response.json().catch(() => null)) as Record<
@@ -1384,7 +1360,8 @@ export default function DeliveryDashboardPage() {
                   </div>
                 </div>
                 <p className="mt-4 text-sm text-[#6c5a49]">
-                  Máximo permitido: <span className="font-semibold">5 entregas activas</span>.
+                  Máximo permitido:{" "}
+                  <span className="font-semibold">5 entregas activas</span>.
                   {activeDeliveriesCount >= 5
                     ? " Ya tienes el máximo de entregas activas permitidas."
                     : " Puedes aceptar más entregas si están disponibles."}
@@ -1579,10 +1556,14 @@ export default function DeliveryDashboardPage() {
 
             <div className="mt-5 space-y-4">
               <div>
-                <label className="text-sm font-semibold text-[#3d3025]">
+                <label
+                  htmlFor="delivery-evidence-photo"
+                  className="text-sm font-semibold text-[#3d3025]"
+                >
                   Foto de evidencia
                 </label>
                 <input
+                  id="delivery-evidence-photo"
                   type="file"
                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   className="mt-2 block w-full rounded-2xl border border-[#dcc7b0] bg-[#fdf7ef] px-4 py-3 text-sm text-[#3d3025]"
@@ -1597,10 +1578,14 @@ export default function DeliveryDashboardPage() {
               </div>
 
               <div>
-                <label className="text-sm font-semibold text-[#3d3025]">
+                <label
+                  htmlFor="delivery-evidence-note"
+                  className="text-sm font-semibold text-[#3d3025]"
+                >
                   Nota opcional
                 </label>
                 <textarea
+                  id="delivery-evidence-note"
                   rows={4}
                   value={deliveryEvidence.note}
                   onChange={(event) =>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import ResponsiveModal from "@/app/components/Modal";
+import { fetchWithSession } from "@/lib/client-auth";
 import LoadingRow from "../components/LoadingRow";
 import StatusBadge from "../components/StatusBadge";
 import SummaryCard from "../components/SummaryCard";
@@ -114,14 +115,6 @@ export default function AdminNegociosPage() {
   }, [toastMessage]);
 
   useEffect(() => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      setError("Debes iniciar sesión para ver los negocios.");
-      setLoading(false);
-      return;
-    }
-
     const controller = new AbortController();
 
     const loadBusinesses = async () => {
@@ -130,17 +123,17 @@ export default function AdminNegociosPage() {
         setError(null);
 
         const [businessResponse, statsResponse] = await Promise.all([
-          fetch("/api/admin/business", {
+          fetchWithSession("/api/admin/business", {
             cache: "no-store",
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
             signal: controller.signal,
           }),
-          fetch("/api/admin/business/stats", {
+          fetchWithSession("/api/admin/business/stats", {
             cache: "no-store",
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
             signal: controller.signal,
           }),
@@ -203,14 +196,14 @@ export default function AdminNegociosPage() {
   }, []);
 
   useEffect(() => {
-    const token = window.localStorage.getItem("token");
-    if (!token) return;
-
     const loadCategories = async () => {
       try {
-        const categoriesResponse = await fetch("/api/business/categories", {
-          cache: "no-store",
-        });
+        const categoriesResponse = await fetchWithSession(
+          "/api/business/categories",
+          {
+            cache: "no-store",
+          },
+        );
 
         const categoriesData = await categoriesResponse.json();
 
@@ -230,9 +223,7 @@ export default function AdminNegociosPage() {
   }, []);
 
   useEffect(() => {
-    const token = window.localStorage.getItem("token");
-
-    if (!open || !token) {
+    if (!open) {
       return;
     }
 
@@ -255,11 +246,11 @@ export default function AdminNegociosPage() {
         setOwnerLoading(true);
         setOwnerSearchMessage("Buscando...");
 
-        const response = await fetch(
+        const response = await fetchWithSession(
           `/api/admin/users/search?q=${encodeURIComponent(trimmedSearch)}`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
             signal: controller.signal,
           },
@@ -307,14 +298,7 @@ export default function AdminNegociosPage() {
   }, [open, userSearch]);
 
   useEffect(() => {
-    const token = window.localStorage.getItem("token");
-
-    if (
-      !open ||
-      !form.owner_id ||
-      selectedOwner?.id === form.owner_id ||
-      !token
-    ) {
+    if (!open || !form.owner_id || selectedOwner?.id === form.owner_id) {
       return;
     }
 
@@ -322,11 +306,11 @@ export default function AdminNegociosPage() {
 
     const loadOwnerById = async () => {
       try {
-        const response = await fetch(
+        const response = await fetchWithSession(
           `/api/admin/users/search?id=${form.owner_id}`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
             signal: controller.signal,
           },
@@ -417,13 +401,6 @@ export default function AdminNegociosPage() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      window.alert("Debes iniciar sesión nuevamente");
-      return;
-    }
-
     try {
       setSavingForm(true);
 
@@ -431,11 +408,10 @@ export default function AdminNegociosPage() {
         ? "/api/admin/business"
         : `/api/admin/business/${selectedBusinessId}`;
 
-      const response = await fetch(url, {
+      const response = await fetchWithSession(url, {
         method: isNew ? "POST" : "PATCH",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(form),
       });
@@ -492,26 +468,21 @@ export default function AdminNegociosPage() {
     businessId: number,
     currentValue: boolean,
   ) => {
-    const token = window.localStorage.getItem("token");
-
-    if (!token) {
-      window.alert("Debes iniciar sesión nuevamente");
-      return;
-    }
-
     try {
       setUpdatingBusinessId(businessId);
 
-      const response = await fetch(`/api/admin/business/${businessId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/admin/business/${businessId}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            is_active: !currentValue,
+          }),
         },
-        body: JSON.stringify({
-          is_active: !currentValue,
-        }),
-      });
+      );
 
       const data = await response.json();
 

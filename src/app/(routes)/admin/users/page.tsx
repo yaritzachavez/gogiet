@@ -4,6 +4,7 @@ import { AlertCircle, Edit, UserCheck, Users } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ResponsiveModal from "@/app/components/Modal";
+import { fetchWithSession } from "@/lib/client-auth";
 import type { DBUser } from "@/types/db/users";
 
 import LoadingRow from "./components/LoadingRow";
@@ -110,23 +111,14 @@ export default function AdminUsersPage() {
   }, []);
 
   const refreshUsers = useCallback(async () => {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      setError("Debes iniciar sesión como ADMIN_GENERAL.");
-      setUsers([]);
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch("/api/users", {
+      const response = await fetchWithSession("/api/users", {
         cache: "no-store",
         headers: {
-          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
       });
 
@@ -172,26 +164,21 @@ export default function AdminUsersPage() {
   const handleSave = async () => {
     if (!selectedUser) return;
 
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      setError("Debes iniciar sesión como ADMIN_GENERAL.");
-      return;
-    }
-
     try {
       setSaving(true);
 
-      const response = await fetch(`/api/admin/users/${selectedUser.id}/role`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetchWithSession(
+        `/api/admin/users/${selectedUser.id}/role`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            roles: selectedRoles,
+          }),
         },
-        body: JSON.stringify({
-          roles: selectedRoles,
-        }),
-      });
+      );
 
       const data = await response.json();
 
