@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
+import { logger } from "@/lib/logger";
 import {
   assertColumnsExist,
   assertTablesExist,
@@ -52,6 +53,7 @@ export type SessionDiagnostics = {
 };
 
 let cachedUserSessionsSchema: UserSessionsSchema | null = null;
+let loggedUserSessionsSchemaCheck = false;
 
 export function hashSessionToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
@@ -62,7 +64,34 @@ export async function getUserSessionsSchema() {
     return cachedUserSessionsSchema;
   }
 
-  await assertTablesExist(pool, ["user_sessions"]);
+  const [databaseRows] = await pool.query<RowDataPacket[]>(
+    "SELECT DATABASE() AS db_name",
+  );
+  const [tableRows] = await pool.query<RowDataPacket[]>("SHOW TABLES LIKE ?", [
+    "user_sessions",
+  ]);
+  const hasSessionTable = tableRows.length > 0;
+
+  if (!loggedUserSessionsSchemaCheck) {
+    logger.warn(
+      "auth.user_sessions_runtime_check",
+      "[auth-schema] verificación runtime de user_sessions",
+      {
+        databaseName:
+          typeof databaseRows[0]?.db_name === "string"
+            ? databaseRows[0].db_name
+            : null,
+        hasSessionTable: Boolean(hasSessionTable),
+      },
+    );
+    loggedUserSessionsSchemaCheck = true;
+  }
+
+  if (!hasSessionTable) {
+    throw new RuntimeSchemaError(
+      "Falta tabla requerida en runtime: user_sessions. Ejecuta migraciones con prisma migrate deploy antes de atender tráfico.",
+    );
+  }
 
   const [rows] = await pool.query<RowDataPacket[]>(
     "SHOW COLUMNS FROM user_sessions",
@@ -99,6 +128,23 @@ export async function getUserSessionsSchema() {
     hasStatus: columns.has("status"),
     hasUpdatedAt: columns.has("updated_at"),
   };
+
+  logger.warn(
+    "auth.user_sessions_schema_detected",
+    "[auth-schema] esquema de user_sessions detectado",
+    {
+      tokenStorageMode:
+        tokenColumn === "session_token_hash" ? "hash" : "legacy",
+      hasSessionTable: true,
+      hasDeviceName: columns.has("device_name"),
+      hasLocation: columns.has("location"),
+      hasLastActiveAt: columns.has("last_active_at"),
+      hasExpiresAt: columns.has("expires_at"),
+      hasRevokedAt: columns.has("revoked_at"),
+      hasStatus: columns.has("status"),
+      hasUpdatedAt: columns.has("updated_at"),
+    },
+  );
 
   return cachedUserSessionsSchema;
 }

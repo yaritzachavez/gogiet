@@ -4,6 +4,7 @@ type Queryable = Pool | PoolConnection;
 
 type TableRow = RowDataPacket & {
   table_name?: string;
+  TABLE_NAME?: string;
 };
 
 type ColumnRow = RowDataPacket & {
@@ -43,7 +44,11 @@ export async function getExistingTables(
 
   return new Set(
     rows
-      .map((row) => String(row.table_name ?? "").trim())
+      .map((row) =>
+        String(row.table_name ?? row.TABLE_NAME ?? "")
+          .trim()
+          .toLowerCase(),
+      )
       .filter(Boolean),
   );
 }
@@ -53,7 +58,9 @@ export async function assertTablesExist(
   tableNames: string[],
 ) {
   const existingTables = await getExistingTables(executor, tableNames);
-  const missingTables = tableNames.filter((tableName) => !existingTables.has(tableName));
+  const missingTables = tableNames.filter(
+    (tableName) => !existingTables.has(tableName.toLowerCase()),
+  );
 
   if (missingTables.length > 0) {
     throw new RuntimeSchemaError(
@@ -71,7 +78,10 @@ export async function getExistingColumns(
     columnNames && columnNames.length > 0
       ? ` AND column_name IN (${columnNames.map(() => "?").join(", ")})`
       : "";
-  const values = columnNames && columnNames.length > 0 ? [tableName, ...columnNames] : [tableName];
+  const values =
+    columnNames && columnNames.length > 0
+      ? [tableName, ...columnNames]
+      : [tableName];
 
   const [rows] = await executor.query<ColumnRow[]>(
     `
@@ -86,7 +96,9 @@ export async function getExistingColumns(
   return new Set(
     rows
       .map((row) =>
-        String(row.column_name ?? row.COLUMN_NAME ?? "").trim().toLowerCase(),
+        String(row.column_name ?? row.COLUMN_NAME ?? "")
+          .trim()
+          .toLowerCase(),
       )
       .filter(Boolean),
   );
@@ -97,7 +109,11 @@ export async function assertColumnsExist(
   tableName: string,
   columnNames: string[],
 ) {
-  const existingColumns = await getExistingColumns(executor, tableName, columnNames);
+  const existingColumns = await getExistingColumns(
+    executor,
+    tableName,
+    columnNames,
+  );
   const missingColumns = columnNames.filter(
     (columnName) => !existingColumns.has(columnName.toLowerCase()),
   );
