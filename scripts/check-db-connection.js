@@ -23,9 +23,17 @@ function maskUrl(value) {
 }
 
 async function main() {
+  let databaseUrlHost = null;
+  try {
+    databaseUrlHost = process.env.DATABASE_URL
+      ? new URL(process.env.DATABASE_URL).hostname
+      : null;
+  } catch {}
+
   console.log("[db-check] env summary", {
     databaseUrlExists: Boolean(process.env.DATABASE_URL),
     databaseUrlMasked: maskUrl(process.env.DATABASE_URL),
+    databaseUrlHost,
     dbHost: process.env.DB_HOST || null,
     dbPort: process.env.DB_PORT || null,
     dbName: process.env.DB_NAME || null,
@@ -34,6 +42,11 @@ async function main() {
       : null,
     dbSslCaExists: Boolean(process.env.DB_SSL_CA || process.env.DB_CA),
     nodeEnv: process.env.NODE_ENV || "development",
+    preferredSource: process.env.DATABASE_URL ? "DATABASE_URL" : "DB_*",
+    hostMismatch:
+      Boolean(databaseUrlHost) &&
+      Boolean(process.env.DB_HOST) &&
+      databaseUrlHost !== process.env.DB_HOST,
   });
 
   const prisma = new PrismaClient();

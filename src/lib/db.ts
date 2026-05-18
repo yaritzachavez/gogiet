@@ -13,6 +13,25 @@ type DbRuntimeConfig = {
   useSsl: boolean;
 };
 
+function getRuntimeEnvironment() {
+  const nodeEnv = String(process.env.NODE_ENV ?? "")
+    .trim()
+    .toLowerCase();
+  const vercelEnv = String(process.env.VERCEL_ENV ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (nodeEnv !== "production") {
+    return "development" as const;
+  }
+
+  if (vercelEnv === "preview") {
+    return "preview" as const;
+  }
+
+  return "production" as const;
+}
+
 function getMaskedDatabaseUrl(value?: string | null) {
   if (!value) {
     return null;
@@ -34,41 +53,62 @@ function getMaskedDatabaseUrl(value?: string | null) {
 }
 
 function resolveDbConfig(): DbRuntimeConfig {
+  const runtimeEnvironment = getRuntimeEnvironment();
   const existingUrl = process.env.DATABASE_URL?.trim();
   let parsedUrl: URL | null = null;
+
+  if (!existingUrl && runtimeEnvironment === "production") {
+    throw new Error(
+      "[db] DATABASE_URL es obligatoria en producción y debe apuntar al host vigente de Aiven.",
+    );
+  }
 
   if (existingUrl) {
     try {
       parsedUrl = new URL(existingUrl);
     } catch (error) {
+      if (runtimeEnvironment === "production") {
+        throw new Error(
+          `[db] DATABASE_URL inválida en producción: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
       logger.warn("db.database_url_invalid", "DATABASE_URL inválida", {
         message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
+  const preferDatabaseUrl =
+    runtimeEnvironment === "production" || Boolean(parsedUrl);
   const host =
-    parsedUrl?.hostname?.trim() || process.env.DB_HOST?.trim() || null;
+    parsedUrl?.hostname?.trim() ||
+    (!preferDatabaseUrl ? process.env.DB_HOST?.trim() : null) ||
+    null;
   const database =
     parsedUrl?.pathname.replace(/^\//, "").trim() ||
-    process.env.DB_NAME?.trim() ||
+    (!preferDatabaseUrl ? process.env.DB_NAME?.trim() : null) ||
     null;
   const portCandidate =
-    parsedUrl?.port?.trim() || process.env.DB_PORT?.trim() || "3306";
+    parsedUrl?.port?.trim() ||
+    (!preferDatabaseUrl ? process.env.DB_PORT?.trim() : null) ||
+    "3306";
   const port = Number(portCandidate);
   const user =
     (parsedUrl?.username ? decodeURIComponent(parsedUrl.username) : "") ||
-    process.env.DB_USER?.trim() ||
+    (!preferDatabaseUrl ? process.env.DB_USER?.trim() : null) ||
     null;
   const password =
     ((parsedUrl?.password ? decodeURIComponent(parsedUrl.password) : "") ||
-      process.env.DB_PASSWORD) ??
-    process.env.DB_PASS ??
+      (!preferDatabaseUrl ? process.env.DB_PASSWORD : null)) ??
+    (!preferDatabaseUrl ? process.env.DB_PASS : null) ??
     "";
 
   if (!host || !database || !user) {
     throw new Error(
-      "[db] Faltan variables de conexión. Define DATABASE_URL completa o DB_HOST, DB_NAME y DB_USER.",
+      runtimeEnvironment === "production"
+        ? "[db] DATABASE_URL no contiene host, base o usuario válidos para producción."
+        : "[db] Faltan variables de conexión. Define DATABASE_URL completa o DB_HOST, DB_NAME y DB_USER.",
     );
   }
 

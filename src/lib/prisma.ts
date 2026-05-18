@@ -12,6 +12,19 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+function getRuntimeEnvironment() {
+  const nodeEnv = String(process.env.NODE_ENV ?? "")
+    .trim()
+    .toLowerCase();
+  const vercelEnv = String(process.env.VERCEL_ENV ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (nodeEnv !== "production") return "development" as const;
+  if (vercelEnv === "preview") return "preview" as const;
+  return "production" as const;
+}
+
 function getMaskedDatabaseUrl(value?: string | null) {
   if (!value) {
     return null;
@@ -33,6 +46,7 @@ function getMaskedDatabaseUrl(value?: string | null) {
 }
 
 function resolvePrismaDatabaseUrl() {
+  const runtimeEnvironment = getRuntimeEnvironment();
   const host = process.env.DB_HOST?.trim();
   const needsSsl =
     Boolean(host?.includes("aivencloud.com")) ||
@@ -42,6 +56,12 @@ function resolvePrismaDatabaseUrl() {
   const existingUrl = process.env.DATABASE_URL?.trim();
   const caPath = ensureRuntimeCaFile();
   const sslSummary = getDbSslSummary();
+
+  if (!existingUrl && runtimeEnvironment === "production") {
+    throw new Error(
+      "[prisma] DATABASE_URL es obligatoria en producción y debe apuntar al host real de Aiven.",
+    );
+  }
 
   if (areInternalToolsEnabled()) {
     logger.debug("prisma.ssl_env_status", "Estado SSL de Prisma", {
@@ -91,6 +111,12 @@ function resolvePrismaDatabaseUrl() {
         );
       }
     } catch (error) {
+      if (runtimeEnvironment === "production") {
+        throw new Error(
+          `[prisma] DATABASE_URL inválida en producción: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
       logger.warn(
         "prisma.database_url_inspection_failed",
         "No se pudo inspeccionar DATABASE_URL",
@@ -120,6 +146,12 @@ function resolvePrismaDatabaseUrl() {
   const password = process.env.DB_PASSWORD ?? process.env.DB_PASS ?? "";
   const database = process.env.DB_NAME?.trim();
   const port = process.env.DB_PORT?.trim();
+
+  if (runtimeEnvironment === "production") {
+    throw new Error(
+      "[prisma] Prisma no debe generar DATABASE_URL desde DB_* en producción. Configura DATABASE_URL en Vercel.",
+    );
+  }
 
   if (!host || !user || !database) {
     return null;
