@@ -130,6 +130,16 @@ function resolveDbConfig(): DbRuntimeConfig {
       (envPort && envPort !== String(port)) ||
       (envUser && envUser !== user)
     ) {
+      if (
+        runtimeEnvironment === "production" &&
+        envDatabase &&
+        envDatabase !== database
+      ) {
+        throw new Error(
+          `[db] DB_NAME (${envDatabase}) no coincide con la base definida en DATABASE_URL (${database}) en producción.`,
+        );
+      }
+
       logger.warn(
         "db.database_url_mismatch",
         "DATABASE_URL y DB_* no coinciden; mysql2 usará DATABASE_URL",

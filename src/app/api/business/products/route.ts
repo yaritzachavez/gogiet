@@ -1,28 +1,12 @@
-import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
-import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
-import { JWT_SECRET } from "@/lib/env";
 import {
   getPersistedImageUrlError,
   normalizePersistedImageUrl,
 } from "@/lib/image-url";
-
-function validateBearer(req: Request) {
-  const authHeader = req.headers.get("authorization");
-
-  if (!authHeader?.startsWith("Bearer ")) return false;
-
-  try {
-    jwt.verify(authHeader.split(" ")[1], JWT_SECRET);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { requireSellerAccess } from "@/lib/permissions";
 
 function toMySQLDate(date: Date) {
   const pad = (n: number) => (n < 10 ? `0${n}` : n);
@@ -173,43 +157,29 @@ async function syncOfferPromotionForProduct(
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("authorization");
-
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { success: false, error: "Token faltante" },
-        { status: 401 },
-      );
-    }
-
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido" },
-        { status: 401 },
-      );
-    }
-
     const url = new URL(req.url);
     const requestedBusinessId = Number(url.searchParams.get("business_id"));
-    logDbUsage("/api/business/products", {
-      userId: authUser.user.id,
-    });
-
-    const access = await resolveBusinessAccess(
-      authUser.user.id,
+    const auth = await requireSellerAccess(
+      req,
       Number.isFinite(requestedBusinessId) ? requestedBusinessId : null,
     );
 
-    if (!access.businessId) {
-      return NextResponse.json({
-        success: true,
-        products: [],
-        message: "No tienes un negocio asignado",
-      });
+    if (!auth.ok) {
+      return auth.response;
     }
-    const businessId = access.businessId;
+
+    logDbUsage("/api/business/products", {
+      userId: auth.access.userId,
+    });
+
+    const businessId = auth.businessAccess.businessId;
+
+    if (!businessId) {
+      return NextResponse.json(
+        { success: false, error: "No tienes un negocio asignado" },
+        { status: 403 },
+      );
+    }
 
     const [rows] = await pool.query<RowDataPacket[]>(
       `
@@ -273,22 +243,6 @@ export async function POST(req: NextRequest) {
   const connection = await pool.getConnection();
 
   try {
-    if (!validateBearer(req)) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
     const { product } = await req.json();
 
     if (!product) {
@@ -358,18 +312,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: nextImageUrlError }, { status: 400 });
     }
 
-    const access = await resolveBusinessAccess(
-      Number(authUser.user.id),
-      Number(business_id),
-    );
+    const auth = await requireSellerAccess(req, Number(business_id));
 
-    if (!access.businessId) {
+    if (!auth.ok) {
+      return auth.response;
+    }
+    const resolvedBusinessId = auth.businessAccess.businessId;
+
+    if (!resolvedBusinessId) {
       return NextResponse.json(
         { error: "No tienes un negocio asignado" },
         { status: 403 },
       );
     }
-    const resolvedBusinessId = access.businessId;
 
     await connection.beginTransaction();
 
@@ -565,26 +520,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: Request) {
+export async function PATCH(req: NextRequest) {
   const connection = await pool.getConnection();
 
   try {
-    if (!validateBearer(req)) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
-    const authUser = getAuthUser(req as NextRequest);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
     const body = await req.json();
     const {
       id,
@@ -606,12 +545,32 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Falta id" }, { status: 400 });
     }
 
-    const access = await resolveBusinessAccess(
-      authUser.user.id,
-      Number.isFinite(Number(business_id)) ? Number(business_id) : null,
-    );
+    const requestedBusinessId = Number.isFinite(Number(business_id))
+      ? Number(business_id)
+      : null;
+    let resolvedBusinessId = requestedBusinessId;
 
-    if (!access.businessId) {
+    if (!resolvedBusinessId) {
+      const [businessRows] = await connection.query<RowDataPacket[]>(
+        `
+          SELECT business_id
+          FROM products
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [id],
+      );
+
+      resolvedBusinessId = Number(businessRows[0]?.business_id ?? 0) || null;
+    }
+
+    const auth = await requireSellerAccess(req, resolvedBusinessId);
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    if (!resolvedBusinessId) {
       return NextResponse.json(
         { success: false, error: "No tienes negocio asignado" },
         { status: 403 },
@@ -625,7 +584,7 @@ export async function PATCH(req: Request) {
         WHERE id = ? AND business_id = ?
         LIMIT 1
       `,
-      [id, access.businessId],
+      [id, resolvedBusinessId],
     );
 
     if (!productRows.length) {
@@ -838,7 +797,7 @@ export async function PATCH(req: Request) {
         WHERE id = ? AND business_id = ?
         LIMIT 1
       `,
-      [id, access.businessId],
+      [id, resolvedBusinessId],
     );
 
     if (updatedProductRows[0]) {
@@ -864,22 +823,6 @@ export async function DELETE(req: NextRequest) {
   const connection = await pool.getConnection();
 
   try {
-    if (!validateBearer(req)) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
     const productId = Number(req.nextUrl.searchParams.get("id"));
 
     if (!Number.isInteger(productId) || productId <= 0) {
@@ -907,13 +850,10 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const access = await resolveBusinessAccess(authUser.user.id, businessId);
+    const auth = await requireSellerAccess(req, businessId);
 
-    if (access.businessId !== businessId) {
-      return NextResponse.json(
-        { success: false, error: "No tienes acceso a este producto" },
-        { status: 403 },
-      );
+    if (!auth.ok) {
+      return auth.response;
     }
 
     await connection.beginTransaction();

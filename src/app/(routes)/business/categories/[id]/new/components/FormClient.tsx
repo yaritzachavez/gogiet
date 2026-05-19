@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import { type FormEvent, useState } from "react";
+import { fetchWithSession } from "@/lib/client-auth";
 
 export default function FormClient({ businessId }: { businessId: number }) {
   const [name, setName] = useState("");
@@ -11,17 +12,10 @@ export default function FormClient({ businessId }: { businessId: number }) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("No hay token. Inicia sesión primero.");
-      return;
-    }
-
-    const res = await fetch(`/api/categories/${businessId}/new`, {
+    const res = await fetchWithSession(`/api/categories/${businessId}/new`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         name,
@@ -32,7 +26,7 @@ export default function FormClient({ businessId }: { businessId: number }) {
     const data = await res.json();
 
     if (!res.ok) {
-      alert("Error: " + data.error);
+      alert(`Error: ${data.error}`);
       return;
     }
 
@@ -50,7 +44,6 @@ export default function FormClient({ businessId }: { businessId: number }) {
     <main className="min-h-screen bg-fixed bg-cover bg-center [background-image:url('/fondo.png')]">
       <div className="min-h-screen bg-[linear-gradient(180deg,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.72)_45%,rgba(0,0,0,0.9)_100%)]">
         <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6 lg:px-8">
-
           {/* ENCABEZADO */}
           <section className="relative overflow-hidden rounded-[32px] border border-[#dbe7c7] bg-gradient-to-br from-[#1f3029] via-[#2f4638] to-[#3f5c45] p-8 text-white shadow-2xl sm:p-10">
             <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-xs font-semibold uppercase tracking-[0.4em] text-[#f2fbe0]">
@@ -107,7 +100,8 @@ export default function FormClient({ businessId }: { businessId: number }) {
             </button>
 
             <p className="text-[11px] text-[#5c6f5b]">
-              La categoría se guardará en borrador hasta que conectes el backend.
+              La categoría se guardará en borrador hasta que conectes el
+              backend.
             </p>
           </form>
         </div>

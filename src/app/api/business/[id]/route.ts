@@ -1,23 +1,24 @@
-import jwt from "jsonwebtoken";
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/admin-security";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
-import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
-import { JWT_SECRET } from "@/lib/env";
+import { requireAdminGeneral, requireBusinessAccess } from "@/lib/permissions";
 
-function validateAuth(req: NextRequest): boolean {
-  const auth = req.headers.get("authorization");
-  if (!auth?.startsWith("Bearer ")) return false;
+type BusinessRow = RowDataPacket & {
+  id: number;
+  owner_id: number | null;
+  logo_url: string | null;
+  updated_at: string;
+  is_open_now: number | boolean;
+};
 
-  try {
-    jwt.verify(auth.split(" ")[1], JWT_SECRET);
-    return true;
-  } catch {
-    return false;
-  }
-}
+type BusinessHourRow = RowDataPacket & {
+  day_of_week: number;
+  open_time: string | null;
+  close_time: string | null;
+  is_closed: number | boolean;
+};
 
 export async function GET(
   req: NextRequest,
@@ -26,16 +27,23 @@ export async function GET(
   try {
     await ensureBusinessLogoColumn();
 
-    if (!validateAuth(req)) {
+    const { id } = await context.params;
+    const businessId = Number(id);
+
+    if (!Number.isFinite(businessId) || businessId <= 0) {
       return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
+        { error: "ID de negocio inválido" },
+        { status: 400 },
       );
     }
 
-    const { id } = await context.params;
+    const auth = await requireBusinessAccess(req, businessId);
 
-    const [rows]: any = await pool.query(
+    if (!auth.ok) {
+      return auth.response;
+    }
+
+    const [rows] = await pool.query<BusinessRow[]>(
       `
         SELECT
           b.id,
@@ -80,7 +88,7 @@ export async function GET(
         WHERE b.id = ?
         LIMIT 1
       `,
-      [id],
+      [businessId],
     );
 
     if (!rows.length) {
@@ -90,13 +98,13 @@ export async function GET(
       );
     }
 
-    const [hours]: any = await pool.query(
+    const [hours] = await pool.query<BusinessHourRow[]>(
       `
         SELECT day_of_week, open_time, close_time, is_closed
         FROM business_hours
         WHERE business_id = ?
       `,
-      [id],
+      [businessId],
     );
 
     const days = [
@@ -110,7 +118,7 @@ export async function GET(
     ];
 
     const formattedHours = days.map((day, index) => {
-      const found = hours.find((hour: any) => hour.day_of_week === index);
+      const found = hours.find((hour) => hour.day_of_week === index);
 
       return {
         day_of_week: index,
@@ -146,13 +154,6 @@ export async function PUT(
 
   try {
     await ensureBusinessLogoColumn();
-
-    if (!validateAuth(req)) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
 
     const { id: businessId } = await context.params;
     const body = await req.json();
@@ -196,6 +197,12 @@ export async function PUT(
         },
         { status: 400 },
       );
+    }
+
+    const auth = await requireAdminGeneral(req);
+
+    if (!auth.ok) {
+      return auth.response;
     }
 
     await connection.beginTransaction();
@@ -252,7 +259,7 @@ export async function PUT(
       [owner_id],
     );
 
-    const [updated]: any = await connection.query(
+    const [updated] = await connection.query<BusinessRow[]>(
       `
         SELECT
           b.*,
@@ -292,15 +299,6 @@ export async function PATCH(
   try {
     await ensureBusinessLogoColumn();
 
-    const authUser = getAuthUser(req);
-
-    if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido o faltante" },
-        { status: 401 },
-      );
-    }
-
     const { id } = await context.params;
     const businessId = Number(id);
 
@@ -311,13 +309,10 @@ export async function PATCH(
       );
     }
 
-    const access = await resolveBusinessAccess(authUser.user.id, businessId);
+    const auth = await requireBusinessAccess(req, businessId);
 
-    if (access.businessId !== businessId) {
-      return NextResponse.json(
-        { success: false, error: "No tienes acceso a este negocio" },
-        { status: 403 },
-      );
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const body = await req.json();
@@ -336,7 +331,7 @@ export async function PATCH(
       [logoUrl, businessId],
     );
 
-    const [rows]: any = await pool.query(
+    const [rows] = await pool.query<BusinessRow[]>(
       `
         SELECT id, logo_url, updated_at
         FROM business
@@ -370,21 +365,30 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    if (!validateAuth(req)) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+    const auth = await requireAdminGeneral(req);
+
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const { id } = await context.params;
+    const businessId = Number(id);
+
+    if (!Number.isFinite(businessId) || businessId <= 0) {
+      return NextResponse.json(
+        { error: "ID de negocio inválido" },
+        { status: 400 },
+      );
+    }
 
     await pool.query(
       "DELETE FROM business_category_map WHERE business_id = ?",
-      [id],
+      [businessId],
     );
-    await pool.query("DELETE FROM business_owners WHERE business_id = ?", [id]);
-    await pool.query("DELETE FROM business WHERE id = ?", [id]);
+    await pool.query("DELETE FROM business_owners WHERE business_id = ?", [
+      businessId,
+    ]);
+    await pool.query("DELETE FROM business WHERE id = ?", [businessId]);
 
     return NextResponse.json({ message: "Negocio eliminado" }, { status: 200 });
   } catch (error) {

@@ -97,6 +97,16 @@ function resolvePrismaDatabaseUrl() {
             process.env.DB_NAME.trim() !== urlDatabase) ||
           (process.env.DB_PORT?.trim() && envPort !== urlPort))
       ) {
+        if (
+          runtimeEnvironment === "production" &&
+          process.env.DB_NAME?.trim() &&
+          process.env.DB_NAME.trim() !== urlDatabase
+        ) {
+          throw new Error(
+            `[prisma] DB_NAME (${process.env.DB_NAME.trim()}) no coincide con la base definida en DATABASE_URL (${urlDatabase}) en producción.`,
+          );
+        }
+
         logger.warn(
           "prisma.database_url_mismatch",
           "DATABASE_URL y DB_* no coinciden",

@@ -4,6 +4,7 @@ import { BarChart3, CalendarRange, Store } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { fetchWithSession } from "@/lib/client-auth";
 import LoadingRow from "../../components/LoadingRow";
 import SummaryCard from "../../components/SummaryCard";
 
@@ -73,14 +74,6 @@ export default function AdminBusinessReportsPage() {
 
   useEffect(() => {
     const loadReports = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setError("Debes iniciar sesión nuevamente");
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         setError("");
@@ -97,11 +90,11 @@ export default function AdminBusinessReportsPage() {
           if (endDate) params.set("end_date", endDate);
         }
 
-        const response = await fetch(
+        const response = await fetchWithSession(
           `/api/admin/reports/business?${params.toString()}`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           },
         );

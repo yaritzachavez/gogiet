@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { fetchWithSession } from "@/lib/client-auth";
 
 import type { DeliveryNotification } from "./types";
 
@@ -90,17 +91,6 @@ export function NotificationsCard({
     if (!dialogMode || typeof window === "undefined") return;
 
     async function fetchSupportThread() {
-      const token =
-        window.localStorage.getItem("token") ||
-        window.localStorage.getItem("authToken") ||
-        window.localStorage.getItem("accessToken");
-
-      if (!token) {
-        setThreadMessages([]);
-        setThreadError("Debes iniciar sesión nuevamente.");
-        return;
-      }
-
       try {
         setThreadLoading(true);
         setThreadError("");
@@ -108,11 +98,14 @@ export function NotificationsCard({
         const query = supportOrderNumericId
           ? `?order_id=${encodeURIComponent(String(supportOrderNumericId))}`
           : "";
-        const response = await fetch(`/api/delivery/support${query}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const response = await fetchWithSession(
+          `/api/delivery/support${query}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        });
+        );
         const responseText = await response.text();
         let data: Record<string, unknown> = {};
 
@@ -157,16 +150,6 @@ export function NotificationsCard({
   async function handleSendMessage() {
     if (typeof window === "undefined") return;
 
-    const token =
-      window.localStorage.getItem("token") ||
-      window.localStorage.getItem("authToken") ||
-      window.localStorage.getItem("accessToken");
-
-    if (!token) {
-      setThreadError("Debes iniciar sesión nuevamente.");
-      return;
-    }
-
     const message = draftMessage.trim();
     if (!message) {
       setThreadError("Escribe un mensaje antes de enviarlo.");
@@ -177,11 +160,10 @@ export function NotificationsCard({
       setSendingMessage(true);
       setThreadError("");
 
-      const response = await fetch("/api/delivery/support", {
+      const response = await fetchWithSession("/api/delivery/support", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           order_id: supportOrderNumericId,

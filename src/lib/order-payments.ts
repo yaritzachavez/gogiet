@@ -6,11 +6,65 @@ import type {
 } from "mysql2/promise";
 import {
   assertColumnsExist,
-  assertIndexesExist,
   assertTablesExist,
+  RuntimeSchemaError,
 } from "@/lib/runtime-schema";
 
 type Queryable = Pool | PoolConnection;
+type PaymentIndexRow = RowDataPacket & {
+  Key_name?: string;
+  Column_name?: string;
+};
+
+async function ensurePaymentsIndexes(conn: Queryable) {
+  const [rows] = await conn.query<PaymentIndexRow[]>(
+    "SHOW INDEX FROM payments",
+  );
+  const columnsByIndex = new Map<string, Set<string>>();
+
+  for (const row of rows) {
+    const keyName = String(row.Key_name ?? "").trim();
+    const columnName = String(row.Column_name ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (!keyName || !columnName) {
+      continue;
+    }
+
+    if (!columnsByIndex.has(keyName)) {
+      columnsByIndex.set(keyName, new Set());
+    }
+
+    columnsByIndex.get(keyName)?.add(columnName);
+  }
+
+  const hasOrderIdIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("order_id"),
+  );
+  const hasProviderIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("provider"),
+  );
+  const hasProviderPaymentIdIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("provider_payment_id"),
+  );
+  const hasWebhookEventIdIndex = Array.from(columnsByIndex.values()).some(
+    (columns) => columns.size === 1 && columns.has("webhook_event_id"),
+  );
+
+  const missingIndexes = [
+    !hasOrderIdIndex ? "order_id" : null,
+    !hasProviderIndex ? "provider" : null,
+    !hasProviderPaymentIdIndex ? "provider_payment_id" : null,
+    !hasWebhookEventIdIndex ? "webhook_event_id" : null,
+  ].filter(Boolean) as string[];
+
+  if (missingIndexes.length > 0) {
+    throw new RuntimeSchemaError(
+      `Faltan índices equivalentes en payments: ${missingIndexes.join(", ")}.`,
+    );
+  }
+}
 
 export async function ensureOrderPaymentColumns(conn: Queryable) {
   await assertTablesExist(conn, ["orders"]);
@@ -41,12 +95,7 @@ export async function ensurePaymentsTable(conn: Queryable) {
     "created_at",
     "updated_at",
   ]);
-  await assertIndexesExist(conn, "payments", [
-    "idx_payments_order_id",
-    "idx_payments_provider",
-    "idx_payments_provider_payment_id",
-    "idx_payments_webhook_event_id",
-  ]);
+  await ensurePaymentsIndexes(conn);
 }
 
 type UpsertPaymentRecordInput = {

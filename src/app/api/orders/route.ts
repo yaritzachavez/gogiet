@@ -15,10 +15,7 @@ import {
   createNotificationsForAdminGeneralSafely,
 } from "@/lib/notifications";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
-import {
-  ensureOrderPaymentColumns,
-  ensurePaymentsTable,
-} from "@/lib/order-payments";
+import { ensureOrderPaymentColumns } from "@/lib/order-payments";
 import {
   ensureAdminMessagesRuntimeSchema,
   ensureOrderItemsRuntimeSchema,
@@ -32,6 +29,7 @@ import {
   ensureCanonicalOrderStatus,
   ensureCoreOrderStatuses,
 } from "@/lib/order-status-server";
+import { RuntimeSchemaError } from "@/lib/runtime-schema";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 import { isTransferPaymentEnabled } from "@/lib/transfer-config";
 
@@ -109,6 +107,69 @@ function getAuthUser(req: NextRequest): JwtPayload | null {
 function toPositiveNumber(value: unknown) {
   const numberValue = Number(value);
   return Number.isFinite(numberValue) && numberValue > 0 ? numberValue : null;
+}
+
+function getOrderCreationErrorResponse(error: unknown) {
+  if (error instanceof RuntimeSchemaError) {
+    return {
+      status: 503,
+      message:
+        "La base de pedidos no está actualizada todavía. Ejecuta las migraciones pendientes antes de recibir pedidos.",
+    };
+  }
+
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: unknown }).code ?? "")
+      : "";
+  const sqlMessage =
+    typeof error === "object" && error !== null && "sqlMessage" in error
+      ? String((error as { sqlMessage?: unknown }).sqlMessage ?? "")
+      : "";
+
+  if (code === "ER_NO_REFERENCED_ROW_2" || code === "ER_ROW_IS_REFERENCED_2") {
+    return {
+      status: 400,
+      message:
+        "No pudimos relacionar el pedido con la dirección, negocio o método de pago seleccionados.",
+    };
+  }
+
+  if (code === "ER_BAD_NULL_ERROR") {
+    return {
+      status: 400,
+      message: "Faltan datos requeridos para crear el pedido.",
+    };
+  }
+
+  if (
+    code === "ER_TRUNCATED_WRONG_VALUE_FOR_FIELD" ||
+    code === "ER_WARN_DATA_OUT_OF_RANGE"
+  ) {
+    return {
+      status: 400,
+      message: "Uno de los montos o valores del pedido no es válido.",
+    };
+  }
+
+  if (code === "ER_DUP_ENTRY") {
+    return {
+      status: 409,
+      message: "Ya existe un pedido similar en proceso para esta cuenta.",
+    };
+  }
+
+  if (sqlMessage.toLowerCase().includes("stock")) {
+    return {
+      status: 400,
+      message: "Uno o más productos ya no tienen stock suficiente.",
+    };
+  }
+
+  return {
+    status: 500,
+    message: "Tu pedido no se pudo completar. Intenta nuevamente.",
+  };
 }
 
 async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
@@ -393,7 +454,6 @@ export async function GET(req: NextRequest) {
     await ensureOrderItemsTable(pool);
     await ensureCoreOrderStatuses(pool);
     await ensureAdminMessagesTable(pool);
-    await ensurePaymentsTable(pool);
 
     const { searchParams } = new URL(req.url);
     const requestedUserId = searchParams.get("user_id");
@@ -620,6 +680,7 @@ export async function POST(req: NextRequest) {
   if (!authUser) return unauthorized();
 
   const conn = await pool.getConnection();
+  let stage = "parse_request";
 
   try {
     const body = await req.json();
@@ -670,12 +731,13 @@ export async function POST(req: NextRequest) {
     }
 
     await conn.beginTransaction();
+    stage = "ensure_runtime_schema";
     await ensureOrdersColumns(conn);
     await ensureOrderItemsTable(conn);
     await ensureCoreOrderStatuses(conn);
     await ensureAdminMessagesTable(conn);
-    await ensurePaymentsTable(conn);
 
+    stage = "resolve_address";
     const addressId =
       toPositiveNumber(body.delivery_address_id ?? body.address_id) ??
       (await getDefaultAddressId(conn, userId));
@@ -778,6 +840,7 @@ export async function POST(req: NextRequest) {
       WHERE id IN (${placeholders})
     `;
 
+    stage = "load_products";
     const [products] = await conn.query<ProductRow[]>(
       productsQuery,
       productIds,
@@ -1028,6 +1091,23 @@ export async function POST(req: NextRequest) {
       created_from: "api/orders",
     };
 
+    logger.info("orders.create_attempt", "Intento de creación de pedido", {
+      ...requestContext,
+      stage: "before_insert_order",
+      userId,
+      businessId,
+      addressId,
+      subtotal: commissionBreakdown.subtotal,
+      shipping: commissionBreakdown.deliveryFee,
+      serviceFee: commissionBreakdown.serviceFee,
+      total: commissionBreakdown.total,
+      paymentMethod: paymentMethodName,
+      paymentMethodId,
+      orderStatusId: resolvedStatus.statusId,
+      itemsCount: orderItems.length,
+    });
+
+    stage = "insert_order";
     const [orderResult] = await conn.query<ResultSetHeader>(
       `
         INSERT INTO orders (
@@ -1091,6 +1171,7 @@ export async function POST(req: NextRequest) {
     );
 
     const orderId = orderResult.insertId;
+    stage = "insert_order_items";
     await conn.query(
       `
         INSERT INTO order_items (
@@ -1120,6 +1201,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (body.delivery_instructions || body.client_note || body.customer_notes) {
+      stage = "insert_order_note";
       await conn.query(
         `
           INSERT INTO order_notes (order_id, user_id, note_type, note_text)
@@ -1134,6 +1216,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (transferReceiptNote) {
+      stage = "insert_transfer_note";
       await conn.query(
         `
           INSERT INTO order_notes (order_id, user_id, note_type, note_text)
@@ -1144,6 +1227,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (paymentMethodName === "transferencia" && transferProofUrl) {
+      stage = "insert_admin_message";
       await conn.query(
         `
           INSERT INTO admin_messages (
@@ -1201,6 +1285,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (paymentMethodName === "transferencia") {
+      stage = "notify_transfer_review";
       await createNotificationsForAdminGeneralSafely(
         {
           type: "pago",
@@ -1215,6 +1300,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (transferProofUrl) {
+      stage = "notify_transfer_proof";
       await createNotificationsForAdminGeneralSafely(
         {
           type: "pago",
@@ -1228,6 +1314,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (paymentMethodName === "transferencia") {
+      stage = "support_thread";
       const supportThreadId = await getOrCreateSupportThread(
         { userId, orderId },
         conn,
@@ -1246,6 +1333,7 @@ export async function POST(req: NextRequest) {
       );
 
       if (transferProofUrl) {
+        stage = "support_payment_proof";
         await addSupportMessage(
           {
             threadId: supportThreadId,
@@ -1276,6 +1364,7 @@ export async function POST(req: NextRequest) {
       )[0][0]?.id;
 
     if (activeCartId) {
+      stage = "clear_cart";
       await conn.query(`DELETE FROM products_cart WHERE cart_id = ?`, [
         activeCartId,
       ]);
@@ -1289,7 +1378,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    stage = "load_created_order";
     const order = await getOrderById(orderId, conn);
+    stage = "commit";
     await conn.commit();
 
     return NextResponse.json(
@@ -1298,16 +1389,30 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     await conn.rollback();
+    const response = getOrderCreationErrorResponse(error);
     logger.error("orders.create_error", "Error creando pedido", {
       ...requestContext,
+      stage,
+      errorCode:
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : null,
+      errorMessage:
+        typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message?: unknown }).message ?? "")
+          : String(error),
+      sqlMessage:
+        typeof error === "object" && error !== null && "sqlMessage" in error
+          ? String((error as { sqlMessage?: unknown }).sqlMessage ?? "")
+          : null,
       error,
     });
     return NextResponse.json(
       {
         success: false,
-        error: "Tu pedido no se pudo completar. Intenta nuevamente.",
+        error: response.message,
       },
-      { status: 500 },
+      { status: response.status },
     );
   } finally {
     conn.release();

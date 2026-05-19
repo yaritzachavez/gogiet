@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppImage } from "@/components/ui/app-image";
+import { fetchWithSession } from "@/lib/client-auth";
 
 type CourierStatus = "Activo" | "En descanso" | "Suspendido";
 type EstadoFiltro = "Todos" | CourierStatus;
@@ -44,24 +45,18 @@ export function CourierList() {
 
   useEffect(() => {
     const loadCouriers = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setError("Debes iniciar sesión nuevamente");
-        setCouriers([]);
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         setError("");
 
-        const response = await fetch("/api/admin/deliveries/repartidores", {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        const response = await fetchWithSession(
+          "/api/admin/deliveries/repartidores",
+          {
+            headers: {
+              "Content-Type": "application/json",
+            },
           },
-        });
+        );
 
         const payload = (await response.json()) as CourierResponse;
 

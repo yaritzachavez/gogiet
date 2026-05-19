@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 import { AppImage } from "@/components/ui/app-image";
+import { fetchWithSession } from "@/lib/client-auth";
 import { compressImageFile } from "@/lib/client-image";
 import { uploadImageAsset } from "@/lib/client-upload";
 
@@ -297,13 +298,9 @@ export default function NewProductClient({
         },
       };
 
-      const token =
-        typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
-      const res = await fetch("/api/business/products", {
+      const res = await fetchWithSession("/api/business/products", {
         method: "POST",
         headers: {
-          Authorization: token ? `Bearer ${token}` : "",
           "Content-Type": "application/json",
         },
         body: JSON.stringify(payload),

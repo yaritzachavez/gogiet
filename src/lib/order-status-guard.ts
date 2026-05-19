@@ -1,10 +1,11 @@
-import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, ResultSetHeader } from "mysql2/promise";
 
-import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
 import {
   type CanonicalOrderStatus,
   resolveCanonicalOrderStatus,
 } from "@/lib/order-status";
+import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
+import { assertColumnsExist, assertTablesExist } from "@/lib/runtime-schema";
 
 type Queryable = Pool | PoolConnection;
 
@@ -22,10 +23,6 @@ export type GuardedOrderRow = {
   driverUserId: number | null;
   paymentMethod: string | null;
   currentStatus: string | null;
-};
-
-type OrderStatusHistoryRow = RowDataPacket & {
-  Field: string;
 };
 
 export class OrderStatusTransitionError extends Error {
@@ -60,14 +57,6 @@ function normalizePaymentMethod(value: unknown) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
-}
-
-function isTerminalStatus(status: CanonicalOrderStatus) {
-  return (
-    status === "cancelled" ||
-    status === "delivered" ||
-    status === "payment_failed"
-  );
 }
 
 function getOperationalIndex(status: CanonicalOrderStatus) {
@@ -203,7 +192,11 @@ export function validateOrderStatusTransition(params: {
 
     ensureSameStepAdvance(currentStatus, nextStatus, order.paymentMethod);
 
-    if (nextStatus === "accepted" && !isLegacyPaidEquivalent(currentStatus, order.paymentMethod) && currentStatus !== "paid") {
+    if (
+      nextStatus === "accepted" &&
+      !isLegacyPaidEquivalent(currentStatus, order.paymentMethod) &&
+      currentStatus !== "paid"
+    ) {
       throw new OrderStatusTransitionError(
         "El pedido debe estar pagado antes de ser aceptado.",
       );
@@ -237,7 +230,10 @@ export function validateOrderStatusTransition(params: {
 
     ensureSameStepAdvance(currentStatus, nextStatus, order.paymentMethod);
 
-    if (nextStatus === "driver_assigned" && currentStatus !== "ready_for_pickup") {
+    if (
+      nextStatus === "driver_assigned" &&
+      currentStatus !== "ready_for_pickup"
+    ) {
       throw new OrderStatusTransitionError(
         "Solo puedes aceptar pedidos que ya estén listos para recoger.",
       );
@@ -347,23 +343,18 @@ export function validateOrderStatusTransition(params: {
 }
 
 export async function ensureOrderStatusHistoryTable(conn: Queryable) {
-  await conn.query(
-    `
-      CREATE TABLE IF NOT EXISTS order_status_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        order_id INT NOT NULL,
-        from_status VARCHAR(50) NOT NULL,
-        to_status VARCHAR(50) NOT NULL,
-        changed_by_user_id INT NOT NULL,
-        changed_by_role VARCHAR(30) NOT NULL,
-        reason TEXT NULL,
-        metadata MEDIUMTEXT NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_order_status_history_order_id (order_id),
-        INDEX idx_order_status_history_changed_by_user_id (changed_by_user_id)
-      )
-    `,
-  );
+  await assertTablesExist(conn, ["order_status_history"]);
+  await assertColumnsExist(conn, "order_status_history", [
+    "id",
+    "order_id",
+    "from_status",
+    "to_status",
+    "changed_by_user_id",
+    "changed_by_role",
+    "reason",
+    "metadata",
+    "created_at",
+  ]);
 }
 
 export async function recordOrderStatusHistory(
@@ -418,7 +409,10 @@ export async function applyValidatedOrderStatusTransition(
     metadata?: unknown;
   },
 ) {
-  const { statusId } = await ensureCanonicalOrderStatus(params.nextStatus, conn);
+  const { statusId } = await ensureCanonicalOrderStatus(
+    params.nextStatus,
+    conn,
+  );
   const fields = ["order_status_id = ?", "updated_at = NOW()"];
   const values: Array<number> = [statusId];
 

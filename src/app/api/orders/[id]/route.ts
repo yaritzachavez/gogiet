@@ -1,10 +1,7 @@
-import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
-import { JWT_SECRET } from "@/lib/env";
 import { createNotificationsForAdminGeneral } from "@/lib/notifications";
 import {
   ensureAdminMessagesRuntimeSchema,
@@ -16,13 +13,9 @@ import {
   resolveCanonicalOrderStatus,
 } from "@/lib/order-status";
 import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
+import { requireOrderOwnership } from "@/lib/permissions";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
-
-type JwtPayload = {
-  id: number;
-  roles?: string[];
-};
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -38,34 +31,11 @@ type AdminMessageRow = RowDataPacket & {
   created_at: string;
 };
 
-type AdminRoleRow = RowDataPacket & {
-  id: number;
-};
-
 type OrderWithRelations = RowDataPacket & {
   items: RowDataPacket[];
   notes: RowDataPacket[];
   admin_messages: AdminMessageRow[];
 };
-
-function unauthorized(message = "Token inválido o faltante") {
-  return NextResponse.json({ success: false, error: message }, { status: 401 });
-}
-
-function getAuthUser(req: NextRequest): JwtPayload | null {
-  const auth = req.headers.get("authorization");
-  const token = auth?.startsWith("Bearer ")
-    ? auth.split(" ")[1]
-    : req.cookies.get("authToken")?.value;
-
-  if (!token) return null;
-
-  try {
-    return jwt.verify(token, JWT_SECRET) as JwtPayload;
-  } catch {
-    return null;
-  }
-}
 
 function normalizeId(value: string) {
   const id = Number(value);
@@ -284,26 +254,8 @@ async function getOrderById(
   };
 }
 
-async function isAdminGeneral(userId: number) {
-  const [rows] = await pool.query<AdminRoleRow[]>(
-    `
-      SELECT ur.user_id AS id
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ? AND r.name = 'admin_general'
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  return rows.length > 0;
-}
-
 export async function GET(req: NextRequest, context: RouteContext) {
   try {
-    const authUser = getAuthUser(req);
-    if (!authUser) return unauthorized();
-
     const { id: idParam } = await context.params;
     const orderId = normalizeId(idParam);
 
@@ -314,28 +266,18 @@ export async function GET(req: NextRequest, context: RouteContext) {
       );
     }
 
+    const auth = await requireOrderOwnership(req, orderId);
+
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const order = await getOrderById(orderId);
 
     if (!order) {
       return NextResponse.json(
         { success: false, error: "Pedido no encontrado" },
         { status: 404 },
-      );
-    }
-
-    const businessAccess = await resolveBusinessAccess(
-      authUser.id,
-      Number(order.business_id ?? 0),
-    );
-    const canViewOrder =
-      Number(order.user_id) === authUser.id ||
-      (await isAdminGeneral(authUser.id)) ||
-      businessAccess.businessIds.includes(Number(order.business_id ?? 0));
-
-    if (!canViewOrder) {
-      return NextResponse.json(
-        { success: false, error: "No autorizado para ver este pedido" },
-        { status: 403 },
       );
     }
 
@@ -360,14 +302,17 @@ export async function GET(req: NextRequest, context: RouteContext) {
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
   try {
-    const authUser = getAuthUser(req);
-    if (!authUser) return unauthorized();
-
     const { id: idParam } = await context.params;
     const orderId = normalizeId(idParam);
 
     if (!orderId) {
       return NextResponse.json({ error: "id inválido" }, { status: 400 });
+    }
+
+    const auth = await requireOrderOwnership(req, orderId);
+
+    if (!auth.ok) {
+      return auth.response;
     }
 
     const existingOrder = await getOrderById(orderId);
@@ -379,9 +324,16 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       );
     }
 
-    if (Number(existingOrder.user_id) !== authUser.id) {
+    const canModifyOrder =
+      auth.access.userId === Number(existingOrder.user_id) ||
+      auth.access.roles.includes("ADMIN_GENERAL");
+
+    if (!canModifyOrder) {
       return NextResponse.json(
-        { error: "No autorizado para modificar este pedido" },
+        {
+          error:
+            "Solo el cliente propietario o el administrador pueden modificar este pedido.",
+        },
         { status: 403 },
       );
     }
@@ -469,7 +421,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
             INSERT INTO order_notes (order_id, user_id, note_type, note_text)
             VALUES (?, ?, 'cliente', ?)
           `,
-          [orderId, authUser.id, noteText],
+          [orderId, auth.access.userId, noteText],
         );
       }
     }
@@ -490,7 +442,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           `,
           [
             orderId,
-            authUser.id,
+            auth.access.userId,
             "El cliente subió comprobante de transferencia para validar el pago.",
             proofUrl,
           ],

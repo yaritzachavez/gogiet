@@ -9,6 +9,7 @@ import type { NextRequest } from "next/server";
 
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
+import { assertColumnsExist, assertTablesExist } from "@/lib/runtime-schema";
 
 type Queryable = Pool | PoolConnection;
 
@@ -266,126 +267,36 @@ export function resolveRequestedSupportRole(
   return authUser.supportRoles.find((role) => role !== "admin_general") ?? null;
 }
 
-async function ensureTableColumns(
-  tableName: string,
-  expectedColumns: Array<{ name: string; definition: string }>,
-  executor: Queryable = pool,
-) {
-  const [rows] = await executor.query<RowDataPacket[]>(
-    `
-      SELECT COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-    `,
-    [tableName],
-  );
-
-  const availableColumns = new Set(
-    rows.map((row) => String(row.COLUMN_NAME ?? "")),
-  );
-
-  for (const column of expectedColumns) {
-    if (availableColumns.has(column.name)) {
-      continue;
-    }
-
-    await executor.query(
-      `ALTER TABLE ${tableName} ADD COLUMN ${column.name} ${column.definition}`,
-    );
-  }
-}
-
 export async function ensureSupportTables(executor: Queryable = pool) {
-  await executor.query(
-    `
-      CREATE TABLE IF NOT EXISTS support_conversations (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        requester_user_id INT NOT NULL,
-        requester_role VARCHAR(30) NOT NULL,
-        assigned_admin_id INT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'open',
-        subject VARCHAR(255) NULL,
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_support_conversations_requester (requester_user_id, requester_role),
-        INDEX idx_support_conversations_status (status),
-        INDEX idx_support_conversations_admin (assigned_admin_id)
-      )
-    `,
-  );
-
-  await executor.query(
-    `
-      CREATE TABLE IF NOT EXISTS support_messages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        conversation_id INT NULL,
-        thread_id INT NULL,
-        sender_user_id INT NULL,
-        sender_id INT NULL,
-        sender_role VARCHAR(30) NULL,
-        sender_type VARCHAR(20) NULL,
-        message TEXT NOT NULL,
-        attachment_url MEDIUMTEXT NULL,
-        file_url MEDIUMTEXT NULL,
-        is_read BOOLEAN NOT NULL DEFAULT FALSE,
-        message_type VARCHAR(30) NOT NULL DEFAULT 'text',
-        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_support_messages_conversation (conversation_id),
-        INDEX idx_support_messages_thread (thread_id),
-        INDEX idx_support_messages_sender_user (sender_user_id),
-        INDEX idx_support_messages_is_read (is_read)
-      )
-    `,
-  );
-
-  await ensureTableColumns(
+  await assertTablesExist(executor, [
     "support_conversations",
-    [
-      { name: "requester_user_id", definition: "INT NOT NULL" },
-      {
-        name: "requester_role",
-        definition: "VARCHAR(30) NOT NULL DEFAULT 'cliente'",
-      },
-      { name: "assigned_admin_id", definition: "INT NULL" },
-      { name: "status", definition: "VARCHAR(20) NOT NULL DEFAULT 'open'" },
-      { name: "subject", definition: "VARCHAR(255) NULL" },
-      {
-        name: "created_at",
-        definition: "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-      },
-      {
-        name: "updated_at",
-        definition:
-          "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
-      },
-    ],
-    executor,
-  );
-
-  await ensureTableColumns(
     "support_messages",
-    [
-      { name: "conversation_id", definition: "INT NULL" },
-      { name: "thread_id", definition: "INT NULL" },
-      { name: "sender_user_id", definition: "INT NULL" },
-      { name: "sender_id", definition: "INT NULL" },
-      { name: "sender_role", definition: "VARCHAR(30) NULL" },
-      { name: "sender_type", definition: "VARCHAR(20) NULL" },
-      { name: "attachment_url", definition: "MEDIUMTEXT NULL" },
-      { name: "file_url", definition: "MEDIUMTEXT NULL" },
-      { name: "is_read", definition: "BOOLEAN NOT NULL DEFAULT FALSE" },
-      {
-        name: "message_type",
-        definition: "VARCHAR(30) NOT NULL DEFAULT 'text'",
-      },
-      {
-        name: "created_at",
-        definition: "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
-      },
-    ],
-    executor,
-  );
+  ]);
+  await assertColumnsExist(executor, "support_conversations", [
+    "id",
+    "requester_user_id",
+    "requester_role",
+    "assigned_admin_id",
+    "status",
+    "subject",
+    "created_at",
+    "updated_at",
+  ]);
+  await assertColumnsExist(executor, "support_messages", [
+    "id",
+    "conversation_id",
+    "thread_id",
+    "sender_user_id",
+    "sender_id",
+    "sender_role",
+    "sender_type",
+    "message",
+    "attachment_url",
+    "file_url",
+    "is_read",
+    "message_type",
+    "created_at",
+  ]);
 }
 
 function buildConversationSubject(

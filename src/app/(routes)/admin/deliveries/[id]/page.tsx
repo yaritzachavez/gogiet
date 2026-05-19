@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { fetchWithSession } from "@/lib/client-auth";
 
 type BusinessOption = {
   id: number;
@@ -73,15 +74,6 @@ export default function CourierDetailPage() {
 
   useEffect(() => {
     const loadCourierDetail = async () => {
-      const token = window.localStorage.getItem("token");
-
-      if (!token) {
-        setError("Debes iniciar sesión nuevamente");
-        setData(null);
-        setLoading(false);
-        return;
-      }
-
       try {
         setLoading(true);
         setError("");
@@ -98,11 +90,11 @@ export default function CourierDetailPage() {
           if (endDate) queryParams.set("end_date", endDate);
         }
 
-        const response = await fetch(
+        const response = await fetchWithSession(
           `/api/admin/deliveries/repartidores/${params.id}?${queryParams.toString()}`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           },
         );

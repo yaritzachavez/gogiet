@@ -45,15 +45,10 @@ async function ensureAddressesIndexes() {
     (columns) => columns.size === 1 && columns.has("is_default"),
   );
 
-  if (!hasIsDefaultIndex) {
-    await pool.query(
-      "CREATE INDEX idx_addresses_is_default ON addresses (is_default)",
-    );
-  }
-
   const missingIndexes = [
     !hasUserIdIndex ? "user_id" : null,
     !hasStatusIdIndex ? "status_id" : null,
+    !hasIsDefaultIndex ? "is_default" : null,
   ].filter(Boolean) as string[];
 
   if (missingIndexes.length > 0) {

@@ -30,8 +30,6 @@ export async function POST(req: NextRequest) {
     const authUser = getAuthUser(req);
     const payload = await req.json();
 
-    console.log("ADD TO CART payload:", payload);
-
     const cartId = Number(payload?.cart_id);
     const productId = Number(payload?.product_id);
     const quantity = Number(payload?.quantity);
@@ -125,14 +123,6 @@ export async function POST(req: NextRequest) {
           ),
       ),
     );
-
-    console.log("ADD TO CART business validation:", {
-      cartId,
-      productId,
-      productBusinessId,
-      existingBusinessIds,
-      query: cartBusinessValidationQuery,
-    });
 
     if (
       existingBusinessIds.length > 0 &&
@@ -232,8 +222,6 @@ export async function POST(req: NextRequest) {
         subtotal,
       },
     };
-
-    console.log("ADD TO CART response:", response);
 
     return NextResponse.json(response);
   } catch (err) {

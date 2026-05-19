@@ -94,15 +94,11 @@ type BusinessMeDebug = {
 async function countSafely(
   query: string,
   params: Array<number | string | null>,
-  label: string,
 ) {
   try {
     const [rows] = await pool.query<CountRow[]>(query, params);
     return Number(rows[0]?.total ?? 0);
-  } catch (error) {
-    console.warn(`GET /api/business/me ${label} failed:`, {
-      message: error instanceof Error ? error.message : String(error),
-    });
+  } catch {
     return 0;
   }
 }
@@ -269,7 +265,6 @@ export async function GET(req: NextRequest) {
     );
     debug.userId = authUser.user.id;
     debug.email = userInfoRows[0]?.email ?? null;
-    console.info("GET /api/business/me user_id:", authUser.user.id);
 
     const [roleRows] = await pool.query<UserRoleRow[]>(
       `
@@ -279,11 +274,6 @@ export async function GET(req: NextRequest) {
         WHERE ur.user_id = ?
       `,
       [authUser.user.id],
-    );
-    console.info("GET /api/business/me user roles:", roleRows);
-    console.info(
-      "GET /api/business/me user email:",
-      userInfoRows[0]?.email ?? null,
     );
     logDbUsage("/api/business/me", {
       userId: authUser.user.id,
@@ -304,10 +294,6 @@ export async function GET(req: NextRequest) {
       business_id: Number(row.business_id),
       user_id: Number(row.user_id),
     }));
-    console.info(
-      "GET /api/business/me raw business_owners query result:",
-      rawBusinessOwners,
-    );
 
     debug.ownerBusinessesQuery = `
         SELECT b.id, b.name, b.city, 'owner' AS source
@@ -325,10 +311,6 @@ export async function GET(req: NextRequest) {
       name: String(business.name),
       source: String(business.source),
     }));
-    console.info(
-      "GET /api/business/me business_owners result:",
-      ownerBusinesses,
-    );
 
     if (!ownerBusinesses.length) {
       const repairResult = await tryRepairBusinessOwnerRelation({
@@ -338,13 +320,6 @@ export async function GET(req: NextRequest) {
       });
 
       if (repairResult.repaired) {
-        console.info("GET /api/business/me business_owner autoreparado:", {
-          userId: authUser.user.id,
-          email: userInfoRows[0]?.email ?? null,
-          source: repairResult.source,
-          businesses: repairResult.businesses,
-        });
-
         ownerBusinesses = repairResult.businesses.map((business) => ({
           ...business,
           source: "owner_repaired",
@@ -357,12 +332,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    console.info("GET /api/business/me business_owner encontrado:", {
-      userId: authUser.user.id,
-      ownerBusinessCount: ownerBusinesses.length,
-      firstOwnerBusinessId: ownerBusinesses[0]?.id ?? null,
-    });
-
     const orphanedOwnerBusinessIds = rawBusinessOwners
       .map((row) => Number(row.business_id))
       .filter(
@@ -373,13 +342,6 @@ export async function GET(req: NextRequest) {
           ),
       );
 
-    if (orphanedOwnerBusinessIds.length > 0) {
-      console.warn("GET /api/business/me orphaned business_owners detected:", {
-        userId: authUser.user.id,
-        orphanedBusinessIds: orphanedOwnerBusinessIds,
-      });
-    }
-
     const [managerBusinesses] = await pool.query<AssignedBusinessRow[]>(
       `
         SELECT b.id, b.name, b.city, 'manager' AS source
@@ -389,10 +351,6 @@ export async function GET(req: NextRequest) {
         ORDER BY b.name ASC
       `,
       [authUser.user.id],
-    );
-    console.info(
-      "GET /api/business/me business_managers result:",
-      managerBusinesses,
     );
 
     const userIsAdminGeneral = await isAdminGeneral(authUser.user.id);
@@ -416,11 +374,6 @@ export async function GET(req: NextRequest) {
 
       assignedBusinesses = adminBusinesses;
     }
-
-    console.info(
-      "GET /api/business/me available businesses:",
-      assignedBusinesses,
-    );
 
     if (!assignedBusinesses.length) {
       return NextResponse.json({
@@ -454,27 +407,14 @@ export async function GET(req: NextRequest) {
         ? requestedBusinessId
         : Number(assignedBusinesses[0].id);
 
-    if (requestedBusinessId && !availableBusinessIds.has(requestedBusinessId)) {
-      console.warn("GET /api/business/me requested business not available", {
-        userId: authUser.user.id,
-        requestedBusinessId,
-        availableBusinessIds: Array.from(availableBusinessIds),
-        fallbackBusinessId: businessId,
-      });
-    }
-
     debug.businessQuery = `
         SELECT *
         FROM business
         WHERE id = ?
       `.trim();
-    const [rawBusinessRows] = await pool.query<RowDataPacket[]>(
+    const [_rawBusinessRows] = await pool.query<RowDataPacket[]>(
       debug.businessQuery,
       [businessId],
-    );
-    console.info(
-      "GET /api/business/me raw business query result:",
-      rawBusinessRows,
     );
 
     const avatarSelect = getBusinessLogoSelect("b");
@@ -509,19 +449,12 @@ export async function GET(req: NextRequest) {
       `,
       [businessId],
     );
-    console.info("GET /api/business/me business result:", rows);
 
     const business = rows[0];
     debug.businessResult = {
       id: business ? Number(business.id) : null,
       name: business?.name ?? null,
     };
-    console.info("GET /api/business/me business encontrado:", {
-      requestedBusinessId,
-      selectedBusinessId: businessId,
-      foundBusinessId: business?.id ?? null,
-      foundBusinessName: business?.name ?? null,
-    });
 
     if (!business) {
       return NextResponse.json({
@@ -559,9 +492,7 @@ export async function GET(req: NextRequest) {
       );
       hoursRows = resolvedHoursRows;
     } catch (error) {
-      console.warn("GET /api/business/me hours query failed:", {
-        message: error instanceof Error ? error.message : String(error),
-      });
+      void error;
     }
 
     const productsCount = await countSafely(
@@ -571,7 +502,6 @@ export async function GET(req: NextRequest) {
         WHERE business_id = ? AND status_id = 1
       `,
       [businessId],
-      "products_count",
     );
 
     const activeOrdersCount = await countSafely(
@@ -583,7 +513,6 @@ export async function GET(req: NextRequest) {
           AND LOWER(TRIM(COALESCE(osc.name, ''))) NOT IN ('entregado', 'cancelado', 'pago_rechazado')
       `,
       [businessId],
-      "active_orders_count",
     );
 
     const completedOrdersCount = await countSafely(
@@ -595,7 +524,6 @@ export async function GET(req: NextRequest) {
           AND LOWER(TRIM(COALESCE(osc.name, ''))) = 'entregado'
       `,
       [businessId],
-      "completed_orders_count",
     );
 
     const criticalInventoryCount = await countSafely(
@@ -607,7 +535,6 @@ export async function GET(req: NextRequest) {
           AND COALESCE(stock_average, 0) <= COALESCE(NULLIF(stock_danger, 0), 10)
       `,
       [businessId],
-      "critical_inventory_count",
     );
 
     return NextResponse.json({

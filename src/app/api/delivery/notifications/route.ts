@@ -135,13 +135,6 @@ export async function GET(req: NextRequest) {
       .map((row) => row.role_name)
       .filter(isNonEmptyString);
 
-    console.log(
-      "GET /api/delivery/notifications endpoint:",
-      "/api/delivery/notifications",
-    );
-    console.log("GET /api/delivery/notifications userId:", userId);
-    console.log("GET /api/delivery/notifications email:", email);
-    console.log("GET /api/delivery/notifications role:", roles);
     logDbUsage("/api/delivery/notifications", {
       userId,
       email,

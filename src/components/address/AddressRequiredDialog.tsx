@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { fetchWithSession } from "@/lib/client-auth";
 import type { DeliveryZoneOption } from "@/lib/shipping";
 
 export type SavedAddress = {
@@ -157,13 +158,10 @@ export default function AddressRequiredDialog({
     try {
       setSaving(true);
 
-      const token = window.localStorage.getItem("token");
-
-      const response = await fetch("/api/account/address", {
+      const response = await fetchWithSession("/api/account/address", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           placeType,

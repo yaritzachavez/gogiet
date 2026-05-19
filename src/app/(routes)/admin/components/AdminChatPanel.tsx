@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getClientAuthToken } from "@/lib/client-auth";
+import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
 import { cn } from "@/lib/utils";
 
 type SupportThread = {
@@ -278,8 +278,6 @@ export function AdminChatPanel() {
         setTokenLoading(false);
       }
 
-      console.log("ADMIN TOKEN", token);
-
       if (!token) {
         setSessionExpired(true);
         setError("Tu sesión expiró. Vuelve a iniciar sesión.");
@@ -296,14 +294,13 @@ export function AdminChatPanel() {
         }
         setError("");
 
-        const response = await fetch(`/api/support/conversations`, {
+        const response = await fetchWithSession(`/api/support/conversations`, {
           headers: {
-            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
         });
 
         const payload = (await response.json()) as ThreadListResponse;
-        console.log("CONVERSATIONS RESPONSE", payload);
 
         if (!response.ok || !payload.success) {
           if (response.status === 401 || response.status === 403) {
@@ -352,11 +349,11 @@ export function AdminChatPanel() {
         if (!silent) {
           setDetailLoading(true);
         }
-        const response = await fetch(
+        const response = await fetchWithSession(
           `/api/support/conversations/${threadId}/messages`,
           {
             headers: {
-              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           },
         );
@@ -468,13 +465,12 @@ export function AdminChatPanel() {
 
     try {
       setSending(true);
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/support/conversations/${activeThread.id}/messages`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             message: message.trim(),
@@ -515,13 +511,12 @@ export function AdminChatPanel() {
 
     try {
       setUpdatingStatus(true);
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/admin/support/threads/${activeThread.id}`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ status }),
         },
@@ -571,13 +566,12 @@ export function AdminChatPanel() {
     try {
       setValidatingPayment(true);
 
-      const response = await fetch(
+      const response = await fetchWithSession(
         `/api/admin/orders/${activeThread.order_id}/payment`,
         {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             action,
