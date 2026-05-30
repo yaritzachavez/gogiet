@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Edit, Plus, Store } from "lucide-react";
+import { AlertCircle, Download, Edit, Plus, Store } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -94,6 +94,9 @@ export default function AdminNegociosPage() {
   const [updatingBusinessId, setUpdatingBusinessId] = useState<number | null>(
     null,
   );
+  const [downloadingBusinessId, setDownloadingBusinessId] = useState<
+    number | null
+  >(null);
   const [toastMessage, setToastMessage] = useState("");
 
   const stats = useMemo(
@@ -518,6 +521,47 @@ export default function AdminNegociosPage() {
     }
   };
 
+  const handleDownloadSalesPdf = async (business: BusinessRecord) => {
+    try {
+      setDownloadingBusinessId(business.id);
+
+      const response = await fetchWithSession(
+        `/api/admin/businesses/${business.id}/sales-report/pdf`,
+        {
+          method: "GET",
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        setToastMessage(data?.error || "No se pudo descargar el PDF.");
+        return;
+      }
+
+      const pdfBlob = await response.blob();
+      const objectUrl = window.URL.createObjectURL(pdfBlob);
+      const downloadLink = document.createElement("a");
+      const safeBusinessName = business.name
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+      downloadLink.href = objectUrl;
+      downloadLink.download = `ventas-${safeBusinessName || "negocio"}.pdf`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (requestError) {
+      console.error("Error descargando PDF de ventas:", requestError);
+      setToastMessage("No se pudo descargar el PDF.");
+    } finally {
+      setDownloadingBusinessId(null);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 px-3 py-6 sm:px-6 sm:py-10">
       {toastMessage ? (
@@ -633,7 +677,7 @@ export default function AdminNegociosPage() {
                       </td>
 
                       <td className="px-3 py-2.5 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex flex-wrap items-center justify-center gap-2">
                           <button
                             onClick={() =>
                               handleToggleStatus(
@@ -654,6 +698,20 @@ export default function AdminNegociosPage() {
                               : business.is_active
                                 ? "Activo"
                                 : "Inactivo"}
+                          </button>
+
+                          <button
+                            onClick={() => handleDownloadSalesPdf(business)}
+                            type="button"
+                            disabled={downloadingBusinessId === business.id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-orange-300 px-2 py-1 text-[11px] font-semibold text-orange-600 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-orange-400/40 dark:text-orange-300 dark:hover:bg-orange-500/10 sm:text-xs"
+                          >
+                            <Download className="h-4 w-4" />
+                            <span>
+                              {downloadingBusinessId === business.id
+                                ? "Generando..."
+                                : "PDF ventas"}
+                            </span>
                           </button>
 
                           <button
