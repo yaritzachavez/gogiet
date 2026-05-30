@@ -91,41 +91,64 @@ const PLACEHOLDER_IDS = Array.from(
 );
 
 const STATIC_FILTERS = [
-  { label: "Popular", icon: Flame, color: "bg-red-500", match: "popular" },
-  { label: "Ofertas", icon: Tag, color: "bg-emerald-400", match: "offers" },
-  { label: "Rápido", icon: Bike, color: "bg-blue-400", match: "fast" },
+  {
+    label: "Popular",
+    icon: Flame,
+    iconClass:
+      "bg-[linear-gradient(180deg,#fff4ea_0%,#ffd8bf_100%)] text-[#d65f22]",
+    match: "popular",
+  },
+  {
+    label: "Ofertas",
+    icon: Tag,
+    iconClass:
+      "bg-[linear-gradient(180deg,#edfdf4_0%,#d2f5df_100%)] text-[#2f8f5b]",
+    match: "offers",
+  },
+  {
+    label: "Rápido",
+    icon: Bike,
+    iconClass:
+      "bg-[linear-gradient(180deg,#eef6ff_0%,#dbeaff_100%)] text-[#386fbe]",
+    match: "fast",
+  },
   {
     label: "Restaurante",
     icon: Utensils,
-    color: "bg-orange-400",
+    iconClass:
+      "bg-[linear-gradient(180deg,#fff3e8_0%,#ffddc0_100%)] text-[#c76827]",
     match: "category",
     terms: ["restaurante", "restaurantes", "comida", "cocina"],
   },
   {
     label: "Cantina",
     icon: Coffee,
-    color: "bg-amber-400",
+    iconClass:
+      "bg-[linear-gradient(180deg,#fff8e8_0%,#f8e1af_100%)] text-[#a87716]",
     match: "category",
     terms: ["cantina", "cantinas", "bar", "bebidas", "cafeteria", "cafe"],
   },
   {
     label: "Postres",
     icon: IceCreamBowl,
-    color: "bg-pink-400",
+    iconClass:
+      "bg-[linear-gradient(180deg,#fff2f7_0%,#ffd6e8_100%)] text-[#bf5f8d]",
     match: "category",
     terms: ["postre", "postres", "pasteleria", "heladeria", "dulces"],
   },
   {
     label: "Flores",
     icon: Flower2,
-    color: "bg-purple-400",
+    iconClass:
+      "bg-[linear-gradient(180deg,#f7f2ff_0%,#e5d9ff_100%)] text-[#7a5bb4]",
     match: "category",
     terms: ["flor", "flores", "floreria"],
   },
   {
     label: "Pizza",
     icon: Pizza,
-    color: "bg-yellow-400",
+    iconClass:
+      "bg-[linear-gradient(180deg,#fff9ec_0%,#ffe6b8_100%)] text-[#bf7a19]",
     match: "category",
     terms: ["pizza", "pizzeria"],
   },
@@ -730,8 +753,8 @@ export default function ShopPageClient({
           </label>
         </section>
 
-        <section className="rounded-[22px] border border-white/8 bg-[linear-gradient(180deg,rgba(22,22,22,0.92)_0%,rgba(15,15,15,0.94)_100%)] px-3 py-3 shadow-[0_18px_42px_rgba(0,0,0,0.24)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-5">
-          <div className="touch-scroll flex gap-3 overflow-x-auto pb-1 sm:gap-6">
+        <section className="rounded-[22px] border border-white/7 bg-[linear-gradient(180deg,rgba(24,24,24,0.92)_0%,rgba(14,14,14,0.95)_100%)] px-2.5 py-2.5 shadow-[0_16px_36px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:rounded-[28px] sm:px-4 sm:py-4">
+          <div className="touch-scroll flex gap-2.5 overflow-x-auto px-0.5 pb-1 pt-0.5 sm:gap-3">
             {categoryFilters.slice(0, 9).map((item) => {
               const isActive = selectedFilter === item;
               const staticFilter = STATIC_FILTERS.find(
@@ -745,18 +768,27 @@ export default function ShopPageClient({
                   type="button"
                   onClick={() => setSelectedFilter(item)}
                   aria-pressed={isActive}
-                  className="group flex shrink-0 flex-col items-center gap-1.5 sm:gap-2"
+                  className={`group flex shrink-0 items-center gap-2 rounded-[20px] border px-2.5 py-2 text-left transition-all duration-300 ease-out active:scale-[0.98] sm:gap-2.5 sm:px-3 sm:py-2.5 ${
+                    isActive
+                      ? "border-white/14 bg-white/9 shadow-[0_12px_30px_rgba(0,0,0,0.22)] ring-1 ring-white/10"
+                      : "border-transparent bg-transparent hover:border-white/8 hover:bg-white/[0.04] hover:shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
+                  }`}
                 >
                   <span
-                    className={`inline-flex size-11 items-center justify-center rounded-full text-white shadow-md transition group-hover:-translate-y-0.5 sm:size-16 ${
-                      staticFilter?.color ?? "bg-orange-500"
-                    } ${isActive ? "ring-4 ring-orange-100" : ""}`}
+                    className={`inline-flex size-9 items-center justify-center rounded-full border shadow-[0_8px_18px_rgba(15,23,42,0.10)] transition-all duration-300 ease-out group-hover:-translate-y-0.5 sm:size-10 ${
+                      staticFilter?.iconClass ??
+                      "bg-[linear-gradient(180deg,#fff7ef_0%,#f4e3cf_100%)] text-[#b36a31]"
+                    } ${
+                      isActive
+                        ? "border-white/60 ring-4 ring-white/8"
+                        : "border-white/35"
+                    }`}
                   >
-                    <Icon className="h-[18px] w-[18px] sm:h-7 sm:w-7" />
+                    <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
                   </span>
                   <span
-                    className={`text-[11px] font-black sm:text-sm ${
-                      isActive ? "text-white" : "text-white/58"
+                    className={`whitespace-nowrap pr-0.5 text-[11px] font-extrabold tracking-[-0.01em] transition-colors sm:text-sm ${
+                      isActive ? "text-white" : "text-white/70"
                     }`}
                   >
                     {item}
