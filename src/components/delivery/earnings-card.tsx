@@ -62,8 +62,8 @@ export function EarningsCard({
       : `${comparisonToYesterday}% vs ayer`;
 
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
-      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5 text-[#2f2419] sm:pb-6">
+    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-5 text-[#3B2D25] sm:pb-6">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <Wallet className="h-5 w-5" />
           Ganancias
@@ -74,7 +74,7 @@ export function EarningsCard({
       </CardHeader>
       <CardContent className="space-y-5 pt-5 sm:pt-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[#e8d8c6] bg-[#fffdf9] p-4 shadow-inner">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Hoy
             </p>
@@ -87,7 +87,7 @@ export function EarningsCard({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-[#e8d8c6] bg-[#fffdf9] p-4 shadow-lg backdrop-blur">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Propinas
             </p>
@@ -110,7 +110,7 @@ export function EarningsCard({
                 : `${formatCurrency(earnings.weekToDate, earnings.currency)} · sin meta configurada`}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full border border-[#e8d8c6] bg-[#f5ebde] shadow-inner">
+          <div className="h-2 overflow-hidden rounded-full border border-[#E8DCCB] bg-[#F3E8DA]">
             <div
               className="h-full rounded-full bg-[linear-gradient(90deg,#d36a1f_0%,#f0a35a_100%)] transition-all"
               style={{ width: `${progress}%` }}
@@ -127,7 +127,7 @@ export function EarningsCard({
           type="button"
           onClick={onViewHistory}
           disabled={isHistoryLoading}
-          className="w-full rounded-full border border-[#d17d3b]/40 bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] text-sm font-semibold text-white shadow-lg shadow-[#d97a37]/20 hover:opacity-95"
+          className="w-full rounded-full border border-[#d17d3b]/30 bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] text-sm font-semibold text-white shadow-[0_8px_24px_rgba(217,122,55,0.18)] hover:opacity-95"
         >
           {isHistoryLoading ? "Cargando historial..." : "Ver historial"}
         </Button>

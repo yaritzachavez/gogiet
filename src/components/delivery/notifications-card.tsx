@@ -225,8 +225,8 @@ export function NotificationsCard({
 
   return (
     <>
-      <Card className="overflow-hidden rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
-        <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-6 text-[#2f2419]">
+      <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+        <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-6 text-[#3B2D25]">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Bell className="h-5 w-5" />
             Notificaciones
@@ -237,17 +237,17 @@ export function NotificationsCard({
         </CardHeader>
         <CardContent className="space-y-4 pt-6">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945] shadow-inner">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               <CheckCircle2 className="h-5 w-5" />
               Cargando notificaciones...
             </div>
           ) : error ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#efc8b0] bg-[#fff1e8] p-6 text-center text-sm text-[#9a5b36] shadow-inner">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#EDCDB4] bg-[#FFF3E9] p-6 text-center text-sm text-[#9a5b36] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               <AlertTriangle className="h-5 w-5" />
               {error}
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945] shadow-inner">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               <CheckCircle2 className="h-5 w-5" />
               No tienes notificaciones nuevas.
             </div>
@@ -256,7 +256,7 @@ export function NotificationsCard({
               {notifications.map((notification) => (
                 <li
                   key={notification.id}
-                  className="flex items-start gap-3 rounded-2xl border border-white/40 bg-white/70 p-4 shadow-lg backdrop-blur"
+                  className="flex items-start gap-3 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.03)]"
                 >
                   <span
                     className={`mt-1 h-2 w-2 rounded-full ${
@@ -279,10 +279,10 @@ export function NotificationsCard({
                         </Badge>
                       ) : null}
                     </div>
-                    <p className="text-xs text-orange-800/70">
+                    <p className="text-xs text-[#7c654f]">
                       {notification.message}
                     </p>
-                    <p className="text-[10px] uppercase tracking-[0.3em] text-orange-900/50">
+                    <p className="text-[10px] uppercase tracking-[0.3em] text-[#a1866f]">
                       {notification.createdAt
                         ? formatRelativeTime(notification.createdAt)
                         : notification.timestamp}
@@ -292,14 +292,14 @@ export function NotificationsCard({
               ))}
             </ul>
           )}
-          <div className="grid gap-3 border-t border-dashed border-white/30 pt-4 text-sm text-orange-900/80">
+          <div className="grid gap-3 border-t border-dashed border-[#E8DCCB] pt-4 text-sm text-[#6F5D4C]">
             <button
               type="button"
               onClick={() => {
                 setDraftMessage("");
                 setDialogMode("support");
               }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-orange-400/60 bg-white/70 px-4 py-2 font-semibold text-orange-700 shadow hover:bg-white"
+              className="flex items-center justify-center gap-2 rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-2 font-semibold text-orange-700 shadow-[0_6px_18px_rgba(0,0,0,0.03)] hover:bg-white"
             >
               <MessageCircle className="h-4 w-4" />
               Abrir chat con soporte
@@ -310,12 +310,12 @@ export function NotificationsCard({
                 setDraftMessage("Incidencia en entrega: ");
                 setDialogMode("incident");
               }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-amber-400/60 bg-white/70 px-4 py-2 font-semibold text-amber-700 shadow hover:bg-white"
+              className="flex items-center justify-center gap-2 rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-2 font-semibold text-[#b36a2b] shadow-[0_6px_18px_rgba(0,0,0,0.03)] hover:bg-white"
             >
               <AlertTriangle className="h-4 w-4" />
               Incidencia en entrega
             </button>
-            <p className="text-xs text-orange-900/60">
+            <p className="text-xs text-[#8d755b]">
               Activa las notificaciones push para recibir nuevas órdenes y
               mensajes del administrador al instante.
             </p>
@@ -332,20 +332,20 @@ export function NotificationsCard({
           }
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_18px_42px_rgba(0,0,0,0.08)]">
           <DialogHeader>
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
-            <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="max-h-64 space-y-3 overflow-y-auto rounded-2xl border border-[#E8DCCB] bg-[#FCF6EE] p-4">
               {threadLoading ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[#8d755b]">
                   Cargando conversación...
                 </p>
               ) : threadMessages.length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[#8d755b]">
                   Aún no hay mensajes en esta conversación.
                 </p>
               ) : (
@@ -354,12 +354,12 @@ export function NotificationsCard({
                     key={message.id}
                     className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
                       message.senderType === "user"
-                        ? "ml-8 bg-orange-100 text-orange-900"
-                        : "mr-8 bg-white text-slate-700"
+                        ? "ml-8 border border-[#EDCDB4] bg-[#FFF3E9] text-[#9a5b36]"
+                        : "mr-8 border border-[#E8DCCB] bg-[#FFFDF9] text-[#6F5D4C]"
                     }`}
                   >
                     <p>{message.message}</p>
-                    <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                    <p className="mt-2 text-[10px] uppercase tracking-[0.2em] text-[#a1866f]">
                       {formatRelativeTime(message.createdAt)}
                     </p>
                   </div>
@@ -377,10 +377,10 @@ export function NotificationsCard({
                     ? "Describe claramente la incidencia de la entrega..."
                     : "Escribe tu mensaje para soporte..."
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none ring-0 transition placeholder:text-slate-400 focus:border-orange-300"
+                className="w-full rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm text-[#3B2D25] outline-none ring-0 transition placeholder:text-[#a1866f] focus:border-orange-300"
               />
               {threadError ? (
-                <p className="text-sm text-rose-600">{threadError}</p>
+                <p className="text-sm text-[#9a5b36]">{threadError}</p>
               ) : null}
             </div>
           </div>
@@ -389,7 +389,7 @@ export function NotificationsCard({
             <button
               type="button"
               onClick={() => setDialogMode(null)}
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="rounded-xl border border-[#E8DCCB] px-4 py-2 text-sm font-semibold text-[#6F5D4C] transition hover:bg-[#FCF6EE]"
             >
               Cerrar
             </button>

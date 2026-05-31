@@ -1280,9 +1280,9 @@ export default function DeliveryDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f3ede3] text-[#2b221a]">
-      <div className="min-h-screen bg-[linear-gradient(180deg,#fbf6ef_0%,#f4ede3_38%,#efe6da_100%)]">
-        <div className="section-shell responsive-stack py-4 sm:py-6 lg:py-8">
+    <main className="min-h-screen bg-[#F7F1E8] text-[#3B2D25]">
+      <div className="min-h-screen bg-[#F7F1E8]">
+        <div className="section-shell responsive-stack py-5 sm:py-7 lg:py-8">
           <DeliveryHeader
             driverName={driverName}
             serviceArea={profile.delivery_zone || "Sin zona configurada"}
@@ -1325,24 +1325,24 @@ export default function DeliveryDashboardPage() {
               {activeOrder ? (
                 <LocationCard order={activeOrder} />
               ) : activeOrderLoading ? (
-                <div className="rounded-[26px] border border-dashed border-[#ddcfbf] bg-[#fff8ef] p-6 text-sm text-[#6c5a49] shadow-inner">
+                <div className="rounded-[26px] border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-sm text-[#6c5a49] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   Cargando entrega activa...
                 </div>
               ) : activeOrderError ? (
-                <div className="rounded-[26px] border border-dashed border-[#efcfb9] bg-[#fff2e8] p-6 text-sm text-[#975731] shadow-inner">
+                <div className="rounded-[26px] border border-dashed border-[#EDCDB4] bg-[#FFF3E9] p-6 text-sm text-[#975731] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   {activeOrderError}
                 </div>
               ) : (
-                <div className="rounded-[26px] border border-dashed border-[#ddcfbf] bg-[#fff8ef] p-6 text-sm text-[#6c5a49] shadow-inner">
+                <div className="rounded-[26px] border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-sm text-[#6c5a49] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   No tienes entregas asignadas por ahora.
                 </div>
               )}
-              <div className="rounded-[26px] border border-[#e4d5c5] bg-[#fffaf3] p-5 shadow-lg shadow-[#d8c1a6]/15">
+              <div className="rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
                 <p className="text-xs font-extrabold uppercase tracking-[0.26em] text-[#b36a2b]">
                   Perfil operativo
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl bg-[#f7efe3] p-4">
+                  <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                       Zona activa
                     </p>
@@ -1350,7 +1350,7 @@ export default function DeliveryDashboardPage() {
                       {profile.delivery_zone || "Sin zona configurada"}
                     </p>
                   </div>
-                  <div className="rounded-2xl bg-[#f7efe3] p-4">
+                  <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                       Vehículo
                     </p>
@@ -1387,17 +1387,17 @@ export default function DeliveryDashboardPage() {
       </div>
 
       {historyOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f1720]/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <div className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-white/25 bg-[#f7faf6] shadow-2xl sm:rounded-[30px]">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-[linear-gradient(135deg,#fff7ed_0%,#ffedd5_45%,#fed7aa_100%)] px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(247,241,232,0.82)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] shadow-[0_18px_42px_rgba(0,0,0,0.08)] sm:rounded-[30px]">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E8DCCB] bg-[#F8F1E7] px-6 py-5">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-orange-700/70">
                   Historial real
                 </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-900">
+                <h2 className="mt-2 text-2xl font-black text-[#3B2D25]">
                   Pedidos entregados
                 </h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-[#6F5D4C]">
                   Aqui ves todas tus entregas completadas con sus ganancias y
                   propinas.
                 </p>
@@ -1405,7 +1405,7 @@ export default function DeliveryDashboardPage() {
               <button
                 type="button"
                 onClick={() => setHistoryOpen(false)}
-                className="rounded-full border border-orange-200 bg-white px-4 py-2 text-sm font-bold text-orange-700 transition hover:bg-orange-50"
+                className="rounded-full border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-2 text-sm font-bold text-orange-700 transition hover:bg-white"
               >
                 Cerrar
               </button>
@@ -1413,15 +1413,15 @@ export default function DeliveryDashboardPage() {
 
             <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
               {historyLoading ? (
-                <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm font-medium text-slate-500">
+                <div className="rounded-3xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] px-6 py-10 text-center text-sm font-medium text-[#6F5D4C]">
                   Cargando historial de entregas...
                 </div>
               ) : historyError ? (
-                <div className="rounded-3xl border border-rose-200 bg-rose-50 px-6 py-10 text-center text-sm font-semibold text-rose-700">
+                <div className="rounded-3xl border border-[#EDCDB4] bg-[#FFF3E9] px-6 py-10 text-center text-sm font-semibold text-[#9a5b36]">
                   {historyError}
                 </div>
               ) : deliveryHistory.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-slate-200 bg-white px-6 py-10 text-center text-sm font-medium text-slate-500">
+                <div className="rounded-3xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] px-6 py-10 text-center text-sm font-medium text-[#6F5D4C]">
                   No tienes entregas completadas por ahora.
                 </div>
               ) : (
@@ -1429,69 +1429,69 @@ export default function DeliveryDashboardPage() {
                   {deliveryHistory.map((entry) => (
                     <article
                       key={entry.id}
-                      className="rounded-[26px] border border-green-400 bg-green-50 p-5 shadow-sm shadow-green-100/70"
+                      className="rounded-[26px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.035)]"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-orange-700/70">
                             {entry.folio}
                           </p>
-                          <h3 className="mt-2 text-xl font-black text-slate-900">
+                          <h3 className="mt-2 text-xl font-black text-[#3B2D25]">
                             {entry.businessName}
                           </h3>
                           {entry.businessAddress ? (
-                            <p className="mt-1 text-sm text-slate-500">
+                            <p className="mt-1 text-sm text-[#8d755b]">
                               Recogida: {entry.businessAddress}
                             </p>
                           ) : null}
-                          <p className="mt-1 text-sm text-slate-600">
+                          <p className="mt-1 text-sm text-[#6F5D4C]">
                             Cliente: {entry.customerName}
                             {entry.customerPhone
                               ? ` · ${entry.customerPhone}`
                               : ""}
                           </p>
                         </div>
-                        <div className="rounded-full border border-green-300 bg-green-100 px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-green-700">
+                        <div className="rounded-full border border-[#E8DCCB] bg-[#F8F1E7] px-4 py-2 text-xs font-bold uppercase tracking-[0.18em] text-[#b36a2b]">
                           {entry.status}
                         </div>
                       </div>
 
-                      <div className="mt-4 grid gap-3 text-sm text-slate-700 sm:grid-cols-2 lg:grid-cols-3">
-                        <div className="rounded-2xl bg-white/80 p-3">
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                      <div className="mt-4 grid gap-3 text-sm text-[#6F5D4C] sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Direccion
                           </p>
                           <p className="mt-2 leading-relaxed">
                             {entry.fullAddress || "Sin direccion"}
                           </p>
                         </div>
-                        <div className="rounded-2xl bg-white/80 p-3">
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                        <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Pago y entrega
                           </p>
                           <p className="mt-2">{entry.paymentMethod}</p>
-                          <p className="mt-1 text-slate-500">
+                          <p className="mt-1 text-[#8d755b]">
                             {formatDeliveredAt(entry.deliveredAt)}
                           </p>
                         </div>
-                        <div className="rounded-2xl bg-green-100/80 p-3">
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-green-700/70">
+                        <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b36a2b]/80">
                             Ganancia
                           </p>
-                          <p className="mt-2 text-lg font-black text-green-700">
+                          <p className="mt-2 text-lg font-black text-[#3B2D25]">
                             {formatCurrency(
                               entry.driverEarning,
                               earnings.currency,
                             )}
                           </p>
-                          <p className="mt-1 text-xs text-green-700/80">
+                          <p className="mt-1 text-xs text-[#8d755b]">
                             Envio:{" "}
                             {formatCurrency(
                               entry.deliveryFee,
                               earnings.currency,
                             )}
                           </p>
-                          <p className="mt-1 text-xs text-green-700/80">
+                          <p className="mt-1 text-xs text-[#8d755b]">
                             Estado:{" "}
                             {entry.earningStatus === "paid"
                               ? "Pagado"
@@ -1502,20 +1502,20 @@ export default function DeliveryDashboardPage() {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid gap-3 rounded-2xl border border-green-200 bg-white/80 p-4 text-sm text-slate-700 sm:grid-cols-3">
+                      <div className="mt-4 grid gap-3 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 text-sm text-[#6F5D4C] sm:grid-cols-3">
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Total pedido
                           </p>
-                          <p className="mt-2 font-semibold text-slate-900">
+                          <p className="mt-2 font-semibold text-[#3B2D25]">
                             {formatCurrency(entry.total, earnings.currency)}
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Costo de envio
                           </p>
-                          <p className="mt-2 font-semibold text-slate-900">
+                          <p className="mt-2 font-semibold text-[#3B2D25]">
                             {formatCurrency(
                               entry.deliveryFee,
                               earnings.currency,
@@ -1523,10 +1523,10 @@ export default function DeliveryDashboardPage() {
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Propina
                           </p>
-                          <p className="mt-2 font-semibold text-slate-900">
+                          <p className="mt-2 font-semibold text-[#3B2D25]">
                             {formatCurrency(entry.tip, earnings.currency)}
                           </p>
                         </div>
@@ -1541,8 +1541,8 @@ export default function DeliveryDashboardPage() {
       ) : null}
 
       {deliveryEvidenceOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2b2119]/50 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <div className="w-full max-w-xl rounded-[24px] border border-[#e1d0bc] bg-[#fffaf3] p-4 shadow-2xl shadow-[#b78b5d]/20 sm:rounded-[28px] sm:p-6">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(247,241,232,0.82)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="w-full max-w-xl rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.08)] sm:rounded-[28px] sm:p-6">
             <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]">
               Confirmar entrega
             </p>
@@ -1638,17 +1638,17 @@ export default function DeliveryDashboardPage() {
       ) : null}
 
       {profileOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#0f1720]/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-white/25 bg-[#f7faf6] shadow-2xl sm:rounded-[30px]">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-[linear-gradient(135deg,#ecfdf5_0%,#d1fae5_55%,#a7f3d0_100%)] px-6 py-5">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(247,241,232,0.82)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] shadow-[0_18px_42px_rgba(0,0,0,0.08)] sm:rounded-[30px]">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E8DCCB] bg-[#F8F1E7] px-6 py-5">
               <div>
-                <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-emerald-700/70">
+                <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]/80">
                   Configuración
                 </p>
-                <h2 className="mt-2 text-2xl font-black text-slate-900">
+                <h2 className="mt-2 text-2xl font-black text-[#3B2D25]">
                   Configuración del repartidor
                 </h2>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-[#6F5D4C]">
                   Actualiza tu foto, vehículo, zona y estado sin afectar tus
                   entregas activas.
                 </p>
@@ -1656,7 +1656,7 @@ export default function DeliveryDashboardPage() {
               <button
                 type="button"
                 onClick={() => setProfileOpen(false)}
-                className="rounded-full border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-50"
+                className="rounded-full border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-2 text-sm font-bold text-[#b36a2b] transition hover:bg-white"
               >
                 Cerrar
               </button>
@@ -1664,11 +1664,11 @@ export default function DeliveryDashboardPage() {
 
             <div className="overflow-y-auto px-6 py-6">
               <div className="grid gap-6 lg:grid-cols-[0.8fr,1.2fr]">
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <p className="text-sm font-bold text-slate-700">
+                <section className="rounded-3xl border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.03)]">
+                  <p className="text-sm font-bold text-[#3B2D25]">
                     Foto de perfil
                   </p>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#8d755b]">
                     Visible para negocio y cliente.
                   </p>
                   <div className="mt-5 flex flex-col items-center gap-4">
@@ -1694,10 +1694,10 @@ export default function DeliveryDashboardPage() {
                   </div>
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <section className="rounded-3xl border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.03)]">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 md:col-span-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Nombre
                       </span>
                       <input
@@ -1708,11 +1708,11 @@ export default function DeliveryDashboardPage() {
                             name: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Teléfono
                       </span>
                       <input
@@ -1723,11 +1723,11 @@ export default function DeliveryDashboardPage() {
                             phone: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Zona de trabajo
                       </span>
                       <input
@@ -1738,11 +1738,11 @@ export default function DeliveryDashboardPage() {
                             delivery_zone: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Estado
                       </span>
                       <select
@@ -1753,14 +1753,14 @@ export default function DeliveryDashboardPage() {
                             is_available: event.target.value === "activo",
                           }))
                         }
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                       >
                         <option value="activo">Activo</option>
                         <option value="pausado">Pausado</option>
                       </select>
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Vehículo
                       </span>
                       <select
@@ -1771,7 +1771,7 @@ export default function DeliveryDashboardPage() {
                             vehicle_type: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                       >
                         <option value="">Selecciona</option>
                         <option value="moto">Moto</option>
@@ -1781,7 +1781,7 @@ export default function DeliveryDashboardPage() {
                       </select>
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Placas
                       </span>
                       <input
@@ -1792,12 +1792,12 @@ export default function DeliveryDashboardPage() {
                             vehicle_plate: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                         placeholder="Solo si aplica"
                       />
                     </label>
                     <label className="grid gap-2 md:col-span-2">
-                      <span className="text-sm font-bold text-slate-700">
+                      <span className="text-sm font-bold text-[#3B2D25]">
                         Notas o referencias
                       </span>
                       <textarea
@@ -1809,18 +1809,18 @@ export default function DeliveryDashboardPage() {
                           }))
                         }
                         rows={4}
-                        className="rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
                       />
                     </label>
                   </div>
 
                   {profileError ? (
-                    <p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+                    <p className="mt-4 rounded-2xl border border-[#EDCDB4] bg-[#FFF3E9] px-4 py-3 text-sm font-semibold text-[#9a5b36]">
                       {profileError}
                     </p>
                   ) : null}
                   {profileSuccess ? (
-                    <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                    <p className="mt-4 rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] px-4 py-3 text-sm font-semibold text-[#7c654f]">
                       {profileSuccess}
                     </p>
                   ) : null}
@@ -1830,7 +1830,7 @@ export default function DeliveryDashboardPage() {
                       type="button"
                       onClick={handleSaveProfile}
                       disabled={profileSaving || profileLoading}
-                      className="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white disabled:opacity-60"
+                      className="rounded-2xl bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(217,122,55,0.18)] disabled:opacity-60"
                     >
                       {profileSaving ? "Guardando..." : "Guardar cambios"}
                     </button>

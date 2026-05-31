@@ -93,23 +93,23 @@ export function CurrentDeliveriesCard({
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-xl shadow-[#d8c1a6]/15">
-      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5">
+    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f6ead8] text-[#c56f2d]">
+            <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F3E6D7] text-[#c56f2d]">
               <Package className="h-5 w-5" />
             </span>
             <div>
-              <CardTitle className="text-xl font-extrabold text-[#2f2419]">
+              <CardTitle className="text-xl font-extrabold text-[#3B2D25]">
                 Entregas actuales
               </CardTitle>
-              <CardDescription className="text-sm text-[#715f4d]">
+              <CardDescription className="text-sm text-[#6F5D4C]">
                 Entregas reales asignadas, disponibles y listas para operar.
               </CardDescription>
             </div>
           </div>
-          <div className="rounded-2xl bg-white px-4 py-3 text-center shadow-sm sm:px-5">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-center shadow-[0_8px_24px_rgba(0,0,0,0.03)] sm:px-5">
             <p className="text-3xl font-extrabold text-[#c56f2d]">
               {deliveriesCount}
             </p>
@@ -121,20 +121,20 @@ export function CurrentDeliveriesCard({
       </CardHeader>
       <CardContent className="space-y-4 p-4 sm:p-5">
         {isLoading ? (
-          <p className="rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945]">
+          <p className="rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             Cargando entregas...
           </p>
         ) : error ? (
-          <p className="rounded-2xl border border-dashed border-[#efc8b0] bg-[#fff1e8] p-6 text-center text-sm text-[#9a5b36]">
+          <p className="rounded-2xl border border-dashed border-[#EDCDB4] bg-[#FFF3E9] p-6 text-center text-sm text-[#9a5b36] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             {error}
           </p>
         ) : orders.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-6 text-center text-sm text-[#6d5945]">
+          <p className="rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             No tienes entregas asignadas por ahora.
           </p>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#ead7c3] bg-[#f8f0e5] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] px-4 py-3">
               <p className="text-sm font-bold text-[#3d3025]">
                 Límite operativo del repartidor
               </p>
@@ -184,19 +184,19 @@ export function CurrentDeliveriesCard({
                   <li
                     key={order.id}
                     className={cn(
-                      "rounded-[22px] border p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5",
+                      "rounded-[22px] border p-4 shadow-[0_8px_24px_rgba(0,0,0,0.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(0,0,0,0.05)] sm:p-5",
                       visualStatus.cardClass,
                     )}
                   >
                     <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
                       <div>
-                        <span className="text-sm font-bold text-slate-700">
+                        <span className="text-sm font-bold text-[#6d5945]">
                           #{order.id}
                         </span>
-                        <h3 className="mt-2 text-lg font-semibold text-slate-950">
+                        <h3 className="mt-2 text-lg font-semibold text-[#3B2D25]">
                           {order.businessName || "Negocio"}
                         </h3>
-                        <p className="mt-1 text-sm text-slate-600">
+                        <p className="mt-1 text-sm text-[#6F5D4C]">
                           {order.contact.name}
                         </p>
                       </div>
@@ -211,8 +211,8 @@ export function CurrentDeliveriesCard({
                       </Badge>
                     </div>
 
-                    <div className="grid gap-3 text-sm text-slate-600 md:grid-cols-2 xl:grid-cols-[1.2fr,0.8fr,0.8fr]">
-                      <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
+                    <div className="grid gap-3 text-sm text-[#6F5D4C] md:grid-cols-2 xl:grid-cols-[1.2fr,0.8fr,0.8fr]">
+                      <div className="rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Entrega
                         </p>
@@ -227,7 +227,7 @@ export function CurrentDeliveriesCard({
                           </span>
                         </p>
                       </div>
-                      <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
+                      <div className="rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Cliente
                         </p>
@@ -241,7 +241,7 @@ export function CurrentDeliveriesCard({
                           {order.contact.phone || "Sin telefono"}
                         </p>
                       </div>
-                      <div className="rounded-xl bg-[#fffdf9] p-3 shadow-inner">
+                      <div className="rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Total
                         </p>
@@ -258,12 +258,12 @@ export function CurrentDeliveriesCard({
                     </div>
 
                     {order.notes ? (
-                      <div className="mt-3 rounded-xl bg-[#fffdf9] p-3 text-sm text-[#6d5945] shadow-inner">
+                      <div className="mt-3 rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 text-sm text-[#6d5945] shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
                         {order.notes}
                       </div>
                     ) : null}
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200/70 pt-3">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#E8DCCB] pt-3">
                       {order.canRespond ? (
                         <>
                           <Button
@@ -306,7 +306,7 @@ export function CurrentDeliveriesCard({
                       <Button
                         type="button"
                         variant="secondary"
-                        className="h-10 rounded-lg bg-slate-200 px-4 text-xs font-bold text-slate-700 hover:bg-slate-300"
+                        className="h-10 rounded-lg bg-[#F3E6D7] px-4 text-xs font-bold text-[#5d4b3a] hover:bg-[#eadac9]"
                         asChild
                       >
                         <a href={phoneHref}>
@@ -347,7 +347,7 @@ export function CurrentDeliveriesCard({
                       <Button
                         type="button"
                         variant="secondary"
-                        className="ml-auto h-10 rounded-lg bg-white/80 px-4 text-xs font-bold text-[#5d4b3a] hover:bg-white"
+                        className="ml-auto h-10 rounded-lg border border-[#E8DCCB] bg-[#FFFDF9] px-4 text-xs font-bold text-[#5d4b3a] hover:bg-white"
                       >
                         Ver resumen
                       </Button>

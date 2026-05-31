@@ -91,12 +91,12 @@ export function DeliveryHeader({
   };
 
   return (
-    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#e1d0bc] bg-[#fffaf3] p-4 text-[#2f2419] shadow-2xl shadow-[#cbb090]/15 sm:p-6">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,247,237,0.96)_0%,rgba(247,236,221,0.98)_42%,rgba(241,227,209,1)_100%)]" />
+    <header className="relative isolate overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,251,245,0.98)_0%,rgba(247,239,228,0.98)_45%,rgba(243,232,218,1)_100%)]" />
       <button
         type="button"
         onClick={onOpenSettings}
-        className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#e4d5c5] bg-white/80 text-[#7c5b3c] shadow-lg transition hover:bg-white sm:h-11 sm:w-11"
+        className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] text-[#7c5b3c] shadow-[0_8px_20px_rgba(0,0,0,0.03)] transition hover:bg-white sm:h-11 sm:w-11"
         aria-label="Abrir configuración del repartidor"
       >
         <Settings className="h-5 w-5" />
@@ -117,7 +117,7 @@ export function DeliveryHeader({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-2xl bg-[#f7efe3] p-4">
+            <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
               <p className="text-xs font-semibold text-[#8d755b]">
                 Entregas actuales
               </p>
@@ -128,15 +128,15 @@ export function DeliveryHeader({
                 Completadas hoy: {completedToday}
               </p>
             </div>
-            <div className="rounded-2xl bg-[#f7efe3] p-4">
+            <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
               <p className="text-xs font-semibold text-[#8d755b]">Zona</p>
-              <p className="mt-2 text-base font-extrabold text-[#2f2419]">{serviceArea}</p>
+              <p className="mt-2 text-base font-extrabold text-[#2f2419]">
+                {serviceArea}
+              </p>
               <p className="text-xs text-[#8d755b]">{lastSync}</p>
             </div>
-            <div className="rounded-2xl bg-[#f7efe3] p-4">
-              <p className="text-xs font-semibold text-[#8d755b]">
-                Estado
-              </p>
+            <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+              <p className="text-xs font-semibold text-[#8d755b]">Estado</p>
               <p className="mt-2 flex items-center gap-2 text-base font-extrabold text-[#2f2419]">
                 <span
                   className={cn(
@@ -215,23 +215,23 @@ export function DeliveryHeader({
       </div>
 
       {actionMessage ? (
-        <p className="relative z-20 mt-4 rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-xs text-white/90">
+        <p className="relative z-20 mt-4 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-xs text-[#6F5D4C] shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
           {actionMessage}
         </p>
       ) : null}
 
       {chatOpen ? (
-        <div className="relative z-20 mt-4 rounded-2xl border border-orange-200/60 bg-white p-4 text-sm text-orange-900 shadow-2xl">
+        <div className="relative z-20 mt-4 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 text-sm text-[#3B2D25] shadow-[0_10px_28px_rgba(0,0,0,0.04)]">
           <p className="font-semibold">Chat con soporte</p>
-          <p className="text-xs text-orange-800/70">
+          <p className="text-xs text-[#8d755b]">
             Soporte Gogi Eats responde en menos de 3 minutos.
           </p>
-          <div className="mt-3 space-y-2 rounded-xl border border-orange-100 bg-white p-3 text-xs text-orange-900">
+          <div className="mt-3 space-y-2 rounded-xl border border-[#E8DCCB] bg-[#F8F1E7] p-3 text-xs text-[#3B2D25]">
             <p className="font-semibold">Equipo Gogi Eats</p>
             <p>Hola {driverName}, ¿todo bien en tu ruta?</p>
           </div>
           <textarea
-            className="mt-3 w-full rounded-xl border border-orange-200 bg-white p-2 text-sm text-orange-900 outline-none focus:border-orange-400"
+            className="mt-3 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-2 text-sm text-[#3B2D25] outline-none focus:border-orange-400"
             rows={2}
             placeholder="Escribe un mensaje rápido..."
             value={chatMessage}
@@ -250,16 +250,16 @@ export function DeliveryHeader({
       {reportOpen ? (
         <form
           onSubmit={handleReportSubmit}
-          className="relative z-20 mt-4 space-y-3 rounded-2xl border border-rose-200/60 bg-white p-4 text-sm text-rose-900 shadow-2xl"
+          className="relative z-20 mt-4 space-y-3 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 text-sm text-[#3B2D25] shadow-[0_10px_28px_rgba(0,0,0,0.04)]"
         >
           <p className="font-semibold">Reportar incidencia</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            <label className="text-xs font-semibold text-rose-800">
+            <label className="text-xs font-semibold text-[#7c654f]">
               Motivo
               <select
                 value={reportType}
                 onChange={(event) => setReportType(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-rose-200 bg-white p-2 text-sm text-rose-900 focus:border-rose-400"
+                className="mt-1 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-2 text-sm text-[#3B2D25] focus:border-orange-400"
               >
                 <option value="clima">Clima</option>
                 <option value="trafico">Tráfico</option>
@@ -271,13 +271,13 @@ export function DeliveryHeader({
               </select>
             </label>
           </div>
-          <label className="text-xs font-semibold text-rose-800">
+          <label className="text-xs font-semibold text-[#7c654f]">
             Detalles
             <textarea
               value={reportNotes}
               onChange={(event) => setReportNotes(event.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-xl border border-rose-200 bg-white p-2 text-sm text-rose-900 focus:border-rose-400"
+              className="mt-1 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-2 text-sm text-[#3B2D25] focus:border-orange-400"
               placeholder="Describe brevemente la incidencia"
             />
           </label>

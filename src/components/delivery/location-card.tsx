@@ -61,10 +61,10 @@ export function LocationCard({ order }: LocationCardProps) {
   )}`;
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-[#e4d5c5] bg-[#fffaf3] text-[#2b221a] shadow-2xl shadow-[#cbb090]/15">
-      <CardHeader className="border-b border-[#ead7c3] bg-[linear-gradient(135deg,#fff7ed_0%,#f8efe4_55%,#f4e7d7_100%)] pb-5 text-[#2f2419]">
+    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-5 text-[#3B2D25]">
         <div className="flex items-start gap-3">
-          <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#f7ebdc] text-[#c56f2d] shadow-inner">
+          <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F3E6D7] text-[#c56f2d]">
             <MapPin className="h-5 w-5" />
           </span>
           <div>
@@ -80,7 +80,7 @@ export function LocationCard({ order }: LocationCardProps) {
 
       <CardContent className="space-y-4 p-5 text-[#5a4a3a]">
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl bg-[#f7efe3] p-4">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Negocio
             </p>
@@ -91,7 +91,7 @@ export function LocationCard({ order }: LocationCardProps) {
               {order.businessAddress || "Dirección del negocio no disponible."}
             </p>
           </div>
-          <div className="rounded-2xl bg-[#f7efe3] p-4">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Cliente
             </p>
@@ -104,7 +104,7 @@ export function LocationCard({ order }: LocationCardProps) {
           </div>
         </div>
 
-        <div className="rounded-2xl bg-[#f7efe3] p-4">
+        <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
             Dirección de entrega
           </p>
@@ -119,7 +119,7 @@ export function LocationCard({ order }: LocationCardProps) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
             <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
               Zona
             </p>
@@ -127,7 +127,7 @@ export function LocationCard({ order }: LocationCardProps) {
               {order.zoneName || "Sin zona"}
             </p>
           </div>
-          <div className="rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
             <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
               Costo de envío
             </p>
@@ -139,7 +139,7 @@ export function LocationCard({ order }: LocationCardProps) {
               }).format(order.shippingFee ?? 0)}
             </p>
           </div>
-          <div className="rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
             <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
               Total del pedido
             </p>
@@ -153,7 +153,7 @@ export function LocationCard({ order }: LocationCardProps) {
           </div>
         </div>
 
-        <div className="space-y-2 rounded-2xl bg-[#fffdf9] p-4 shadow-inner">
+        <div className="space-y-2 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#b36a2b]">
             <NotebookPen className="h-4 w-4" />
             Referencias
@@ -174,7 +174,7 @@ export function LocationCard({ order }: LocationCardProps) {
               handleCopy(`${locationText}. ${referencesText}`, "address")
             }
             className={cn(
-              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-lg transition backdrop-blur",
+              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_6px_18px_rgba(0,0,0,0.03)] transition",
               copiedField === "address"
                 ? "border-[#d7b089] bg-white text-[#b36a2b] hover:bg-white"
                 : "border-[#dfcfbe] bg-[#f7efe3] text-[#5a4a3a] hover:bg-[#f3e6d8]",
@@ -190,7 +190,7 @@ export function LocationCard({ order }: LocationCardProps) {
             variant="outline"
             onClick={() => handleCopy(referencesText, "references")}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-lg transition backdrop-blur",
+              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_6px_18px_rgba(0,0,0,0.03)] transition",
               copiedField === "references"
                 ? "border-[#d7b089] bg-white text-[#b36a2b] hover:bg-white"
                 : "border-[#dfcfbe] bg-[#f7efe3] text-[#5a4a3a] hover:bg-[#f3e6d8]",
@@ -235,7 +235,7 @@ export function LocationCard({ order }: LocationCardProps) {
           </Button>
         </div>
 
-        <div className="rounded-2xl border border-dashed border-[#dfcfbe] bg-[#fbf5ed] p-4 text-xs text-[#6f5d4c] shadow-inner">
+        <div className="rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-4 text-xs text-[#6f5d4c] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
           Usa esta vista para revisar recogida, dirección de entrega,
           referencias y navegación antes de confirmar el pedido como entregado.
         </div>

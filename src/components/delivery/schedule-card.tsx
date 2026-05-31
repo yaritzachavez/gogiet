@@ -1,5 +1,6 @@
 import { AlarmClock, CalendarClock } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -7,7 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 import type { DeliverySchedule } from "./types";
 
@@ -17,13 +17,13 @@ interface ScheduleCardProps {
 
 export function ScheduleCard({ schedule }: ScheduleCardProps) {
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-white/20 bg-white/10 text-[#1f2d27] shadow-xl backdrop-blur-lg">
-      <CardHeader className="border-b border-white/10 bg-gradient-to-r from-orange-400/30 via-orange-600/25 to-orange-900/25 pb-6 text-white">
+    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-6 text-[#3B2D25]">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <CalendarClock className="h-5 w-5" />
           Horario
         </CardTitle>
-        <CardDescription className="text-sm text-white/80">
+        <CardDescription className="text-sm text-[#6F5D4C]">
           Mantén el control de tu turno y de los puntos de check-in programados.
         </CardDescription>
       </CardHeader>
@@ -43,7 +43,7 @@ export function ScheduleCard({ schedule }: ScheduleCardProps) {
           </Badge>
         </div>
 
-        <div className="grid gap-4 rounded-2xl border border-white/20 bg-white/60 p-4 shadow-inner md:grid-cols-3">
+        <div className="grid gap-4 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)] md:grid-cols-3">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-orange-900/60">
               Inicio
@@ -75,13 +75,11 @@ export function ScheduleCard({ schedule }: ScheduleCardProps) {
             <p className="text-xs uppercase tracking-[0.3em] text-orange-900/60">
               Pausa sugerida
             </p>
-            <p className="text-sm text-orange-800/80">
-              {schedule.breakWindow}
-            </p>
+            <p className="text-sm text-orange-800/80">{schedule.breakWindow}</p>
           </div>
         ) : null}
 
-        <div className="rounded-2xl border border-white/40 bg-white/70 p-4 shadow-lg backdrop-blur">
+        <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_8px_22px_rgba(0,0,0,0.03)]">
           <div className="flex items-start gap-3">
             <AlarmClock className="mt-0.5 h-4 w-4 text-orange-600" />
             <div>
