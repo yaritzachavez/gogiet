@@ -270,6 +270,24 @@ export default function CarritoPage() {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [cartLoading, setCartLoading] = useState(true);
   const [cartLoadError, setCartLoadError] = useState("");
+  const [mercadoPagoStatus, setMercadoPagoStatus] = useState<
+    | "idle"
+    | "loading"
+    | "ready"
+    | "processing"
+    | "approved"
+    | "pending"
+    | "rejected"
+    | "error"
+  >("idle");
+  const [mercadoPagoMessage, setMercadoPagoMessage] = useState("");
+  const [mercadoPagoOrderId, setMercadoPagoOrderId] = useState<number | null>(
+    null,
+  );
+  const mercadoPagoFormRef = useRef<MercadoPagoCardForm | null>(null);
+  const mercadoPagoSubmitRef = useRef<
+    ((data: MercadoPagoCardFormData) => Promise<void>) | null
+  >(null);
 
   const mapStoredSnapshotToCartItems = useCallback(
     (items: ReturnType<typeof readStoredCartSnapshot>): StoredCartItem[] => {
@@ -883,62 +901,7 @@ export default function CarritoPage() {
     }
 
     if (selectedPaymentMethod === "mercadopago") {
-      const orderId = await processOrder("pending_payment");
-
-      if (!orderId) return;
-
-      try {
-        const preferenceRes = await fetchWithSession(
-          "/api/payments/mercadopago/create-preference",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              orderId,
-              userId: user?.id,
-              total: commissionBreakdown.total,
-              items: cartItems.map((item) => ({
-                product_id: item.productId,
-                quantity: item.quantity,
-              })),
-            }),
-          },
-        );
-
-        const preferenceData = await preferenceRes.json().catch(() => null);
-
-        if (
-          !preferenceRes.ok ||
-          !preferenceData?.success ||
-          !preferenceData?.initPoint
-        ) {
-          throw new Error(
-            formatApiError(
-              preferenceRes.status,
-              preferenceData,
-              "Tu pedido se creó, pero no pudimos abrir Mercado Pago.",
-            ),
-          );
-        }
-
-        window.location.assign(String(preferenceData.initPoint));
-        return;
-      } catch (error) {
-        const message =
-          error instanceof Error
-            ? getFriendlyErrorMessage(
-                error,
-                "Tu pedido se creó, pero no pudimos abrir Mercado Pago.",
-              )
-            : "Tu pedido se creó, pero no pudimos abrir Mercado Pago.";
-
-        router.push(
-          `/checkout/failure?orderId=${orderId}&message=${encodeURIComponent(message)}`,
-        );
-        return;
-      }
+      return;
     }
 
     const orderId = await processOrder("pending");
@@ -947,103 +910,422 @@ export default function CarritoPage() {
     }
   };
 
-  const processOrder = async (
-    status: string,
-    proofUrl = "",
-    _proofName = "",
-  ) => {
-    if (!canSubmitOrder) {
-      const message =
-        checkoutBlockReason ||
-        "Tu pedido no se pudo completar. Intenta nuevamente.";
-      setTransferError(message);
-      notify.warning(message, "Pedido incompleto");
-      return null;
-    }
-
-    setSubmittingOrder(true);
-    try {
-      if (selectedPaymentMethod === "transferencia" && !transferAccount) {
-        throw new Error(
-          "La transferencia no está disponible en este momento. Elige otro método de pago.",
-        );
+  const processOrder = useCallback(
+    async (status: string, proofUrl = "", _proofName = "") => {
+      if (!canSubmitOrder) {
+        const message =
+          checkoutBlockReason ||
+          "Tu pedido no se pudo completar. Intenta nuevamente.";
+        setTransferError(message);
+        notify.warning(message, "Pedido incompleto");
+        return null;
       }
 
-      const checkoutPayload = {
-        user_id: user?.id,
-        address_id: savedAddress?.id,
-        delivery_address_id: savedAddress?.id,
-        cart_id: cartId,
-        business_id: cartBusinessState.resolvedBusinessId,
-        subtotal: commissionBreakdown.subtotal,
-        terminal_fee: commissionBreakdown.terminalFee,
-        shipping_cost: commissionBreakdown.deliveryFee,
-        delivery_fee: commissionBreakdown.deliveryFee,
-        service_fee: commissionBreakdown.serviceFee,
-        platform_fee: commissionBreakdown.platformFee,
-        driver_fee: commissionBreakdown.driverFee,
-        total: commissionBreakdown.total,
-        payment_method: selectedPaymentMethod,
-        status,
-        payment_receipt_url: proofUrl || null,
-        comprobante_pago_url: proofUrl || null,
-        delivery_instructions: deliveryInstructions || null,
-        items: cartItems.map((i) => ({
-          product_id: i.productId,
-          quantity: i.quantity,
-          business_id: i.businessId ?? null,
-          unit_price: getCartItemUnitPrice(i),
-          total_price: getCartItemSubtotal(i),
-        })),
-      };
+      setSubmittingOrder(true);
+      try {
+        if (selectedPaymentMethod === "transferencia" && !transferAccount) {
+          throw new Error(
+            "La transferencia no está disponible en este momento. Elige otro método de pago.",
+          );
+        }
 
-      const res = await fetchWithSession("/api/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(checkoutPayload),
-      });
-      const data = await res.json().catch(() => null);
-      if (res.ok && data?.success && data?.order?.id) {
-        const createdOrderId = Number(data.order.id);
-        if (selectedPaymentMethod !== "mercadopago") {
+        const checkoutPayload = {
+          user_id: user?.id,
+          address_id: savedAddress?.id,
+          delivery_address_id: savedAddress?.id,
+          cart_id: cartId,
+          business_id: cartBusinessState.resolvedBusinessId,
+          subtotal: commissionBreakdown.subtotal,
+          terminal_fee: commissionBreakdown.terminalFee,
+          shipping_cost: commissionBreakdown.deliveryFee,
+          delivery_fee: commissionBreakdown.deliveryFee,
+          service_fee: commissionBreakdown.serviceFee,
+          platform_fee: commissionBreakdown.platformFee,
+          driver_fee: commissionBreakdown.driverFee,
+          total: commissionBreakdown.total,
+          payment_method: selectedPaymentMethod,
+          status,
+          payment_receipt_url: proofUrl || null,
+          comprobante_pago_url: proofUrl || null,
+          delivery_instructions: deliveryInstructions || null,
+          items: cartItems.map((i) => ({
+            product_id: i.productId,
+            quantity: i.quantity,
+            business_id: i.businessId ?? null,
+            unit_price: getCartItemUnitPrice(i),
+            total_price: getCartItemSubtotal(i),
+          })),
+        };
+
+        const res = await fetchWithSession("/api/orders", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(checkoutPayload),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success && data?.order?.id) {
+          const createdOrderId = Number(data.order.id);
+          if (selectedPaymentMethod !== "mercadopago") {
+            setCartItems([]);
+            setCartId(null);
+            syncCartStorage([]);
+            window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+          }
+          setTransferDialogOpen(false);
+          if (selectedPaymentMethod !== "mercadopago") {
+            setPaymentDialogOpen(false);
+          }
+          setTransferReceiptFile(null);
+          setTransferReceiptName("");
+          setTransferError("");
+          notify.success(
+            selectedPaymentMethod === "mercadopago"
+              ? "Pedido preparado. Completa el pago con tarjeta."
+              : "Tu pedido fue creado correctamente.",
+            selectedPaymentMethod === "mercadopago"
+              ? "Pago seguro"
+              : "Pedido listo",
+          );
+          return createdOrderId;
+        }
+
+        throw new Error(
+          formatApiError(
+            res.status,
+            data,
+            "No pudimos confirmar tu pedido. Intenta nuevamente.",
+          ),
+        );
+      } catch (_error) {
+        const message =
+          _error instanceof Error
+            ? getFriendlyErrorMessage(
+                _error,
+                "No pudimos confirmar tu pedido. Intenta nuevamente.",
+              )
+            : "No pudimos confirmar tu pedido. Intenta nuevamente.";
+        setTransferError(message);
+        notify.error(message, "No pudimos crear tu pedido");
+        return null;
+      } finally {
+        setSubmittingOrder(false);
+      }
+    },
+    [
+      canSubmitOrder,
+      cartBusinessState.resolvedBusinessId,
+      cartId,
+      cartItems,
+      checkoutBlockReason,
+      commissionBreakdown.deliveryFee,
+      commissionBreakdown.driverFee,
+      commissionBreakdown.platformFee,
+      commissionBreakdown.serviceFee,
+      commissionBreakdown.subtotal,
+      commissionBreakdown.terminalFee,
+      commissionBreakdown.total,
+      deliveryInstructions,
+      notify,
+      savedAddress?.id,
+      selectedPaymentMethod,
+      syncCartStorage,
+      transferAccount,
+      user?.id,
+    ],
+  );
+
+  const submitMercadoPagoPayment = useCallback(
+    async (formData: MercadoPagoCardFormData) => {
+      if (!canSubmitOrder) {
+        const message =
+          checkoutBlockReason ||
+          "Revisa la información del pedido para continuar.";
+        setMercadoPagoStatus("error");
+        setMercadoPagoMessage(message);
+        notify.warning(message, "Pedido incompleto");
+        return;
+      }
+
+      const token = String(formData.token ?? "").trim();
+      const paymentMethodId = String(formData.paymentMethodId ?? "").trim();
+
+      if (!token || !paymentMethodId) {
+        const message =
+          "No pudimos validar los datos de la tarjeta. Revisa el formulario.";
+        setMercadoPagoStatus("error");
+        setMercadoPagoMessage(message);
+        notify.warning(message, "Pago incompleto");
+        return;
+      }
+
+      setSubmittingOrder(true);
+      setMercadoPagoStatus("processing");
+      setMercadoPagoMessage("Procesando pago con Mercado Pago...");
+
+      try {
+        const orderId =
+          mercadoPagoOrderId ?? (await processOrder("pending_payment"));
+
+        if (!orderId) {
+          setMercadoPagoStatus("error");
+          setMercadoPagoMessage("No pudimos preparar tu pedido para cobrarlo.");
+          return;
+        }
+
+        setMercadoPagoOrderId(orderId);
+
+        const paymentRes = await fetchWithSession(
+          "/api/payments/mercadopago/process-payment",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              orderId,
+              token,
+              paymentMethodId,
+              issuerId: formData.issuerId || null,
+              installments: Number(formData.installments ?? 1) || 1,
+              identificationType: formData.identificationType || null,
+              identificationNumber: formData.identificationNumber || null,
+              total: commissionBreakdown.total,
+              items: cartItems.map((item) => ({
+                product_id: item.productId,
+                quantity: item.quantity,
+              })),
+            }),
+          },
+        );
+        const paymentData = await paymentRes.json().catch(() => null);
+
+        if (!paymentRes.ok || !paymentData?.success) {
+          throw new Error(
+            formatApiError(
+              paymentRes.status,
+              paymentData,
+              "No pudimos procesar tu pago con Mercado Pago.",
+            ),
+          );
+        }
+
+        const paymentStatus = String(paymentData.paymentStatus ?? "")
+          .trim()
+          .toLowerCase();
+
+        if (paymentStatus === "approved") {
+          setMercadoPagoStatus("approved");
+          setMercadoPagoMessage("Pago aprobado. Tu pedido quedó confirmado.");
           setCartItems([]);
           setCartId(null);
           syncCartStorage([]);
           window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+          notify.success(
+            "Pago aprobado con Mercado Pago.",
+            "Pedido confirmado",
+          );
+          setPaymentDialogOpen(false);
+          router.push(`/orders/${orderId}`);
+          return;
         }
-        setTransferDialogOpen(false);
-        setPaymentDialogOpen(false);
-        setTransferReceiptFile(null);
-        setTransferReceiptName("");
-        setTransferError("");
-        notify.success("Tu pedido fue creado correctamente.", "Pedido listo");
-        return createdOrderId;
-      }
 
-      throw new Error(
-        formatApiError(
-          res.status,
-          data,
-          "No pudimos confirmar tu pedido. Intenta nuevamente.",
-        ),
-      );
-    } catch (_error) {
-      const message =
-        _error instanceof Error
-          ? getFriendlyErrorMessage(
-              _error,
-              "No pudimos confirmar tu pedido. Intenta nuevamente.",
-            )
-          : "No pudimos confirmar tu pedido. Intenta nuevamente.";
-      setTransferError(message);
-      notify.error(message, "No pudimos crear tu pedido");
-      return null;
-    } finally {
-      setSubmittingOrder(false);
+        if (paymentStatus === "pending" || paymentStatus === "in_process") {
+          setMercadoPagoStatus("pending");
+          setMercadoPagoMessage(
+            "Tu pago quedó pendiente de confirmación. Te avisaremos cuando Mercado Pago responda.",
+          );
+          notify.info("Tu pago está pendiente.", "Mercado Pago");
+          router.push(`/checkout/pending?orderId=${orderId}`);
+          return;
+        }
+
+        setMercadoPagoStatus("rejected");
+        setMercadoPagoMessage(
+          "Mercado Pago rechazó el pago. Puedes revisar tu tarjeta o intentar con otro método.",
+        );
+        notify.error("Mercado Pago rechazó el pago.", "Pago rechazado");
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? getFriendlyErrorMessage(
+                error,
+                "No pudimos procesar tu pago con Mercado Pago.",
+              )
+            : "No pudimos procesar tu pago con Mercado Pago.";
+        setMercadoPagoStatus("error");
+        setMercadoPagoMessage(message);
+        notify.error(message, "Pago no completado");
+      } finally {
+        setSubmittingOrder(false);
+      }
+    },
+    [
+      canSubmitOrder,
+      cartItems,
+      checkoutBlockReason,
+      commissionBreakdown.total,
+      mercadoPagoOrderId,
+      notify,
+      processOrder,
+      router,
+      syncCartStorage,
+    ],
+  );
+
+  useEffect(() => {
+    mercadoPagoSubmitRef.current = submitMercadoPagoPayment;
+  }, [submitMercadoPagoPayment]);
+
+  useEffect(() => {
+    if (selectedPaymentMethod !== "mercadopago") {
+      setMercadoPagoStatus("idle");
+      setMercadoPagoMessage("");
+      setMercadoPagoOrderId(null);
     }
-  };
+  }, [selectedPaymentMethod]);
+
+  useEffect(() => {
+    if (!paymentDialogOpen || selectedPaymentMethod !== "mercadopago") {
+      return;
+    }
+
+    if (!MERCADOPAGO_PUBLIC_KEY) {
+      setMercadoPagoStatus("error");
+      setMercadoPagoMessage(
+        "Falta configurar NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY.",
+      );
+      return;
+    }
+
+    let cancelled = false;
+    let cleanup: (() => void) | null = null;
+
+    const mountCardForm = () => {
+      if (cancelled || !window.MercadoPago) return;
+
+      mercadoPagoFormRef.current?.unmount?.();
+      setMercadoPagoStatus("loading");
+      setMercadoPagoMessage("Cargando formulario seguro de Mercado Pago...");
+
+      const mp = new window.MercadoPago(MERCADOPAGO_PUBLIC_KEY, {
+        locale: "es-MX",
+      });
+      const cardForm = mp.cardForm({
+        amount: commissionBreakdown.total.toFixed(2),
+        iframe: true,
+        form: {
+          id: "gogi-mp-card-form",
+          cardNumber: {
+            id: "gogi-mp-card-number",
+            placeholder: "Número de tarjeta",
+          },
+          expirationDate: {
+            id: "gogi-mp-expiration-date",
+            placeholder: "MM/AA",
+          },
+          securityCode: {
+            id: "gogi-mp-security-code",
+            placeholder: "CVV",
+          },
+          cardholderName: {
+            id: "gogi-mp-cardholder-name",
+            placeholder: "Nombre del titular",
+          },
+          issuer: {
+            id: "gogi-mp-issuer",
+            placeholder: "Banco emisor",
+          },
+          installments: {
+            id: "gogi-mp-installments",
+            placeholder: "Cuotas",
+          },
+          identificationType: {
+            id: "gogi-mp-identification-type",
+            placeholder: "Tipo de documento",
+          },
+          identificationNumber: {
+            id: "gogi-mp-identification-number",
+            placeholder: "Número de documento",
+          },
+          cardholderEmail: {
+            id: "gogi-mp-cardholder-email",
+            placeholder: "Correo electrónico",
+          },
+        },
+        callbacks: {
+          onFormMounted: (error?: unknown) => {
+            if (error) {
+              console.warn("Mercado Pago card form mount error:", error);
+              setMercadoPagoStatus("error");
+              setMercadoPagoMessage(
+                "No pudimos cargar el formulario de Mercado Pago.",
+              );
+              return;
+            }
+            setMercadoPagoStatus("ready");
+            setMercadoPagoMessage(
+              "Ingresa tu tarjeta. Tus datos se tokenizan de forma segura.",
+            );
+          },
+          onSubmit: (event: Event) => {
+            event.preventDefault();
+            void mercadoPagoSubmitRef.current?.(cardForm.getCardFormData());
+          },
+          onFetching: () => {
+            setMercadoPagoStatus("processing");
+            setMercadoPagoMessage("Validando datos con Mercado Pago...");
+            return () => {
+              setMercadoPagoStatus("ready");
+            };
+          },
+        },
+      });
+
+      mercadoPagoFormRef.current = cardForm;
+      cleanup = () => {
+        cardForm.unmount?.();
+        mercadoPagoFormRef.current = null;
+      };
+    };
+
+    if (window.MercadoPago) {
+      mountCardForm();
+    } else {
+      const existingScript = document.querySelector<HTMLScriptElement>(
+        'script[src="https://sdk.mercadopago.com/js/v2"]',
+      );
+
+      if (existingScript) {
+        existingScript.addEventListener("load", mountCardForm, { once: true });
+        cleanup = () => {
+          existingScript.removeEventListener("load", mountCardForm);
+        };
+      } else {
+        const script = document.createElement("script");
+        script.src = "https://sdk.mercadopago.com/js/v2";
+        script.async = true;
+        script.onload = mountCardForm;
+        script.onerror = () => {
+          setMercadoPagoStatus("error");
+          setMercadoPagoMessage(
+            "No pudimos cargar Mercado Pago. Revisa tu conexión.",
+          );
+        };
+        document.body.appendChild(script);
+        cleanup = () => {
+          script.onload = null;
+          script.onerror = null;
+        };
+      }
+    }
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
+  }, [commissionBreakdown.total, paymentDialogOpen, selectedPaymentMethod]);
 
   const handleTransferOrder = async () => {
     if (!transferReceiptFile) {
@@ -1436,19 +1718,131 @@ export default function CarritoPage() {
               </button>
             ))}
           </div>
-          <DialogFooter>
-            <Button
-              onClick={handleConfirmOrder}
-              disabled={!canSubmitOrder}
-              size="lg"
-              className="w-full"
+          {selectedPaymentMethod === "mercadopago" ? (
+            <form
+              id="gogi-mp-card-form"
+              className="space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
             >
-              {submittingOrder
-                ? "Procesando..."
-                : selectedPaymentMethod === "mercadopago"
-                  ? "Pagar con Mercado Pago"
-                  : "Finalizar Pedido"}
-            </Button>
+              <div>
+                <p className="text-sm font-black">Paga dentro de Gogi Eats</p>
+                <p className="mt-1 text-xs font-medium leading-5 text-[#7A5A45]">
+                  Tus datos se tokenizan con Mercado Pago. No guardamos tu
+                  tarjeta.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                  <span>Número de tarjeta</span>
+                  <div
+                    id="gogi-mp-card-number"
+                    className="min-h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 py-3"
+                  />
+                </div>
+                <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                  <span>Vencimiento</span>
+                  <div
+                    id="gogi-mp-expiration-date"
+                    className="min-h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 py-3"
+                  />
+                </div>
+                <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                  <span>CVV</span>
+                  <div
+                    id="gogi-mp-security-code"
+                    className="min-h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 py-3"
+                  />
+                </div>
+                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                  Nombre del titular
+                  <input
+                    id="gogi-mp-cardholder-name"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    placeholder="Como aparece en la tarjeta"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                  Banco emisor
+                  <select
+                    id="gogi-mp-issuer"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                  Cuotas
+                  <select
+                    id="gogi-mp-installments"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                  Tipo de documento
+                  <select
+                    id="gogi-mp-identification-type"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                  Número de documento
+                  <input
+                    id="gogi-mp-identification-number"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    placeholder="Si aplica"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                  Correo para el recibo
+                  <input
+                    id="gogi-mp-cardholder-email"
+                    type="email"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    placeholder="correo@ejemplo.com"
+                  />
+                </label>
+              </div>
+              {mercadoPagoMessage ? (
+                <p
+                  className={`rounded-2xl px-3 py-2 text-xs font-bold ${
+                    mercadoPagoStatus === "rejected" ||
+                    mercadoPagoStatus === "error"
+                      ? "bg-red-50 text-red-700"
+                      : mercadoPagoStatus === "approved"
+                        ? "bg-green-50 text-green-700"
+                        : "bg-[#f6ebdd] text-[#7A5A45]"
+                  }`}
+                >
+                  {mercadoPagoMessage}
+                </p>
+              ) : null}
+            </form>
+          ) : null}
+          <DialogFooter>
+            {selectedPaymentMethod === "mercadopago" ? (
+              <Button
+                type="submit"
+                form="gogi-mp-card-form"
+                disabled={
+                  !canSubmitOrder ||
+                  submittingOrder ||
+                  mercadoPagoStatus === "loading" ||
+                  mercadoPagoStatus === "processing"
+                }
+                size="lg"
+                className="w-full bg-[#e98a4a] text-white hover:bg-[#d97836]"
+              >
+                {submittingOrder || mercadoPagoStatus === "processing"
+                  ? "Procesando pago..."
+                  : "Pagar ahora"}
+              </Button>
+            ) : (
+              <Button
+                onClick={handleConfirmOrder}
+                disabled={!canSubmitOrder}
+                size="lg"
+                className="w-full"
+              >
+                {submittingOrder ? "Procesando..." : "Finalizar Pedido"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

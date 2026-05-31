@@ -6,10 +6,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { isAuthUserActive } from "@/lib/auth-users";
 import pool from "@/lib/db";
-import {
-  createMercadoPagoPayment,
-  getAppUrl,
-} from "@/lib/mercadopago";
+import { createMercadoPagoPayment, getAppUrl } from "@/lib/mercadopago";
 import {
   createNotificationForBusinessSafely,
   createNotificationsForAdminGeneralSafely,
@@ -447,7 +444,10 @@ export async function POST(req: NextRequest) {
       orderStatus: nextStatus,
     });
   } catch (error) {
-    console.error("Error POST /api/payments/mercadopago/process-payment:", error);
+    console.error(
+      "Error POST /api/payments/mercadopago/process-payment:",
+      error,
+    );
     return NextResponse.json(
       {
         success: false,

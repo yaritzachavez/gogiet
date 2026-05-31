@@ -6,38 +6,6 @@ const MERCADOPAGO_API_BASE_URL = "https://api.mercadopago.com";
 const DEFAULT_APP_URL = "https://www.gogieats.shop";
 const DEFAULT_WEBHOOK_TOLERANCE_MS = 15 * 60 * 1000;
 
-type MercadoPagoItem = {
-  id?: string;
-  title: string;
-  quantity: number;
-  currency_id: string;
-  unit_price: number;
-};
-
-type CreatePreferencePayload = {
-  items: MercadoPagoItem[];
-  external_reference: string;
-  notification_url: string;
-  back_urls: {
-    success: string;
-    failure: string;
-    pending: string;
-  };
-  auto_return?: "approved";
-  metadata?: Record<string, unknown>;
-  payer?: {
-    email?: string;
-    name?: string;
-  };
-};
-
-type MercadoPagoPreferenceResponse = {
-  id?: string;
-  init_point?: string;
-  sandbox_init_point?: string;
-  [key: string]: unknown;
-};
-
 type MercadoPagoPaymentResponse = {
   id?: number | string;
   status?: string;
@@ -261,18 +229,6 @@ async function mercadoPagoRequest<T>(
   }
 
   return data;
-}
-
-export async function createMercadoPagoPreference(
-  payload: CreatePreferencePayload,
-) {
-  return mercadoPagoRequest<MercadoPagoPreferenceResponse>(
-    "/checkout/preferences",
-    {
-      method: "POST",
-      body: JSON.stringify(payload),
-    },
-  );
 }
 
 export async function getMercadoPagoPayment(paymentId: string) {

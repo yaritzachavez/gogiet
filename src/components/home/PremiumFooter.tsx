@@ -1,6 +1,3 @@
-import Image from "next/image";
-import Link from "next/link";
-import type { ComponentType, ReactNode } from "react";
 import {
   ArrowRight,
   Building2,
@@ -12,6 +9,9 @@ import {
   Store,
   Truck,
 } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
+import type { ComponentType, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -97,13 +97,13 @@ export function PremiumFooter() {
           <div className="absolute inset-x-10 top-0 h-px bg-gradient-to-r from-transparent via-orange-500/30 to-transparent" />
           <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-[1.2fr_0.9fr_0.9fr_1fr]">
             <div className="space-y-4">
-              <div className="inline-flex items-center gap-3 rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05)_0%,rgba(255,107,0,0.08)_100%)] px-4 py-3 shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
-                <div className="relative h-10 w-[7.25rem] overflow-hidden rounded-2xl border border-orange-500/20 bg-[#171717] px-2 shadow-[0_12px_24px_rgba(234,88,12,0.18)]">
+              <div className="inline-flex items-center gap-3 px-0 py-2">
+                <div className="relative h-12 w-[8rem]">
                   <Image
-                    src="/LOGO-NEW2.jpg"
+                    src="/7.png"
                     alt="Gogi Eats"
                     fill
-                    className="object-contain p-1"
+                    className="object-contain drop-shadow-[0_12px_24px_rgba(234,88,12,0.18)]"
                   />
                 </div>
                 <div>
@@ -150,7 +150,10 @@ export function PremiumFooter() {
                   <FooterLink
                     key={link.href}
                     href={link.href}
-                    external={link.href.startsWith("http") || link.href.startsWith("mailto:")}
+                    external={
+                      link.href.startsWith("http") ||
+                      link.href.startsWith("mailto:")
+                    }
                   >
                     <Icon className="size-4 text-orange-500" />
                     <span>{link.label}</span>

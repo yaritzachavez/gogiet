@@ -11,11 +11,11 @@ export const metadata: Metadata = {
   icons: [
     {
       rel: "icon",
-      url: "/LOGO-NEW2.jpg",
+      url: "/7.png",
     },
     {
       rel: "apple-touch-icon",
-      url: "/LOGO-NEW2.jpg",
+      url: "/7.png",
     },
   ],
 };

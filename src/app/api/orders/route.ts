@@ -266,7 +266,7 @@ async function getOrCreateCatalogId(
       efectivo: "Pago en efectivo al recibir",
       transferencia: "Transferencia bancaria por validar",
       terminal: "Pago con terminal al recibir",
-      mercadopago: "Pago con tarjeta vía Mercado Pago Checkout Pro",
+      mercadopago: "Pago con tarjeta vía Mercado Pago Checkout API",
     };
 
     const [result] = await conn.query<ResultSetHeader>(

@@ -187,9 +187,6 @@ export default function Navbar() {
   const navClassName = isDeliveryRoute
     ? "sticky top-0 z-40 border-b border-[#E7D8C7] bg-[#FFF9F2]/95 text-[#222222] shadow-[0_8px_30px_rgba(180,140,90,0.08)] backdrop-blur-xl"
     : "sticky top-0 z-40 border-b border-white/8 bg-[#0b0b0b]/84 text-white shadow-[0_18px_40px_rgba(0,0,0,0.32)] backdrop-blur-xl";
-  const logoTextClassName = isDeliveryRoute
-    ? "hidden truncate text-base font-extrabold tracking-[0.12em] text-[#222222] sm:inline"
-    : "hidden truncate text-base font-extrabold tracking-[0.12em] text-white sm:inline";
   const navLinkClassName = isDeliveryRoute
     ? "text-sm font-semibold text-[#6F5D4C] transition-colors hover:text-[#222222]"
     : "text-sm font-semibold text-[#b3b3b3] transition-colors hover:text-white";
@@ -440,17 +437,16 @@ export default function Navbar() {
               href="/"
               className="group flex min-w-0 items-center gap-2 rounded-2xl transition-all duration-300 sm:gap-3"
             >
-              <div className="relative h-9 w-9 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_14px_30px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
+              <div className="relative h-10 w-10 transition-transform duration-300 group-hover:-translate-y-0.5 sm:h-14 sm:w-14">
                 <Image
-                  src="/LOGO-NEW2.jpg"
+                  src="/7.png"
                   alt="Gogi Eats"
                   fill
                   sizes="(max-width: 768px) 120px, 160px"
-                  className="scale-[1.6] object-contain"
+                  className="object-contain"
                   priority
                 />
               </div>
-              <span className={logoTextClassName}>Gogi Eats</span>
             </Link>
           </div>
         </div>
@@ -467,17 +463,16 @@ export default function Navbar() {
               href="/"
               className="group flex min-w-0 items-center gap-2 rounded-2xl transition-all duration-300 sm:gap-3"
             >
-              <div className="relative h-9 w-9 overflow-hidden rounded-full bg-white shadow-[0_10px_24px_rgba(255,107,0,0.10)] ring-1 ring-white/12 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-[0_16px_34px_rgba(255,107,0,0.16)] sm:h-12 sm:w-12">
+              <div className="relative h-10 w-10 transition-transform duration-300 group-hover:-translate-y-0.5 sm:h-14 sm:w-14">
                 <Image
-                  src="/LOGO-NEW2.jpg"
+                  src="/7.png"
                   alt="Gogi Eats"
                   fill
                   sizes="(max-width: 768px) 120px, 160px"
-                  className="scale-[1.6] object-contain"
+                  className="object-contain"
                   priority
                 />
               </div>
-              <span className={logoTextClassName}>Gogi Eats</span>
             </Link>
           </div>
 

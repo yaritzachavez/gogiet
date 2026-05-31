@@ -231,7 +231,7 @@ export function DeliveryHeader({
             <p>Hola {driverName}, ¿todo bien en tu ruta?</p>
           </div>
           <textarea
-            className="mt-3 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-2 text-sm text-[#3B2D25] outline-none focus:border-orange-400"
+            className="mt-3 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDFD] p-2 text-sm font-semibold text-[#222222] outline-none transition placeholder:text-[#8b8b8b] focus:border-[#e98a4a] focus:ring-2 focus:ring-[#e98a4a]/20 disabled:cursor-not-allowed disabled:bg-[#f6ebdd] disabled:text-[#7A5A45]"
             rows={2}
             placeholder="Escribe un mensaje rápido..."
             value={chatMessage}
@@ -259,7 +259,7 @@ export function DeliveryHeader({
               <select
                 value={reportType}
                 onChange={(event) => setReportType(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-2 text-sm text-[#3B2D25] focus:border-orange-400"
+                className="mt-1 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDFD] p-2 text-sm font-semibold text-[#222222] outline-none transition placeholder:text-[#8b8b8b] focus:border-[#e98a4a] focus:ring-2 focus:ring-[#e98a4a]/20 disabled:cursor-not-allowed disabled:bg-[#f6ebdd] disabled:text-[#7A5A45]"
               >
                 <option value="clima">Clima</option>
                 <option value="trafico">Tráfico</option>
@@ -277,7 +277,7 @@ export function DeliveryHeader({
               value={reportNotes}
               onChange={(event) => setReportNotes(event.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-2 text-sm text-[#3B2D25] focus:border-orange-400"
+              className="mt-1 w-full rounded-xl border border-[#E8DCCB] bg-[#FFFDFD] p-2 text-sm font-semibold text-[#222222] outline-none transition placeholder:text-[#8b8b8b] focus:border-[#e98a4a] focus:ring-2 focus:ring-[#e98a4a]/20 disabled:cursor-not-allowed disabled:bg-[#f6ebdd] disabled:text-[#7A5A45]"
               placeholder="Describe brevemente la incidencia"
             />
           </label>

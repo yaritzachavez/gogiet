@@ -65,6 +65,9 @@ const EMPTY_PROFILE: DeliveryProfile = {
   is_available: true,
 };
 
+const DELIVERY_FIELD_CLASS =
+  "rounded-2xl border border-[#E8DCCB] bg-[#FFFDFD] px-4 py-3 text-sm font-semibold text-[#222222] shadow-none outline-none transition placeholder:text-[#8b8b8b] focus:border-[#e98a4a] focus:bg-[#fffffd] focus:ring-2 focus:ring-[#e98a4a]/20 disabled:cursor-not-allowed disabled:border-[#E7D8C7] disabled:bg-[#f6ebdd] disabled:text-[#7A5A45] disabled:opacity-75";
+
 function getProfileImageUrl(profilePayload: Record<string, unknown> | null) {
   const candidates = [
     profilePayload?.profile_image_url,
@@ -1566,7 +1569,7 @@ export default function DeliveryDashboardPage() {
                   id="delivery-evidence-photo"
                   type="file"
                   accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                  className="mt-2 block w-full rounded-2xl border border-[#dcc7b0] bg-[#fdf7ef] px-4 py-3 text-sm text-[#3d3025]"
+                  className={`${DELIVERY_FIELD_CLASS} mt-2 block w-full file:mr-4 file:rounded-full file:border-0 file:bg-[#f6ebdd] file:px-3 file:py-1.5 file:text-sm file:font-bold file:text-[#222222]`}
                   onChange={(event) =>
                     setDeliveryEvidence((current) => ({
                       ...current,
@@ -1595,7 +1598,7 @@ export default function DeliveryDashboardPage() {
                     }))
                   }
                   placeholder="Ej. Se entregó en mano al cliente o se dejó en recepción."
-                  className="mt-2 w-full rounded-2xl border border-[#dcc7b0] bg-[#fdf7ef] px-4 py-3 text-sm text-[#3d3025] outline-none focus:border-[#d97a37]"
+                  className={`${DELIVERY_FIELD_CLASS} mt-2 w-full resize-none`}
                 />
               </div>
 
@@ -1708,7 +1711,7 @@ export default function DeliveryDashboardPage() {
                             name: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                       />
                     </label>
                     <label className="grid gap-2">
@@ -1723,7 +1726,7 @@ export default function DeliveryDashboardPage() {
                             phone: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                       />
                     </label>
                     <label className="grid gap-2">
@@ -1738,7 +1741,7 @@ export default function DeliveryDashboardPage() {
                             delivery_zone: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                       />
                     </label>
                     <label className="grid gap-2">
@@ -1753,7 +1756,7 @@ export default function DeliveryDashboardPage() {
                             is_available: event.target.value === "activo",
                           }))
                         }
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                       >
                         <option value="activo">Activo</option>
                         <option value="pausado">Pausado</option>
@@ -1771,7 +1774,7 @@ export default function DeliveryDashboardPage() {
                             vehicle_type: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                       >
                         <option value="">Selecciona</option>
                         <option value="moto">Moto</option>
@@ -1792,7 +1795,7 @@ export default function DeliveryDashboardPage() {
                             vehicle_plate: event.target.value,
                           }))
                         }
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                         placeholder="Solo si aplica"
                       />
                     </label>
@@ -1809,7 +1812,7 @@ export default function DeliveryDashboardPage() {
                           }))
                         }
                         rows={4}
-                        className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm outline-none focus:border-orange-300"
+                        className={DELIVERY_FIELD_CLASS}
                       />
                     </label>
                   </div>

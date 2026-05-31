@@ -380,7 +380,7 @@ export function NotificationsCard({
                     ? "Describe claramente la incidencia de la entrega..."
                     : "Escribe tu mensaje para soporte..."
                 }
-                className="w-full rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-sm text-[#3B2D25] outline-none ring-0 transition placeholder:text-[#a1866f] focus:border-orange-300"
+                className="w-full rounded-2xl border border-[#E8DCCB] bg-[#FFFDFD] px-4 py-3 text-sm font-semibold text-[#222222] outline-none ring-0 transition placeholder:text-[#8b8b8b] focus:border-[#e98a4a] focus:ring-2 focus:ring-[#e98a4a]/20 disabled:cursor-not-allowed disabled:bg-[#f6ebdd] disabled:text-[#7A5A45]"
               />
               {threadError ? (
                 <p className="text-sm text-[#9a5b36]">{threadError}</p>
