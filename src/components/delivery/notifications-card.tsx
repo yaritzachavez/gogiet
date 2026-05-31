@@ -225,7 +225,7 @@ export function NotificationsCard({
 
   return (
     <>
-      <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <Card className="gap-0 overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] py-0 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
         <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-6 text-[#3B2D25]">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Bell className="h-5 w-5" />

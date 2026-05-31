@@ -93,7 +93,7 @@ export function CurrentDeliveriesCard({
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
 
   return (
-    <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+    <Card className="gap-0 overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] py-0 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
       <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
