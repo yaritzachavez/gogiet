@@ -1,6 +1,7 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getSafeErrorMessage } from "@/lib/api-error";
 import pool from "@/lib/db";
 import { getMercadoPagoWebhookSecret, getRuntimeEnvironment } from "@/lib/env";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
@@ -619,7 +620,13 @@ export async function POST(req: NextRequest) {
 
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: getSafeErrorMessage(
+            error,
+            "No pudimos procesar la notificación de pago.",
+          ),
+        },
         { status: error.statusCode },
       );
     }

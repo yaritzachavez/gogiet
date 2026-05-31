@@ -2,7 +2,7 @@ require("dotenv").config({ path: ".env.local" });
 require("dotenv").config({ path: ".env" });
 
 const mysql = require("mysql2/promise");
-const { PrismaClient } = require("@prisma/client");
+const { prisma } = require("./prisma-runtime");
 
 function maskUrl(value) {
   if (!value) return null;
@@ -48,8 +48,6 @@ async function main() {
       Boolean(process.env.DB_HOST) &&
       databaseUrlHost !== process.env.DB_HOST,
   });
-
-  const prisma = new PrismaClient();
 
   try {
     await prisma.$connect();

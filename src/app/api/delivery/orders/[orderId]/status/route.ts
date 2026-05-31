@@ -6,6 +6,7 @@ import type {
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { recordAuditLog } from "@/lib/audit-log";
 import { ensureDeliveryStatus } from "@/lib/business-panel";
 import pool from "@/lib/db";
@@ -651,17 +652,20 @@ export async function PATCH(
     console.error("Error PATCH /api/delivery/orders/[orderId]/status:", error);
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: getSafeErrorMessage(
+            error,
+            "No se pudo actualizar la entrega.",
+          ),
+        },
         { status: error.statusCode },
       );
     }
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar la entrega.",
+        error: getSafeErrorMessage(error, "No se pudo actualizar la entrega."),
       },
       { status: 500 },
     );

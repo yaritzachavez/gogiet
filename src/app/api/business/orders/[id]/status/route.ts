@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
@@ -194,17 +195,17 @@ export async function PATCH(
     );
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: getSafeErrorMessage(error, "No se pudo actualizar el pedido."),
+        },
         { status: error.statusCode },
       );
     }
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar el pedido.",
+        error: getSafeErrorMessage(error, "No se pudo actualizar el pedido."),
       },
       { status: 500 },
     );

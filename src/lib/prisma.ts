@@ -194,7 +194,34 @@ function resolvePrismaDatabaseUrl() {
   return process.env.DATABASE_URL;
 }
 
-resolvePrismaDatabaseUrl();
+function applyPrismaPoolParams(databaseUrl: string) {
+  const parsedUrl = new URL(databaseUrl);
+  const runtimeEnvironment = getRuntimeEnvironment();
+  const connectionLimit =
+    Number(process.env.PRISMA_CONNECTION_LIMIT ?? "") ||
+    Number(process.env.DB_POOL_CONNECTION_LIMIT ?? "") ||
+    (runtimeEnvironment === "production" ? 2 : 3);
+  const poolTimeout = Number(process.env.PRISMA_POOL_TIMEOUT ?? "") || 20;
+
+  if (!parsedUrl.searchParams.has("connection_limit")) {
+    parsedUrl.searchParams.set(
+      "connection_limit",
+      String(Math.max(1, Math.min(connectionLimit, 5))),
+    );
+  }
+
+  if (!parsedUrl.searchParams.has("pool_timeout")) {
+    parsedUrl.searchParams.set("pool_timeout", String(poolTimeout));
+  }
+
+  return parsedUrl.toString();
+}
+
+const resolvedPrismaDatabaseUrl = resolvePrismaDatabaseUrl();
+
+if (resolvedPrismaDatabaseUrl) {
+  process.env.DATABASE_URL = applyPrismaPoolParams(resolvedPrismaDatabaseUrl);
+}
 
 const prismaClientOptions: Prisma.PrismaClientOptions = {
   log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],

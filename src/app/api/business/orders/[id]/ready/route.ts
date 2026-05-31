@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { recordAuditLog } from "@/lib/audit-log";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
@@ -311,23 +312,35 @@ export async function PATCH(
     );
     if (error instanceof DeliveryAssignmentError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: getSafeErrorMessage(
+            error,
+            "No se pudo solicitar repartidor para el pedido.",
+          ),
+        },
         { status: error.status },
       );
     }
     if (error instanceof OrderStatusTransitionError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: getSafeErrorMessage(
+            error,
+            "No se pudo marcar el pedido como listo.",
+          ),
+        },
         { status: error.statusCode },
       );
     }
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo marcar el pedido como listo.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo marcar el pedido como listo.",
+        ),
       },
       { status: 500 },
     );

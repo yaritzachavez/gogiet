@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: "No se pudieron obtener los accesos del usuario.",
-        details: error instanceof Error ? error.message : String(error),
+        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
         access: [],
       },
       { status: 500 },

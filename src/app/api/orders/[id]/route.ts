@@ -1,6 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { safeErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 import { createNotificationsForAdminGeneral } from "@/lib/notifications";
 import {
@@ -288,14 +289,10 @@ export async function GET(req: NextRequest, context: RouteContext) {
       order,
     });
   } catch (error) {
-    console.error("Error GET /api/orders/:id:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error interno del servidor",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 },
+    return safeErrorResponse(
+      "orders.get_by_id_error",
+      error,
+      "No pudimos cargar el pedido.",
     );
   }
 }
@@ -475,13 +472,10 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     const order = await getOrderById(orderId);
     return NextResponse.json({ message: "Pedido actualizado", order });
   } catch (error) {
-    console.error("Error PATCH /api/orders/:id:", error);
-    return NextResponse.json(
-      {
-        error: "Error interno del servidor",
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 },
+    return safeErrorResponse(
+      "orders.update_error",
+      error,
+      "No pudimos actualizar el pedido.",
     );
   }
 }

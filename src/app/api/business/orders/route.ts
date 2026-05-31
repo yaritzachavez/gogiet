@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import { resolveBusinessAccess } from "@/lib/business-panel";
-import pool, { logDbUsage } from "@/lib/db";
+import pool, { getFriendlyDatabaseErrorMessage, logDbUsage } from "@/lib/db";
 import {
   getOrderStatusLabel,
   resolveCanonicalOrderStatus,
@@ -261,10 +261,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar los pedidos del negocio.",
+        error: getFriendlyDatabaseErrorMessage(error),
         orders: [],
       },
       { status: 500 },

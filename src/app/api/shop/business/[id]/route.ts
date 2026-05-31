@@ -6,6 +6,10 @@ import { NextResponse } from "next/server";
 import { getBusinessOpenStatus } from "@/lib/business-hours";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
+import {
+  getPublicErrorMessage,
+  logPublicApiError,
+} from "@/lib/public-api-errors";
 
 type BusinessRow = RowDataPacket & {
   id: number;
@@ -294,10 +298,19 @@ export async function GET(
       { status: 200 },
     );
   } catch (error) {
-    console.error("Error al obtener negocio:", error);
+    logPublicApiError("[shop_business_detail_error]", error);
     return NextResponse.json(
-      { error: "Error interno", details: (error as Error).message },
-      { status: 500 },
+      {
+        success: false,
+        error: getPublicErrorMessage(
+          error,
+          "No pudimos cargar este negocio. Intenta nuevamente.",
+        ),
+        business: null,
+        products: [],
+        categories: [],
+      },
+      { status: 503 },
     );
   }
 }

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import {
   DeliveryAssignmentError,
   respondToCourierAssignment,
@@ -61,7 +62,13 @@ export async function PATCH(
 
     if (error instanceof DeliveryAssignmentError) {
       return NextResponse.json(
-        { success: false, error: error.message },
+        {
+          success: false,
+          error: getSafeErrorMessage(
+            error,
+            "No se pudo responder la asignacion.",
+          ),
+        },
         { status: error.status },
       );
     }
@@ -69,10 +76,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo responder la asignacion.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo responder la asignacion.",
+        ),
       },
       { status: 500 },
     );

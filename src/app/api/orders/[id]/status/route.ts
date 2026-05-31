@@ -1,7 +1,8 @@
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
@@ -17,15 +18,13 @@ import {
   OrderStatusTransitionError,
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
-import {
-  ensureCoreOrderStatuses,
-} from "@/lib/order-status-server";
+import { ensureCoreOrderStatuses } from "@/lib/order-status-server";
 
 type OrderRow = RowDataPacket &
   GuardedOrderRow & {
-  id: number;
-  business_name: string;
-};
+    id: number;
+    business_name: string;
+  };
 
 function getStatusNotificationCopy(
   status: CanonicalOrderStatus,
@@ -135,7 +134,9 @@ export async function PATCH(
       auth.user.id,
       Number(order.businessId),
     );
-    const isBusinessActor = businessAccess.businessIds.includes(Number(order.businessId));
+    const isBusinessActor = businessAccess.businessIds.includes(
+      Number(order.businessId),
+    );
     const isAssignedDriver = Number(order.driverUserId ?? 0) === auth.user.id;
     const isCustomer = Number(order.customerUserId) === auth.user.id;
 
@@ -180,13 +181,11 @@ export async function PATCH(
       },
     });
 
-    const canonical = resolveCanonicalOrderStatus(
-      requestedStatus,
-    );
+    const canonical = resolveCanonicalOrderStatus(requestedStatus);
     const notificationCopy =
       currentStatus !== canonical
         ? getStatusNotificationCopy(
-          canonical,
+            canonical,
             orderId,
             String(order.business_name ?? "tu negocio"),
           )
@@ -227,7 +226,10 @@ export async function PATCH(
       return NextResponse.json(
         {
           success: false,
-          error: error.message,
+          error: getSafeErrorMessage(
+            error,
+            "No se pudo cambiar el estado del pedido.",
+          ),
         },
         { status: error.statusCode },
       );
@@ -235,10 +237,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar el estado del pedido.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo actualizar el estado del pedido.",
+        ),
       },
       { status: 500 },
     );

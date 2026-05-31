@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
 import pool, { logDbUsage } from "@/lib/db";
+import { logPublicApiError } from "@/lib/public-api-errors";
 
 type OrderActivityRow = RowDataPacket & {
   id: number;
@@ -121,13 +122,7 @@ export async function GET() {
       { status: 200 },
     );
   } catch (error) {
-    const details = error instanceof Error ? error.message : String(error);
-
-    console.error("ERROR GET /api/public/recent-activity:", {
-      details,
-      stack: error instanceof Error ? error.stack : undefined,
-      error,
-    });
+    logPublicApiError("[recent_activity_error]", error);
 
     return NextResponse.json(
       {
@@ -139,9 +134,6 @@ export async function GET() {
           businessName: null,
           createdAt: null,
         })),
-        error: "No se pudo cargar la actividad reciente",
-        details,
-        debug: null,
       },
       { status: 200 },
     );

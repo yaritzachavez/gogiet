@@ -409,8 +409,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
         });
         setBusiness(DEFAULT_BUSINESS);
         setBusinessError(
-          (typeof data.details === "string" && data.details) ||
-            (typeof data.error === "string" && data.error) ||
+          (typeof data.error === "string" && data.error) ||
             (typeof data.message === "string" && data.message) ||
             "No se pudo cargar la informacion del negocio.",
         );
@@ -877,12 +876,10 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       });
       await loadOrders();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : JSON.stringify(error);
-      console.error("Error real backend", message, error);
+      console.error("Error marcando pedido listo", error);
       setActionFeedback({
         type: "error",
-        message: message || "No se pudo marcar el pedido como listo.",
+        message: "No se pudo marcar el pedido como listo. Intenta de nuevo.",
       });
     } finally {
       setActionLoading({ orderId: null, type: null });
@@ -929,12 +926,10 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       });
       await loadOrders();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : JSON.stringify(error);
+      console.error("Error aceptando pedido", error);
       setActionFeedback({
         type: "error",
         message:
-          message ||
           "Primero debes aceptar el pedido o validar el pago antes de marcarlo como listo.",
       });
     } finally {
@@ -982,12 +977,10 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       });
       await loadOrders();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : JSON.stringify(error);
+      console.error("Error marcando pedido en preparación", error);
       setActionFeedback({
         type: "error",
         message:
-          message ||
           "Primero debes aceptar el pedido o validar el pago antes de marcarlo como listo.",
       });
     } finally {
@@ -1048,12 +1041,10 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       });
       await loadOrders();
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : JSON.stringify(error);
-      console.error("Error solicitando repartidor:", message, error);
+      console.error("Error solicitando repartidor:", error);
       setActionFeedback({
         type: "error",
-        message: message || "No se pudo solicitar repartidor.",
+        message: "No se pudo solicitar repartidor. Intenta de nuevo.",
       });
     } finally {
       setActionLoading({ orderId: null, type: null });

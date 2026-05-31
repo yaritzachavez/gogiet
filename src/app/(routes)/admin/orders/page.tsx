@@ -173,7 +173,7 @@ export default function AdminOrdersPage() {
 
     const intervalId = window.setInterval(() => {
       loadOrders(true);
-    }, 5000);
+    }, 15000);
 
     return () => window.clearInterval(intervalId);
   }, [loadOrders]);

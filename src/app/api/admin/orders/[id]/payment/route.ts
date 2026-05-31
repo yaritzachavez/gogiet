@@ -1,6 +1,7 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import { createNotificationForBusinessSafely } from "@/lib/notifications";
@@ -233,12 +234,22 @@ export async function PATCH(
   } catch (error) {
     console.error("Error PATCH /api/admin/orders/[id]/payment:", error);
     if (error instanceof OrderStatusTransitionError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+      return NextResponse.json(
+        {
+          error: getSafeErrorMessage(error, "No se pudo validar el pago."),
+        },
+        { status: error.statusCode },
+      );
     }
     return NextResponse.json(
       {
         error: "No se pudo validar el pago.",
-        details: error instanceof Error ? error.message : String(error),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );

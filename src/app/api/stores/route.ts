@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { logDbUsage } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { getPublicErrorMessage } from "@/lib/public-api-errors";
 import { getPublicStores } from "@/lib/public-stores";
 
 export async function GET(req: Request) {
@@ -20,8 +21,15 @@ export async function GET(req: Request) {
   } catch (error) {
     logger.error("stores.list_error", "Error GET /api/stores", { error });
     return NextResponse.json(
-      { success: false, error: "Error interno del servidor" },
-      { status: 500 },
+      {
+        success: false,
+        error: getPublicErrorMessage(
+          error,
+          "No pudimos cargar las tiendas. Intenta nuevamente.",
+        ),
+        stores: [],
+      },
+      { status: 503 },
     );
   }
 }

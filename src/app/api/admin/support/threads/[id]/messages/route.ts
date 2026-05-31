@@ -90,7 +90,7 @@ export async function POST(
     return NextResponse.json(
       {
         error: "No se pudo enviar el mensaje.",
-        details: error instanceof Error ? error.message : String(error),
+        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
       },
       { status: 500 },
     );

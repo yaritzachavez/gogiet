@@ -1063,7 +1063,7 @@ export default function DeliveryDashboardPage() {
 
     const intervalId = window.setInterval(() => {
       fetchDeliveryData({ background: true });
-    }, 10000);
+    }, 15000);
 
     return () => {
       window.clearInterval(intervalId);
@@ -1083,7 +1083,7 @@ export default function DeliveryDashboardPage() {
 
     const intervalId = window.setInterval(() => {
       fetchEarnings();
-    }, 10000);
+    }, 30000);
 
     return () => {
       window.clearInterval(intervalId);

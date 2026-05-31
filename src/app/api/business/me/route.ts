@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import {
   ensureBusinessHoursSchema,
   isBusinessOpenByHours,
@@ -387,10 +388,16 @@ export async function GET(req: NextRequest) {
           orphanedOwnerBusinessIds.length > 0
             ? "Tu negocio asignado ya no existe"
             : "No tienes un negocio asignado",
-        details:
-          orphanedOwnerBusinessIds.length > 0
-            ? "Se detectaron relaciones huérfanas en business_owners. Revisa la asignación del negocio."
-            : "No se encontró relación del usuario autenticado en business_owners ni coincidencia reparable por owner_id, owner_user_id o email.",
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : {
+                details:
+                  orphanedOwnerBusinessIds.length > 0
+                    ? "Se detectaron relaciones huérfanas en business_owners. Revisa la asignación del negocio."
+                    : "No se encontró relación del usuario autenticado en business_owners ni coincidencia reparable por owner_id, owner_user_id o email.",
+                context: debug,
+              },
         business: null,
         businesses: [],
         orphaned_business_ids: orphanedOwnerBusinessIds,
@@ -400,7 +407,6 @@ export async function GET(req: NextRequest) {
         completed_orders_count: 0,
         critical_inventory_count: 0,
         hours: [],
-        debug,
       });
     }
 
@@ -465,8 +471,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         success: false,
         error: "Negocio no encontrado",
-        details:
-          "La relación del usuario existe, pero el negocio asignado ya no está disponible en la tabla businesses.",
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : {
+                details:
+                  "La relación del usuario existe, pero el negocio asignado ya no está disponible en la tabla businesses.",
+                context: debug,
+              },
         business: null,
         businesses: assignedBusinesses.map((assignedBusiness) => ({
           id: Number(assignedBusiness.id),
@@ -480,7 +492,6 @@ export async function GET(req: NextRequest) {
         completed_orders_count: 0,
         critical_inventory_count: 0,
         hours: [],
-        debug,
       });
     }
 
@@ -599,8 +610,6 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-
     console.error("Error GET /api/business/me:", {
       userId: debug.userId,
       email: debug.email,
@@ -609,15 +618,17 @@ export async function GET(req: NextRequest) {
       businessOwnersResult: debug.businessOwnersResult,
       ownerBusinessesResult: debug.ownerBusinessesResult,
       businessResult: debug.businessResult,
-      message,
+      message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
     });
     return NextResponse.json(
       {
         success: false,
-        error: "No se pudo cargar el negocio del usuario.",
-        details: message,
-        debug,
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo cargar el negocio del usuario.",
+        ),
+        debug: process.env.NODE_ENV === "production" ? undefined : debug,
       },
       { status: 500 },
     );

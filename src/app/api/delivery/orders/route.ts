@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
 import { getCurrentDriverDeliveries } from "@/lib/delivery/current-driver-orders";
 import { requireDriverAccess } from "@/lib/permissions";
@@ -73,13 +74,10 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         ok: false,
-        error:
-          serializedError && typeof serializedError === "object"
-            ? String(
-                (serializedError as Record<string, unknown>).message ??
-                  "No se pudieron cargar las entregas del repartidor.",
-              )
-            : "No se pudieron cargar las entregas del repartidor.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudieron cargar las entregas del repartidor.",
+        ),
         debug:
           process.env.NODE_ENV === "production" ? undefined : serializedError,
         orders: [],

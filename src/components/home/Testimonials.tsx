@@ -73,11 +73,7 @@ export function Testimonials() {
         }
 
         if (!response.ok || !payload.success) {
-          setError(
-            payload.details ??
-              payload.error ??
-              "No se pudieron cargar las reseñas reales.",
-          );
+          setError("No pudimos cargar las reseñas por ahora.");
           setTestimonials([]);
           return;
         }
@@ -89,11 +85,8 @@ export function Testimonials() {
           return;
         }
 
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "No se pudieron cargar las reseñas reales.",
-        );
+        console.error("[testimonials_client_error]", fetchError);
+        setError("No pudimos cargar las reseñas por ahora.");
         setTestimonials([]);
       } finally {
         if (active) {

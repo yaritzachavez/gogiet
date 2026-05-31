@@ -77,11 +77,7 @@ export function PopularProducts() {
         }
 
         if (!response.ok || !payload.success) {
-          setError(
-            payload.details ??
-              payload.error ??
-              "No se pudieron cargar los productos populares.",
-          );
+          setError("No pudimos cargar los productos populares por ahora.");
           setProducts([]);
           return;
         }
@@ -93,11 +89,8 @@ export function PopularProducts() {
           return;
         }
 
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "No se pudieron cargar los productos populares.",
-        );
+        console.error("[popular_products_client_error]", fetchError);
+        setError("No pudimos cargar los productos populares por ahora.");
         setProducts([]);
       } finally {
         if (active) {

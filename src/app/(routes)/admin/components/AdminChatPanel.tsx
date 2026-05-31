@@ -391,7 +391,7 @@ export function AdminChatPanel() {
 
     const intervalId = window.setInterval(() => {
       loadThreads(true);
-    }, 5000);
+    }, 15000);
 
     return () => window.clearInterval(intervalId);
   }, [loadThreads]);
@@ -405,7 +405,7 @@ export function AdminChatPanel() {
 
     const intervalId = window.setInterval(() => {
       loadThreadDetail(activeId, true);
-    }, 5000);
+    }, 10000);
 
     return () => window.clearInterval(intervalId);
   }, [activeId, loadThreadDetail]);

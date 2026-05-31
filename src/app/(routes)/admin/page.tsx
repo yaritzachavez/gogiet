@@ -158,7 +158,7 @@ export default function AdminDashboardPage() {
 
     const intervalId = window.setInterval(() => {
       loadDashboard();
-    }, 5000);
+    }, 15000);
 
     return () => window.clearInterval(intervalId);
   }, [loadDashboard]);

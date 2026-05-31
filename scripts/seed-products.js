@@ -1,7 +1,5 @@
-const { PrismaClient } = require("@prisma/client");
 const { PRODUCT_CATALOGS } = require("../prisma/seed-products");
-
-const prisma = new PrismaClient();
+const { prisma } = require("./prisma-runtime");
 
 const CLOUDINARY_BASE = "https://res.cloudinary.com/demo/image/upload";
 
@@ -59,9 +57,7 @@ function getCatalogKey(businessName, categoryNames) {
   }
 
   if (
-    normalizedCategories.some((category) =>
-      ["farmacia"].includes(category),
-    ) ||
+    normalizedCategories.some((category) => ["farmacia"].includes(category)) ||
     normalizedName.includes("farmacia")
   ) {
     return "farmacia";
@@ -136,7 +132,9 @@ async function getProductCategories() {
 
   return {
     categories,
-    byName: new Map(categories.map((category) => [slugify(category.name), category])),
+    byName: new Map(
+      categories.map((category) => [slugify(category.name), category]),
+    ),
   };
 }
 

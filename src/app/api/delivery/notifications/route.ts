@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
 import { ensureNotificationsTable } from "@/lib/notifications";
+import { getExistingTables } from "@/lib/runtime-schema";
 import { ensureSupportTables } from "@/lib/support";
 
 type UserInfoRow = RowDataPacket & {
@@ -143,6 +144,13 @@ export async function GET(req: NextRequest) {
 
     await ensureNotificationsTable();
     await ensureSupportTables();
+    const existingSupportTables = await getExistingTables(pool, [
+      "support_threads",
+      "support_messages",
+    ]);
+    const canReadLegacySupportThreads =
+      existingSupportTables.has("support_threads") &&
+      existingSupportTables.has("support_messages");
 
     const [
       notificationRowsResult,
@@ -201,25 +209,27 @@ export async function GET(req: NextRequest) {
         `,
         [userId],
       ),
-      pool.query<SupportMessageNotificationRow[]>(
-        `
-          SELECT
-            sm.id,
-            st.order_id,
-            sm.sender_type,
-            sm.message,
-            sm.message_type,
-            sm.created_at
-          FROM support_messages sm
-          INNER JOIN support_threads st ON st.id = sm.thread_id
-          INNER JOIN delivery d ON d.order_id = st.order_id
-          WHERE d.driver_user_id = ?
-            AND sm.sender_type IN ('admin', 'system')
-          ORDER BY sm.created_at DESC
-          LIMIT 10
-        `,
-        [userId],
-      ),
+      canReadLegacySupportThreads
+        ? pool.query<SupportMessageNotificationRow[]>(
+            `
+              SELECT
+                sm.id,
+                st.order_id,
+                sm.sender_type,
+                sm.message,
+                sm.message_type,
+                sm.created_at
+              FROM support_messages sm
+              INNER JOIN support_threads st ON st.id = sm.thread_id
+              INNER JOIN delivery d ON d.order_id = st.order_id
+              WHERE d.driver_user_id = ?
+                AND sm.sender_type IN ('admin', 'system')
+              ORDER BY sm.created_at DESC
+              LIMIT 10
+            `,
+            [userId],
+          )
+        : Promise.resolve([[], []]),
       pool.query<OrderFolioRow[]>(
         `
           SELECT DISTINCT

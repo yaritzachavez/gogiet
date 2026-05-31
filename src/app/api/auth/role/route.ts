@@ -94,7 +94,7 @@ export async function GET(req: Request) {
         {
           success: false,
           error: "Error al obtener roles",
-          details: error instanceof Error ? error.message : String(error),
+          debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
           roles: [],
         },
         { status: 500 },

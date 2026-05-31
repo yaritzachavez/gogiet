@@ -48,20 +48,36 @@ export async function getDriverLocationColumns(
 export async function ensureDriverLocationColumns(executor: Queryable = pool) {
   const columns = await getDriverLocationColumns(executor);
 
+  const addColumnIfMissing = async (sql: string) => {
+    try {
+      await executor.query(sql);
+    } catch (error) {
+      const errorLike = error as { code?: unknown; errno?: unknown };
+      if (
+        String(errorLike?.code ?? "").toUpperCase() === "ER_DUP_FIELDNAME" ||
+        Number(errorLike?.errno) === 1060
+      ) {
+        return;
+      }
+
+      throw error;
+    }
+  };
+
   if (!columns.hasLatitude) {
-    await executor.query(
+    await addColumnIfMissing(
       "ALTER TABLE users ADD COLUMN last_latitude DECIMAL(10,7) NULL",
     );
   }
 
   if (!columns.hasLongitude) {
-    await executor.query(
+    await addColumnIfMissing(
       "ALTER TABLE users ADD COLUMN last_longitude DECIMAL(10,7) NULL",
     );
   }
 
   if (!columns.hasUpdatedAt) {
-    await executor.query(
+    await addColumnIfMissing(
       "ALTER TABLE users ADD COLUMN last_location_at DATETIME NULL",
     );
   }

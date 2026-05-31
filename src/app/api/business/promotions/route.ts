@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: "No se pudieron cargar las promociones.",
-        details: error instanceof Error ? error.message : String(error),
+        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
       },
       { status: 500 },
     );
@@ -261,7 +261,7 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: "No se pudo crear la promoción.",
-        details: error instanceof Error ? error.message : String(error),
+        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
       },
       { status: 500 },
     );

@@ -1,8 +1,6 @@
 const bcrypt = require("bcrypt");
-const { PrismaClient } = require("@prisma/client");
 const { seedMarketplaceProducts } = require("./seed-products");
-
-const prisma = new PrismaClient();
+const { prisma } = require("../scripts/prisma-runtime");
 
 function getOptionalSeedValue(name) {
   const value = process.env[name];

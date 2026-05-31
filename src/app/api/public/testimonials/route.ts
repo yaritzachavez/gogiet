@@ -2,6 +2,10 @@ import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
 import pool, { logDbUsage } from "@/lib/db";
+import {
+  getPublicErrorMessage,
+  logPublicApiError,
+} from "@/lib/public-api-errors";
 
 type TestimonialRow = RowDataPacket & {
   id: number;
@@ -87,22 +91,18 @@ export async function GET() {
       { status: 200 },
     );
   } catch (error) {
-    const details = error instanceof Error ? error.message : String(error);
-
-    console.error("ERROR GET /api/public/testimonials:", {
-      details,
-      stack: error instanceof Error ? error.stack : undefined,
-      error,
-    });
+    logPublicApiError("[testimonials_error]", error);
 
     return NextResponse.json(
       {
         success: false,
-        error: "No se pudieron cargar las reseñas",
-        details,
-        debug: null,
+        error: getPublicErrorMessage(
+          error,
+          "No pudimos cargar las reseñas. Intenta nuevamente.",
+        ),
+        testimonials: [],
       },
-      { status: 500 },
+      { status: 503 },
     );
   }
 }

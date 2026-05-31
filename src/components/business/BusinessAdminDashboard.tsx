@@ -872,63 +872,60 @@ export function BusinessAdminDashboard() {
       const query = selectedBusinessId
         ? `?business_id=${selectedBusinessId}`
         : "";
-      const [
-        businessResponse,
-        ordersResponse,
-        productsResponse,
-        teamResponse,
-        trainingsResponse,
-        promotionsResponse,
-        stockResponse,
-        weeklyResponse,
-        categoriesResponse,
-      ] = await Promise.all([
-        fetchWithTimeout(`/api/business/me${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/orders${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/products${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/team${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/trainings${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/promotions${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/stock-alerts${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout(`/api/business/reports/weekly${query}`, {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-        fetchWithTimeout("/api/business/categories", {
-          headers: {
-            ...authHeaders,
-          },
-        }),
-      ]);
+      const [businessResponse, ordersResponse, productsResponse] =
+        await Promise.all([
+          fetchWithTimeout(`/api/business/me${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+          fetchWithTimeout(`/api/business/orders${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+          fetchWithTimeout(`/api/business/products${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+        ]);
+      const [teamResponse, trainingsResponse, promotionsResponse] =
+        await Promise.all([
+          fetchWithTimeout(`/api/business/team${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+          fetchWithTimeout(`/api/business/trainings${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+          fetchWithTimeout(`/api/business/promotions${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+        ]);
+      const [stockResponse, weeklyResponse, categoriesResponse] =
+        await Promise.all([
+          fetchWithTimeout(`/api/business/stock-alerts${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+          fetchWithTimeout(`/api/business/reports/weekly${query}`, {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+          fetchWithTimeout("/api/business/categories", {
+            headers: {
+              ...authHeaders,
+            },
+          }),
+        ]);
 
       const [
         businessData,
@@ -967,8 +964,7 @@ export function BusinessAdminDashboard() {
               : null,
         });
         throw new Error(
-          (typeof businessData.details === "string" && businessData.details) ||
-            (typeof businessData.error === "string" && businessData.error) ||
+          (typeof businessData.error === "string" && businessData.error) ||
             "No se pudo cargar el negocio.",
         );
       }
@@ -980,7 +976,6 @@ export function BusinessAdminDashboard() {
 
       if (!businessPayload) {
         const missingBusinessMessage =
-          (typeof businessData.details === "string" && businessData.details) ||
           (typeof businessData.error === "string" && businessData.error) ||
           (typeof businessData.message === "string" && businessData.message) ||
           "No se encontro el negocio asignado. Redirigiendo a configuracion de negocios.";

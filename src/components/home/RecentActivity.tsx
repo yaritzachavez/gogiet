@@ -73,11 +73,7 @@ export function RecentActivity() {
         }
 
         if (!payload.success) {
-          setError(
-            payload.details ??
-              payload.error ??
-              "No se pudo cargar la actividad reciente.",
-          );
+          setError("No pudimos cargar la actividad reciente por ahora.");
         } else {
           setError(null);
         }
@@ -88,11 +84,8 @@ export function RecentActivity() {
           return;
         }
 
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "No se pudo cargar la actividad reciente.",
-        );
+        console.error("[recent_activity_client_error]", fetchError);
+        setError("No pudimos cargar la actividad reciente por ahora.");
         setActivity([]);
       } finally {
         if (active) {

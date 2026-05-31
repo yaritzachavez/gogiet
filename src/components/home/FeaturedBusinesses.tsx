@@ -70,11 +70,7 @@ export function FeaturedBusinesses() {
         }
 
         if (!response.ok || !payload.success) {
-          setError(
-            payload.details ??
-              payload.error ??
-              "No se pudieron cargar los negocios destacados.",
-          );
+          setError("No pudimos cargar los negocios destacados por ahora.");
           setBusinesses([]);
           return;
         }
@@ -86,11 +82,8 @@ export function FeaturedBusinesses() {
           return;
         }
 
-        setError(
-          fetchError instanceof Error
-            ? fetchError.message
-            : "No se pudieron cargar los negocios destacados.",
-        );
+        console.error("[featured_businesses_client_error]", fetchError);
+        setError("No pudimos cargar los negocios destacados por ahora.");
         setBusinesses([]);
       } finally {
         if (active) {

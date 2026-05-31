@@ -169,6 +169,19 @@ function resolveDbConfig(): DbRuntimeConfig {
 }
 
 const dbConfig = resolveDbConfig();
+const runtimeEnvironment = getRuntimeEnvironment();
+const poolConnectionLimit = Math.max(
+  1,
+  Math.min(
+    Number(process.env.DB_POOL_CONNECTION_LIMIT ?? "") ||
+      (runtimeEnvironment === "production" ? 2 : 3),
+    5,
+  ),
+);
+const poolQueueLimit = Math.max(
+  5,
+  Math.min(Number(process.env.DB_POOL_QUEUE_LIMIT ?? "") || 25, 100),
+);
 const caCertificate = resolveDbSslCaContent();
 const dbSslSummary = getDbSslSummary();
 const maskedDatabaseUrl = getMaskedDatabaseUrl(process.env.DATABASE_URL);
@@ -249,8 +262,12 @@ const pool =
     password: dbConfig.password,
     database: dbConfig.database,
     waitForConnections: true,
-    connectionLimit: 5,
-    queueLimit: 0,
+    connectionLimit: poolConnectionLimit,
+    maxIdle: poolConnectionLimit,
+    idleTimeout: 30_000,
+    queueLimit: poolQueueLimit,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0,
     ssl: dbConfig.useSsl ? sslConfig : undefined,
   });
 
@@ -286,6 +303,47 @@ export function getDbRuntimeConfig() {
     DB_USER: dbConfig.user,
     DB_PORT: dbConfig.port,
   };
+}
+
+export function isTooManyConnectionsError(error: unknown) {
+  const errorLike = error as {
+    code?: unknown;
+    errno?: unknown;
+    message?: unknown;
+  };
+  const code = String(errorLike?.code ?? "").toUpperCase();
+  const message = String(errorLike?.message ?? "").toLowerCase();
+
+  return (
+    code === "ER_CON_COUNT_ERROR" ||
+    Number(errorLike?.errno) === 1040 ||
+    message.includes("too many connections")
+  );
+}
+
+export function getFriendlyDatabaseErrorMessage(error: unknown) {
+  const errorLike = error as {
+    code?: unknown;
+    message?: unknown;
+    name?: unknown;
+  };
+  const code = String(errorLike?.code ?? "").toUpperCase();
+  const message = String(errorLike?.message ?? "").toLowerCase();
+  const name = String(errorLike?.name ?? "").toLowerCase();
+
+  if (
+    code === "ENOTFOUND" ||
+    message.includes("getaddrinfo enotfound") ||
+    name.includes("prismaclientinitializationerror")
+  ) {
+    return "No pudimos conectar con la base de datos. Intenta de nuevo en unos segundos.";
+  }
+
+  if (isTooManyConnectionsError(error)) {
+    return "No pudimos cargar los datos en este momento. Intenta de nuevo en unos segundos.";
+  }
+
+  return "No pudimos cargar los datos, intenta de nuevo.";
 }
 
 export default pool;
