@@ -361,7 +361,7 @@ export function SupportChatWidget({
   });
 
   const triggerClasses = floating
-    ? `fixed bottom-5 right-5 z-40 rounded-full bg-orange-500 px-5 py-3 text-white shadow-xl hover:bg-orange-600 ${buttonClassName}`
+    ? `fixed bottom-5 right-5 z-40 rounded-full bg-[#FF6A00] px-5 py-3 text-[#FFFDF8] shadow-xl hover:bg-orange-600 ${buttonClassName}`
     : buttonClassName ||
       "inline-flex items-center justify-center gap-2 rounded-xl border border-orange-300 bg-white px-4 py-2 font-semibold text-orange-700 shadow-sm hover:bg-orange-50";
 
@@ -390,17 +390,17 @@ export function SupportChatWidget({
           }
         }}
       >
-        <DialogContent className="max-w-2xl border-orange-100 bg-white p-0">
-          <DialogHeader className="border-b border-orange-100 px-6 py-5">
-            <DialogTitle className="text-slate-950">{title}</DialogTitle>
-            <DialogDescription className="text-slate-500">
+        <DialogContent className="max-w-2xl border-[#F3D6B8] bg-[#FFFDF8] p-0">
+          <DialogHeader className="border-b border-[#F3D6B8] px-6 py-5">
+            <DialogTitle className="text-[#2B1A12]">{title}</DialogTitle>
+            <DialogDescription className="text-[#7A5A45]">
               {description}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 px-6 py-5">
             {conversationsQuery.error ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div className="rounded-2xl border border-[#F3D6B8] bg-[#FFF7ED] px-4 py-3 text-sm text-[#9A3412]">
                 {conversationsQuery.error instanceof Error
                   ? conversationsQuery.error.message
                   : "No se pudo cargar el soporte."}
@@ -408,19 +408,19 @@ export function SupportChatWidget({
             ) : null}
 
             {actionError ? (
-              <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+              <div className="rounded-2xl border border-[#F3D6B8] bg-[#FFF7ED] px-4 py-3 text-sm text-[#9A3412]">
                 {actionError}
               </div>
             ) : null}
 
-            <div className="max-h-[420px] min-h-[240px] space-y-3 overflow-y-auto rounded-3xl border border-orange-100 bg-orange-50/40 p-4">
+            <div className="max-h-[420px] min-h-[240px] space-y-3 overflow-y-auto rounded-3xl border border-[#F3D6B8] bg-[#FFF7ED] p-4">
               {messagesQuery.isLoading ||
               createConversationMutation.isPending ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[#7A5A45]">
                   Cargando conversación...
                 </p>
               ) : (messagesQuery.data ?? []).length === 0 ? (
-                <p className="text-sm text-slate-500">
+                <p className="text-sm text-[#7A5A45]">
                   Aún no hay mensajes. Puedes iniciar la conversación ahora.
                 </p>
               ) : (
@@ -436,8 +436,8 @@ export function SupportChatWidget({
                       <div
                         className={`max-w-[82%] rounded-3xl px-4 py-3 text-sm shadow-sm ${
                           isOwnMessage
-                            ? "bg-orange-500 text-white"
-                            : "bg-white text-slate-700"
+                            ? "bg-[#FF6A00] text-[#FFFDF8]"
+                            : "bg-[#FFFDF8] text-[#2B1A12]"
                         }`}
                       >
                         <p>{message.message}</p>
@@ -447,7 +447,9 @@ export function SupportChatWidget({
                             target="_blank"
                             rel="noreferrer"
                             className={`mt-2 block text-xs underline ${
-                              isOwnMessage ? "text-white/85" : "text-orange-600"
+                              isOwnMessage
+                                ? "text-[#FFF7ED]/90"
+                                : "text-orange-600"
                             }`}
                           >
                             Ver adjunto
@@ -455,7 +457,9 @@ export function SupportChatWidget({
                         ) : null}
                         <p
                           className={`mt-2 text-[11px] ${
-                            isOwnMessage ? "text-white/75" : "text-slate-400"
+                            isOwnMessage
+                              ? "text-[#FFF7ED]/80"
+                              : "text-[#9A7A62]"
                           }`}
                         >
                           {formatDateTime(message.created_at)}
@@ -472,7 +476,7 @@ export function SupportChatWidget({
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 placeholder="Escribe tu mensaje para soporte..."
-                className="min-h-24 flex-1 rounded-2xl border border-orange-200 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                className="min-h-24 flex-1 rounded-2xl border border-orange-200 px-4 py-3 text-sm text-[#2B1A12] outline-none transition placeholder:text-[#9A7A62] focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
               />
               <Button
                 type="button"
@@ -481,7 +485,7 @@ export function SupportChatWidget({
                   sendMessageMutation.isPending ||
                   createConversationMutation.isPending
                 }
-                className="h-12 rounded-2xl bg-orange-500 px-5 text-white hover:bg-orange-600"
+                className="h-12 rounded-2xl bg-[#FF6A00] px-5 text-[#FFFDF8] hover:bg-orange-600"
               >
                 <Send className="mr-2 h-4 w-4" />
                 Enviar

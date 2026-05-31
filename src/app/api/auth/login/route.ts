@@ -17,6 +17,7 @@ import {
   getRolesForUser,
   isUserLocked,
   isValidEmail,
+  maskEmailForLogs,
   normalizeEmail,
   recordAuthAuditLog,
   registerFailedLoginAttempt,
@@ -92,6 +93,10 @@ export async function POST(req: Request) {
         ...requestContext,
         route: "/api/auth/login",
         method: "POST",
+        appUrl: process.env.NEXT_PUBLIC_APP_URL ?? null,
+        nodeEnv: process.env.NODE_ENV ?? null,
+        databaseHost: process.env.DB_HOST ?? null,
+        databaseName: process.env.DB_NAME ?? null,
       },
     );
 
@@ -169,7 +174,7 @@ export async function POST(req: Request) {
       {
         ...requestContext,
         route: "/api/auth/login",
-        email,
+        email: maskEmailForLogs(email),
         userId: user?.id ?? null,
       },
     );
@@ -190,6 +195,16 @@ export async function POST(req: Request) {
     }
 
     if (isUserLocked(user)) {
+      logger.warn(
+        "auth.login_blocked_locked",
+        "[auth-login] cuenta bloqueada",
+        {
+          ...requestContext,
+          route: "/api/auth/login",
+          userId: user.id,
+          email: maskEmailForLogs(email),
+        },
+      );
       return json(
         {
           success: false,
@@ -213,7 +228,7 @@ export async function POST(req: Request) {
         ...requestContext,
         route: "/api/auth/login",
         userId: user.id,
-        email,
+        email: maskEmailForLogs(email),
       },
     );
 
@@ -237,6 +252,18 @@ export async function POST(req: Request) {
     const activeStatusId = await getActiveAuthStatusId();
 
     if (Number(user.statusId ?? 0) !== activeStatusId) {
+      logger.warn(
+        "auth.login_blocked_inactive",
+        "[auth-login] cuenta inactiva",
+        {
+          ...requestContext,
+          route: "/api/auth/login",
+          userId: user.id,
+          email: maskEmailForLogs(email),
+          userStatusId: Number(user.statusId ?? 0),
+          activeStatusId,
+        },
+      );
       return json(
         {
           success: false,
@@ -247,6 +274,17 @@ export async function POST(req: Request) {
     }
 
     if (!(user.email_verified === true || user.email_verified === 1)) {
+      logger.warn(
+        "auth.login_blocked_unverified_email",
+        "[auth-login] correo no verificado",
+        {
+          ...requestContext,
+          route: "/api/auth/login",
+          userId: user.id,
+          email: maskEmailForLogs(email),
+          emailVerified: Boolean(user.email_verified),
+        },
+      );
       return json(
         {
           success: false,
@@ -264,6 +302,19 @@ export async function POST(req: Request) {
     const primaryRole = publicRoles[0] ?? "customer";
     const redirectTo = resolveLoginRedirect(publicRoles);
     const authCookieConfig = getAuthCookieConfig();
+
+    logger.info(
+      "auth.login_redirect_resolved",
+      "[auth-login] redirect resuelto",
+      {
+        ...requestContext,
+        route: "/api/auth/login",
+        userId: user.id,
+        roles: publicRoles,
+        redirectTo,
+        isRelativeRedirect: redirectTo.startsWith("/"),
+      },
+    );
 
     const expiresIn = (process.env.JWT_EXPIRES_IN ??
       process.env.JWT_EXPIRATION ??
@@ -286,6 +337,19 @@ export async function POST(req: Request) {
       location: getLocationLabel(ip),
       expiresAt: new Date(Date.now() + authCookieConfig.maxAge * 1000),
     });
+
+    if (!createdSession.sessionId) {
+      logger.error(
+        "auth.login_session_missing",
+        "[auth-login] sesión no creada después de generar token",
+        {
+          ...requestContext,
+          route: "/api/auth/login",
+          userId: user.id,
+          email: maskEmailForLogs(email),
+        },
+      );
+    }
 
     logger.info("auth.login_session_created", "[auth-login] sesión creada", {
       ...requestContext,
@@ -334,6 +398,7 @@ export async function POST(req: Request) {
       sameSite: authCookieConfig.sameSite,
       path: authCookieConfig.path,
       maxAge: authCookieConfig.maxAge,
+      domain: "domain" in authCookieConfig ? authCookieConfig.domain : null,
     });
 
     return withCors(req, response);

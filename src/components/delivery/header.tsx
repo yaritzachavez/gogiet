@@ -158,8 +158,8 @@ export function DeliveryHeader({
             className={cn(
               "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-5 text-sm font-extrabold shadow-lg transition",
               isActive
-                ? "bg-[#2f7a48] text-white hover:bg-[#28673c]"
-                : "bg-rose-500 text-white hover:bg-rose-600",
+                ? "bg-[#2f7a48] text-[#FFFDF8] hover:bg-[#28673c]"
+                : "bg-rose-500 text-[#FFFDF8] hover:bg-rose-600",
             )}
           >
             <CirclePower className="h-4 w-4" />
@@ -170,7 +170,7 @@ export function DeliveryHeader({
             <Button
               type="button"
               className={cn(
-                "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-white shadow-lg transition",
+                "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-lg transition",
                 isPaused
                   ? "bg-[#d6904c] hover:bg-[#c27a36]"
                   : "bg-[#d6904c] hover:bg-[#c27a36]",
@@ -182,7 +182,7 @@ export function DeliveryHeader({
             </Button>
             <Button
               type="button"
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-blue-500 px-4 text-sm font-extrabold text-white shadow-lg transition hover:bg-blue-600"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-blue-500 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-lg transition hover:bg-[#EA580C]"
               onClick={() => {
                 setChatOpen((prev) => !prev);
                 setReportOpen(false);
@@ -193,7 +193,7 @@ export function DeliveryHeader({
             </Button>
             <Button
               type="button"
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-pink-500 px-4 text-sm font-extrabold text-white shadow-lg transition hover:bg-pink-600"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-pink-500 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-lg transition hover:bg-[#F97316]"
               onClick={() => {
                 setReportOpen((prev) => !prev);
                 setChatOpen(false);
@@ -204,7 +204,7 @@ export function DeliveryHeader({
             </Button>
             <Button
               variant="destructive"
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-rose-600 px-5 text-sm font-extrabold text-white shadow-lg hover:bg-rose-700"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-[#B45309] px-5 text-sm font-extrabold text-[#FFFDF8] shadow-lg hover:bg-[#92400E]"
               onClick={onLogout}
             >
               <LogOut className="h-4 w-4" />
@@ -239,7 +239,7 @@ export function DeliveryHeader({
           />
           <Button
             type="button"
-            className="mt-2 rounded-full bg-orange-600 text-white hover:bg-orange-700"
+            className="mt-2 rounded-full bg-[#FF6A00] text-[#FFFDF8] hover:bg-orange-700"
             onClick={handleChatSend}
           >
             Enviar
@@ -284,7 +284,7 @@ export function DeliveryHeader({
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
-              className="rounded-full bg-rose-600 text-white hover:bg-rose-700"
+              className="rounded-full bg-[#B45309] text-[#FFFDF8] hover:bg-[#92400E]"
             >
               Enviar reporte
             </Button>

@@ -1280,8 +1280,8 @@ export default function DeliveryDashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#F7F1E8] text-[#3B2D25]">
-      <div className="min-h-screen bg-[#F7F1E8]">
+    <main className="min-h-screen bg-[#FFF7ED] text-[#2B1A12]">
+      <div className="min-h-screen bg-[#FFF7ED]">
         <div className="section-shell responsive-stack py-5 sm:py-7 lg:py-8">
           <DeliveryHeader
             driverName={driverName}
@@ -1394,7 +1394,7 @@ export default function DeliveryDashboardPage() {
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-orange-700/70">
                   Historial real
                 </p>
-                <h2 className="mt-2 text-2xl font-black text-[#3B2D25]">
+                <h2 className="mt-2 text-2xl font-black text-[#2B1A12]">
                   Pedidos entregados
                 </h2>
                 <p className="mt-1 text-sm text-[#6F5D4C]">
@@ -1411,7 +1411,7 @@ export default function DeliveryDashboardPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto bg-[#F7F1E8] px-4 py-4 sm:px-6 sm:py-6">
+            <div className="overflow-y-auto bg-[#FFF7ED] px-4 py-4 sm:px-6 sm:py-6">
               {historyLoading ? (
                 <div className="rounded-3xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] px-6 py-10 text-center text-sm font-medium text-[#6F5D4C]">
                   Cargando historial de entregas...
@@ -1436,7 +1436,7 @@ export default function DeliveryDashboardPage() {
                           <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-orange-700/70">
                             {entry.folio}
                           </p>
-                          <h3 className="mt-2 text-xl font-black text-[#3B2D25]">
+                          <h3 className="mt-2 text-xl font-black text-[#2B1A12]">
                             {entry.businessName}
                           </h3>
                           {entry.businessAddress ? (
@@ -1478,7 +1478,7 @@ export default function DeliveryDashboardPage() {
                           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#b36a2b]/80">
                             Ganancia
                           </p>
-                          <p className="mt-2 text-lg font-black text-[#3B2D25]">
+                          <p className="mt-2 text-lg font-black text-[#2B1A12]">
                             {formatCurrency(
                               entry.driverEarning,
                               earnings.currency,
@@ -1507,7 +1507,7 @@ export default function DeliveryDashboardPage() {
                           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Total pedido
                           </p>
-                          <p className="mt-2 font-semibold text-[#3B2D25]">
+                          <p className="mt-2 font-semibold text-[#2B1A12]">
                             {formatCurrency(entry.total, earnings.currency)}
                           </p>
                         </div>
@@ -1515,7 +1515,7 @@ export default function DeliveryDashboardPage() {
                           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Costo de envio
                           </p>
-                          <p className="mt-2 font-semibold text-[#3B2D25]">
+                          <p className="mt-2 font-semibold text-[#2B1A12]">
                             {formatCurrency(
                               entry.deliveryFee,
                               earnings.currency,
@@ -1526,7 +1526,7 @@ export default function DeliveryDashboardPage() {
                           <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8d755b]">
                             Propina
                           </p>
-                          <p className="mt-2 font-semibold text-[#3B2D25]">
+                          <p className="mt-2 font-semibold text-[#2B1A12]">
                             {formatCurrency(entry.tip, earnings.currency)}
                           </p>
                         </div>
@@ -1626,7 +1626,7 @@ export default function DeliveryDashboardPage() {
                 type="button"
                 onClick={handleConfirmDelivered}
                 disabled={assignmentActionOrderId === deliveryEvidence.orderId}
-                className="rounded-full bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#d97a37]/25 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] px-5 py-2.5 text-sm font-bold text-[#FFFDF8] shadow-lg shadow-[#d97a37]/25 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {assignmentActionOrderId === deliveryEvidence.orderId
                   ? "Guardando evidencia..."
@@ -1645,7 +1645,7 @@ export default function DeliveryDashboardPage() {
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]/80">
                   Configuración
                 </p>
-                <h2 className="mt-2 text-2xl font-black text-[#3B2D25]">
+                <h2 className="mt-2 text-2xl font-black text-[#2B1A12]">
                   Configuración del repartidor
                 </h2>
                 <p className="mt-1 text-sm text-[#6F5D4C]">
@@ -1662,10 +1662,10 @@ export default function DeliveryDashboardPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto bg-[#F7F1E8] px-6 py-6">
+            <div className="overflow-y-auto bg-[#FFF7ED] px-6 py-6">
               <div className="grid gap-6 lg:grid-cols-[0.8fr,1.2fr]">
                 <section className="rounded-[24px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-                  <p className="text-sm font-bold text-[#3B2D25]">
+                  <p className="text-sm font-bold text-[#2B1A12]">
                     Foto de perfil
                   </p>
                   <p className="mt-1 text-xs text-[#8d755b]">
@@ -1687,7 +1687,7 @@ export default function DeliveryDashboardPage() {
                     <button
                       type="button"
                       onClick={() => avatarInputRef.current?.click()}
-                      className="rounded-2xl bg-orange-500 px-4 py-2 text-sm font-extrabold text-white"
+                      className="rounded-2xl bg-[#FF6A00] px-4 py-2 text-sm font-extrabold text-[#FFFDF8]"
                     >
                       {avatarPreview ? "Cambiar foto" : "Subir foto"}
                     </button>
@@ -1697,7 +1697,7 @@ export default function DeliveryDashboardPage() {
                 <section className="rounded-[24px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 md:col-span-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Nombre
                       </span>
                       <input
@@ -1712,7 +1712,7 @@ export default function DeliveryDashboardPage() {
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Teléfono
                       </span>
                       <input
@@ -1727,7 +1727,7 @@ export default function DeliveryDashboardPage() {
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Zona de trabajo
                       </span>
                       <input
@@ -1742,7 +1742,7 @@ export default function DeliveryDashboardPage() {
                       />
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Estado
                       </span>
                       <select
@@ -1760,7 +1760,7 @@ export default function DeliveryDashboardPage() {
                       </select>
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Vehículo
                       </span>
                       <select
@@ -1781,7 +1781,7 @@ export default function DeliveryDashboardPage() {
                       </select>
                     </label>
                     <label className="grid gap-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Placas
                       </span>
                       <input
@@ -1797,7 +1797,7 @@ export default function DeliveryDashboardPage() {
                       />
                     </label>
                     <label className="grid gap-2 md:col-span-2">
-                      <span className="text-sm font-bold text-[#3B2D25]">
+                      <span className="text-sm font-bold text-[#2B1A12]">
                         Notas o referencias
                       </span>
                       <textarea
@@ -1830,7 +1830,7 @@ export default function DeliveryDashboardPage() {
                       type="button"
                       onClick={handleSaveProfile}
                       disabled={profileSaving || profileLoading}
-                      className="rounded-2xl bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] px-5 py-3 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(217,122,55,0.18)] disabled:opacity-60"
+                      className="rounded-2xl bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] px-5 py-3 text-sm font-extrabold text-[#FFFDF8] shadow-[0_8px_24px_rgba(217,122,55,0.18)] disabled:opacity-60"
                     >
                       {profileSaving ? "Guardando..." : "Guardar cambios"}
                     </button>

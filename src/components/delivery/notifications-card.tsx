@@ -260,7 +260,7 @@ export function NotificationsCard({
                 >
                   <span
                     className={`mt-1 h-2 w-2 rounded-full ${
-                      notification.unread ? "bg-orange-500" : "bg-slate-300"
+                      notification.unread ? "bg-[#FF6A00]" : "bg-[#F3D6B8]"
                     }`}
                   />
                   <div className="flex-1 space-y-1">
@@ -397,7 +397,7 @@ export function NotificationsCard({
               type="button"
               onClick={handleSendMessage}
               disabled={sendingMessage}
-              className="rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-xl bg-[#FF6A00] px-4 py-2 text-sm font-semibold text-[#FFFDF8] transition hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {sendingMessage ? "Enviando..." : "Enviar mensaje"}
             </button>

@@ -5,7 +5,11 @@ const ALLOWED_ORIGINS = new Set([
   "https://www.gogieats.shop",
   "capacitor://localhost",
   "http://localhost",
+  "http://localhost:3000",
+  "http://localhost:3001",
   "http://127.0.0.1",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3001",
   "ionic://localhost",
 ]);
 
@@ -17,6 +21,19 @@ function resolveAllowedOrigin(req: Request) {
 
   if (origin && ALLOWED_ORIGINS.has(origin)) {
     return origin;
+  }
+
+  if (origin) {
+    try {
+      const parsedOrigin = new URL(origin);
+      if (
+        parsedOrigin.protocol === "http:" &&
+        (parsedOrigin.hostname === "localhost" ||
+          parsedOrigin.hostname === "127.0.0.1")
+      ) {
+        return origin;
+      }
+    } catch {}
   }
 
   return DEFAULT_ALLOWED_ORIGIN;

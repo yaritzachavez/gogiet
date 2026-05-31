@@ -778,6 +778,14 @@ export function getAuthCookieConfig() {
   const maxAgeHours = Number(process.env.AUTH_SESSION_HOURS ?? 9);
   const safeHours =
     Number.isFinite(maxAgeHours) && maxAgeHours > 0 ? maxAgeHours : 9;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() ?? "";
+  const cookieDomain = process.env.AUTH_COOKIE_DOMAIN?.trim();
+  const isLocalAppUrl =
+    appUrl.includes("localhost") || appUrl.includes("127.0.0.1");
+  const shouldSetDomain =
+    process.env.NODE_ENV === "production" &&
+    Boolean(cookieDomain) &&
+    !isLocalAppUrl;
 
   return {
     httpOnly: true,
@@ -785,6 +793,7 @@ export function getAuthCookieConfig() {
     sameSite: "lax" as const,
     path: "/",
     maxAge: 60 * 60 * safeHours,
+    ...(shouldSetDomain ? { domain: cookieDomain } : {}),
   };
 }
 

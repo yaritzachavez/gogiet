@@ -127,7 +127,7 @@ export function EarningsCard({
           type="button"
           onClick={onViewHistory}
           disabled={isHistoryLoading}
-          className="w-full rounded-full border border-[#d17d3b]/30 bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] text-sm font-semibold text-white shadow-[0_8px_24px_rgba(217,122,55,0.18)] hover:opacity-95"
+          className="w-full rounded-full border border-[#d17d3b]/30 bg-[linear-gradient(135deg,#d36a1f_0%,#f08d3c_100%)] text-sm font-semibold text-[#FFFDF8] shadow-[0_8px_24px_rgba(217,122,55,0.18)] hover:opacity-95"
         >
           {isHistoryLoading ? "Cargando historial..." : "Ver historial"}
         </Button>

@@ -268,7 +268,7 @@ export function CurrentDeliveriesCard({
                         <>
                           <Button
                             type="button"
-                            className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white hover:bg-emerald-700"
+                            className="h-10 rounded-lg bg-[#2f7a48] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#28673c]"
                             onClick={() => onAcceptOrder?.(order.id)}
                             disabled={actionLoadingOrderId === order.id}
                           >
@@ -291,7 +291,7 @@ export function CurrentDeliveriesCard({
                       ) : null}
                       <Button
                         type="button"
-                        className="h-10 rounded-lg bg-green-500 px-4 text-xs font-bold text-white hover:bg-green-600"
+                        className="h-10 rounded-lg bg-[#3F8F5B] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#2f7a48]"
                         asChild
                       >
                         <a
@@ -317,7 +317,7 @@ export function CurrentDeliveriesCard({
                       {canMarkPickedUp ? (
                         <Button
                           type="button"
-                          className="h-10 rounded-lg bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600"
+                          className="h-10 rounded-lg bg-[#FF6A00] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#EA580C]"
                           onClick={() => onMarkPickedUp?.(order.id)}
                           disabled={actionLoadingOrderId === order.id}
                         >
@@ -327,7 +327,7 @@ export function CurrentDeliveriesCard({
                       {canMarkOnTheWay ? (
                         <Button
                           type="button"
-                          className="h-10 rounded-lg bg-sky-600 px-4 text-xs font-bold text-white hover:bg-sky-700"
+                          className="h-10 rounded-lg bg-[#F97316] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#EA580C]"
                           onClick={() => onMarkOnTheWay?.(order.id)}
                           disabled={actionLoadingOrderId === order.id}
                         >
@@ -337,7 +337,7 @@ export function CurrentDeliveriesCard({
                       {canMarkDelivered ? (
                         <Button
                           type="button"
-                          className="h-10 rounded-lg bg-orange-500 px-4 text-xs font-bold text-white hover:bg-orange-600"
+                          className="h-10 rounded-lg bg-[#FF6A00] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#EA580C]"
                           onClick={() => onMarkDelivered?.(order.id)}
                           disabled={actionLoadingOrderId === order.id}
                         >
