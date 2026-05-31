@@ -30,11 +30,12 @@ export default function LoginForm() {
       return "/admin";
     }
 
-    if (
-      normalizedRoles.includes("ADMIN_NEGOCIO") ||
-      normalizedRoles.includes("VENDEDOR")
-    ) {
+    if (normalizedRoles.includes("ADMIN_NEGOCIO")) {
       return "/business";
+    }
+
+    if (normalizedRoles.includes("VENDEDOR")) {
+      return "/pickdash/seller";
     }
 
     if (normalizedRoles.includes("REPARTIDOR")) {

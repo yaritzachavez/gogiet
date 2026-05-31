@@ -18,6 +18,7 @@ import { UserAvatar } from "@/components/shared/user-avatar";
 import { SupportChatWidget } from "@/components/support/SupportChatWidget";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithSession, getClientAuthToken } from "@/lib/client-auth";
+import { canAccessPanel } from "@/lib/panel-access";
 
 const EMPTY_EARNINGS: DeliveryEarnings = {
   currency: "MXN",
@@ -315,13 +316,7 @@ export default function DeliveryDashboardPage() {
   const fetchSequenceRef = useRef(0);
   const emptyAssignedPollsRef = useRef(0);
   const driverName = profile.name || user?.name || "Repartidor Gogi";
-  const normalizedRoles = Array.isArray(user?.roles)
-    ? user.roles.map((role) => String(role).toLowerCase())
-    : [];
-  const canAccessDelivery =
-    normalizedRoles.length === 0 ||
-    normalizedRoles.includes("repartidor") ||
-    normalizedRoles.includes("admin_general");
+  const canAccessDelivery = canAccessPanel(user?.roles, "delivery");
 
   useEffect(() => {
     currentOrdersRef.current = currentOrders;

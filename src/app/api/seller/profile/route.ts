@@ -30,15 +30,6 @@ type UserRow = RowDataPacket & {
   email: string;
   phone: string | null;
   user_status_name: string | null;
-  created_at: string;
-};
-
-type BusinessOwnerRow = RowDataPacket & {
-  user_id: number;
-  business_id: number;
-  business_name: string;
-  business_phone: string | null;
-  assigned_at: string | null;
 };
 
 type OrderStatsRow = RowDataPacket & {
@@ -127,14 +118,7 @@ async function getSellerContext(userId: number) {
 
   const roles = roleRows.map((row) => normalizeRoleName(row.role_name));
   const hasAllowedRole = roles.some((role) =>
-    [
-      "vendedor",
-      "business_staff",
-      "negocio",
-      "administrador_negocio",
-      "business_admin",
-      "admin_general",
-    ].includes(role),
+    ["vendedor", "business_staff"].includes(role),
   );
 
   if (!hasAllowedRole) {
@@ -155,8 +139,7 @@ async function getSellerContext(userId: number) {
         u.last_name,
         u.email,
         u.phone,
-        sc.name AS user_status_name,
-        u.created_at
+        sc.name AS user_status_name
       FROM users u
       LEFT JOIN status_catalog sc ON sc.id = u.status_id
       WHERE u.id = ?
@@ -206,81 +189,6 @@ async function getSellerContext(userId: number) {
         business_id: Number(manager.business_id),
         business_name: manager.business_name,
         role: "vendedor",
-      },
-    };
-  }
-
-  const [ownerRows] = await pool.query<BusinessOwnerRow[]>(
-    `
-      SELECT
-        bo.user_id,
-        b.id AS business_id,
-        b.name AS business_name,
-        b.phone AS business_phone,
-        bo.assigned_at
-      FROM business_owners bo
-      INNER JOIN business b ON b.id = bo.business_id
-      WHERE bo.user_id = ?
-      ORDER BY bo.assigned_at DESC
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  if (ownerRows[0] && user) {
-    const owner = ownerRows[0];
-
-    return {
-      allowed: true,
-      roles,
-      user,
-      profile: {
-        user_id: Number(user.user_id),
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        phone: user.phone,
-        user_status_name: user.user_status_name,
-        assigned_at: owner.assigned_at,
-        position: "Administrador del negocio",
-        is_active: 1,
-        business_id: Number(owner.business_id),
-        business_name: owner.business_name,
-        business_phone: owner.business_phone,
-      } as SellerProfileRow,
-      seller: {
-        user_id: Number(owner.user_id),
-        business_id: Number(owner.business_id),
-        business_name: owner.business_name,
-        role: "administrador_negocio",
-      },
-    };
-  }
-
-  if (roles.includes("admin_general") && user) {
-    return {
-      allowed: true,
-      roles,
-      user,
-      profile: {
-        user_id: Number(user.user_id),
-        first_name: user.first_name,
-        last_name: user.last_name,
-        email: user.email,
-        phone: user.phone,
-        user_status_name: user.user_status_name,
-        assigned_at: user.created_at,
-        position: "Administrador general",
-        is_active: 1,
-        business_id: 0,
-        business_name: "Sin negocio asignado",
-        business_phone: null,
-      } as SellerProfileRow,
-      seller: {
-        user_id: Number(user.user_id),
-        business_id: 0,
-        business_name: "Sin negocio asignado",
-        role: "admin_general",
       },
     };
   }

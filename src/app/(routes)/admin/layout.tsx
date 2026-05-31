@@ -1,6 +1,12 @@
+import jwt from "jsonwebtoken";
+import type { RowDataPacket } from "mysql2/promise";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { isSessionTokenActive } from "@/lib/auth-security";
+import pool from "@/lib/db";
+import { JWT_SECRET } from "@/lib/env";
 import { MobileNav } from "./components/MobileNav";
 import { SidebarLink } from "./components/SidebarLink";
 
@@ -14,7 +20,108 @@ const NAV_LINKS = [
   { href: "/admin/settings", label: "Ajustes", icon: "⚙️" },
 ];
 
-export default function AdminLayout({ children }: { children: ReactNode }) {
+type AdminAccessState = "allowed" | "guest" | "forbidden";
+
+type RoleRow = RowDataPacket & {
+  role_name: string;
+};
+
+async function getAdminAccessState(): Promise<AdminAccessState> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("authToken")?.value ?? null;
+
+  if (!token) return "guest";
+
+  let userId: number | null = null;
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { id?: unknown };
+    const parsedUserId = Number(payload.id ?? 0);
+    userId =
+      Number.isFinite(parsedUserId) && parsedUserId > 0 ? parsedUserId : null;
+  } catch {
+    return "guest";
+  }
+
+  if (!userId) return "guest";
+
+  const activeSession = await isSessionTokenActive(token);
+  if (!activeSession) return "guest";
+
+  const [roleRows] = await pool.query<RoleRow[]>(
+    `
+      SELECT r.name AS role_name
+      FROM user_roles ur
+      INNER JOIN roles r ON r.id = ur.role_id
+      WHERE ur.user_id = ?
+    `,
+    [userId],
+  );
+
+  return roleRows.some((row) => String(row.role_name) === "admin_general")
+    ? "allowed"
+    : "forbidden";
+}
+
+function AdminAccessCard({
+  title,
+  description,
+  href,
+  label,
+}: {
+  title: string;
+  description: string;
+  href: string;
+  label: string;
+}) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#f6ebdd] px-4 text-[#222222]">
+      <section className="w-full max-w-xl rounded-[28px] border border-[#e98a4a]/25 bg-[#fffffd] p-8 text-center shadow-[0_18px_50px_rgba(180,140,90,0.14)]">
+        <p className="text-xs font-black uppercase tracking-[0.28em] text-[#e98a4a]">
+          Panel Admin
+        </p>
+        <h1 className="mt-4 text-3xl font-black">{title}</h1>
+        <p className="mt-3 text-sm leading-7 text-[#6b5a4b]">{description}</p>
+        <Link
+          href={href}
+          className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-[#e98a4a] px-5 text-sm font-bold text-white shadow-[0_0_30px_rgba(233,138,74,0.28)] transition hover:bg-[#d97836]"
+        >
+          {label}
+        </Link>
+      </section>
+    </main>
+  );
+}
+
+export default async function AdminLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  const accessState = await getAdminAccessState();
+
+  if (accessState === "guest") {
+    return (
+      <AdminAccessCard
+        title="Inicia sesión para continuar"
+        description="Este panel está reservado para Administrador General."
+        href="/login"
+        label="Iniciar sesión"
+      />
+    );
+  }
+
+  if (accessState === "forbidden") {
+    return (
+      <AdminAccessCard
+        title="Tu cuenta no tiene acceso"
+        description="Solo una cuenta ADMIN_GENERAL puede entrar al Panel Admin."
+        href="/pickdash"
+        label="Volver a paneles"
+      />
+    );
+  }
+
   return (
     <div className="relative min-h-screen overflow-hidden text-zinc-900 dark:text-zinc-100">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">

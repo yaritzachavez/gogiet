@@ -35,8 +35,7 @@ export async function resolveDeliveryAccess(userId: number) {
     );
 
   const uniqueRoles = Array.from(new Set(roles));
-  const allowed =
-    uniqueRoles.includes("repartidor") || uniqueRoles.includes("admin_general");
+  const allowed = uniqueRoles.includes("repartidor");
 
   return {
     userId,

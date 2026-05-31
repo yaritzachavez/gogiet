@@ -12,10 +12,6 @@ type UserRoleRow = RowDataPacket & {
   role_name: string;
 };
 
-type OwnerBusinessRow = RowDataPacket & {
-  business_id: number;
-};
-
 type SellerOrderRow = RowDataPacket & {
   id: number;
   total_amount: string | number | null;
@@ -46,14 +42,7 @@ async function resolveSellerBusinessId(userId: number) {
 
   const roles = roleRows.map((row) => normalizeRoleName(row.role_name));
   const hasAllowedRole = roles.some((role) =>
-    [
-      "vendedor",
-      "business_staff",
-      "negocio",
-      "administrador_negocio",
-      "business_admin",
-      "admin_general",
-    ].includes(role),
+    ["vendedor", "business_staff"].includes(role),
   );
 
   if (!hasAllowedRole) {
@@ -76,28 +65,6 @@ async function resolveSellerBusinessId(userId: number) {
       allowed: true,
       businessId: Number(managerRows[0].business_id),
     };
-  }
-
-  const [ownerRows] = await pool.query<OwnerBusinessRow[]>(
-    `
-      SELECT business_id
-      FROM business_owners
-      WHERE user_id = ?
-      ORDER BY assigned_at DESC
-      LIMIT 1
-    `,
-    [userId],
-  );
-
-  if (ownerRows[0]?.business_id) {
-    return {
-      allowed: true,
-      businessId: Number(ownerRows[0].business_id),
-    };
-  }
-
-  if (roles.includes("admin_general")) {
-    return { allowed: true, businessId: 0 };
   }
 
   return { allowed: true, businessId: 0 };

@@ -12,8 +12,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithSession } from "@/lib/client-auth";
+import { canAccessPanel, normalizePanelRoles } from "@/lib/panel-access";
 
-type RoleName = "DELIVERY" | "MANAGER" | "OWNER" | "ADMIN";
+type PanelRole = "delivery" | "seller" | "business" | "admin";
 
 interface AccessFlags {
   admin?: boolean;
@@ -29,33 +30,8 @@ interface AccessCenterResponse {
   accessFlags?: AccessFlags;
 }
 
-function normalizeRole(role: string): RoleName | null {
-  if (role === "DELIVERY" || role === "REPARTIDOR" || role === "repartidor") {
-    return "DELIVERY";
-  }
-  if (role === "MANAGER" || role === "VENDEDOR" || role === "business_staff") {
-    return "MANAGER";
-  }
-  if (
-    role === "OWNER" ||
-    role === "ADMIN_NEGOCIO" ||
-    role === "business_admin"
-  ) {
-    return "OWNER";
-  }
-  if (
-    role === "ADMIN" ||
-    role === "ADMIN_GENERAL" ||
-    role === "admin_general"
-  ) {
-    return "ADMIN";
-  }
-
-  return null;
-}
-
 type RoleCard = {
-  role: RoleName;
+  panel: PanelRole;
   title: string;
   description: string;
   href: string;
@@ -73,7 +49,7 @@ type RoleCard = {
 
 const CARDS: RoleCard[] = [
   {
-    role: "DELIVERY",
+    panel: "delivery",
     title: "Zona de Delivery",
     description: "Logística y seguimiento de pedidos",
     href: "/delivery",
@@ -91,7 +67,7 @@ const CARDS: RoleCard[] = [
     openBadgeClass: "border-[rgba(255,255,253,0.55)] text-[#fffffd]",
   },
   {
-    role: "OWNER",
+    panel: "business",
     title: "Panel de negocio",
     description: "Operación integral del negocio",
     href: "/business",
@@ -109,7 +85,7 @@ const CARDS: RoleCard[] = [
     openBadgeClass: "border-[#222222]/25 text-[#222222]",
   },
   {
-    role: "MANAGER",
+    panel: "seller",
     title: "Panel de Vendedor",
     description: "Gestión de catálogo y promociones",
     href: "/pickdash/seller",
@@ -127,7 +103,7 @@ const CARDS: RoleCard[] = [
     openBadgeClass: "border-[#222222]/25 text-[#222222]",
   },
   {
-    role: "ADMIN",
+    panel: "admin",
     title: "Panel Admin",
     description: "Supervisión de usuarios y ajustes",
     href: "/admin",
@@ -150,17 +126,12 @@ export default function RoleMenu() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [accessState, setAccessState] = useState<AccessFlags | null>(null);
   const [accessItems, setAccessItems] = useState<
     Array<{ key: string; title: string; href: string }>
   >([]);
   const [_accessLoading, setAccessLoading] = useState(true);
 
-  const roles: RoleName[] = (
-    Array.isArray(user?.roles) ? user.roles : user?.roles ? [user.roles] : []
-  )
-    .map((role) => normalizeRole(String(role)))
-    .filter((role): role is RoleName => Boolean(role));
+  const roles = useMemo(() => normalizePanelRoles(user?.roles), [user?.roles]);
 
   useEffect(() => {
     if (!user) {
@@ -182,17 +153,11 @@ export default function RoleMenu() {
         }
 
         if (!response.ok || payload.success === false) {
-          setAccessState(null);
           setAccessItems([]);
           return;
         }
 
-        if (user) {
-          console.log(user.id, user.roles, payload.accessFlags?.businessOwner);
-        }
-
         setAccessItems(payload.access ?? []);
-        setAccessState(payload.accessFlags ?? null);
 
         if (
           payload.accessFlags?.customer &&
@@ -205,7 +170,7 @@ export default function RoleMenu() {
         }
       } catch (error) {
         console.error("Error:", error);
-        setAccessState(null);
+        setAccessItems([]);
       } finally {
         setAccessLoading(false);
       }
@@ -217,24 +182,13 @@ export default function RoleMenu() {
   const visibleCards = useMemo(() => {
     if (accessItems.length > 0) {
       const allowedHrefs = new Set(accessItems.map((item) => item.href));
-      return CARDS.filter((card) => allowedHrefs.has(card.href));
+      return CARDS.filter(
+        (card) =>
+          allowedHrefs.has(card.href) && canAccessPanel(roles, card.panel),
+      );
     }
-    if (!accessState) return [];
-    return CARDS.filter((card) => {
-      if (card.role === "ADMIN") return accessState.admin;
-      if (card.role === "OWNER")
-        return accessState.admin || accessState.businessOwner;
-      if (card.role === "MANAGER")
-        return (
-          accessState.admin ||
-          accessState.businessManager ||
-          accessState.businessOwner
-        );
-      if (card.role === "DELIVERY")
-        return accessState.admin || accessState.delivery;
-      return roles.includes(card.role);
-    });
-  }, [accessItems, accessState, roles]);
+    return CARDS.filter((card) => canAccessPanel(roles, card.panel));
+  }, [accessItems, roles]);
 
   if (loading) {
     return (
@@ -266,7 +220,7 @@ export default function RoleMenu() {
           {/* Header y Grid de Cards... */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
             {visibleCards.map((card) => (
-              <Card key={card.role} {...card} />
+              <Card key={card.panel} {...card} />
             ))}
           </div>
         </section>

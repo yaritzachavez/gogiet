@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { CART_UPDATED_EVENT, getStoredCartCount } from "@/lib/cart-storage";
 import { fetchWithSession } from "@/lib/client-auth";
+import { normalizePanelRoles } from "@/lib/panel-access";
 
 const NOTIFICATIONS_POLL_INTERVAL_MS = 15_000;
 
@@ -23,25 +24,8 @@ type NotificationItem = {
 };
 
 function hasPanelAccess(roles: string[] | undefined) {
-  const normalizedRoles = Array.isArray(roles)
-    ? roles.map((role) => String(role))
-    : [];
-
-  return normalizedRoles.some((role) =>
-    [
-      "ADMIN_GENERAL",
-      "REPARTIDOR",
-      "ADMIN_NEGOCIO",
-      "VENDEDOR",
-      "ADMIN",
-      "DELIVERY",
-      "MANAGER",
-      "OWNER",
-      "admin_general",
-      "repartidor",
-      "business_admin",
-      "business_staff",
-    ].includes(role),
+  return normalizePanelRoles(roles).some((role) =>
+    ["ADMIN_GENERAL", "REPARTIDOR", "ADMIN_NEGOCIO", "VENDEDOR"].includes(role),
   );
 }
 

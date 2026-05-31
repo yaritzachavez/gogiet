@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (adminGeneral || hasBusinessOwner || hasBusinessManager) {
+    if (!adminGeneral && hasBusinessOwner) {
       access.push({
         key: "admin-negocio",
         title: "Administrador de negocio",
@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (adminGeneral || hasBusinessManager) {
+    if (!adminGeneral && hasBusinessManager) {
       access.push({
         key: "vendedor",
         title: "Panel de vendedor",
@@ -146,7 +146,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (adminGeneral || hasDeliveryProfile) {
+    if (!adminGeneral && hasDeliveryProfile) {
       access.push({
         key: "repartidor",
         title: "Zona de delivery",

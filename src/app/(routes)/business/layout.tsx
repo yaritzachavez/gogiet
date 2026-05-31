@@ -117,14 +117,9 @@ async function getBusinessPanelAccessState(): Promise<BusinessAccessState> {
     roleRows.map((row) => String(row.role_name ?? "").trim()),
   );
 
-  if (roleNames.has("admin_general")) {
-    return { kind: "allowed" };
-  }
-
   const hasBusinessAdminRole = roleNames.has("business_admin");
-  const hasBusinessStaffRole = roleNames.has("business_staff");
 
-  if (!hasBusinessAdminRole && !hasBusinessStaffRole) {
+  if (!hasBusinessAdminRole) {
     return { kind: "forbidden" };
   }
 
@@ -139,24 +134,9 @@ async function getBusinessPanelAccessState(): Promise<BusinessAccessState> {
       )
     : [[{ total: 0 }] as CountRow[]];
 
-  const [managerRows] = hasBusinessStaffRole
-    ? await pool.query<CountRow[]>(
-        `
-          SELECT COUNT(*) AS total
-          FROM business_managers
-          WHERE user_id = ? AND COALESCE(is_active, 1) = 1
-        `,
-        [userId],
-      )
-    : [[{ total: 0 }] as CountRow[]];
-
   const ownerAssignments = Number(ownerRows[0]?.total ?? 0);
-  const managerAssignments = Number(managerRows[0]?.total ?? 0);
 
-  if (
-    (hasBusinessAdminRole && ownerAssignments > 0) ||
-    (hasBusinessStaffRole && managerAssignments > 0)
-  ) {
+  if (hasBusinessAdminRole && ownerAssignments > 0) {
     return { kind: "allowed" };
   }
 
