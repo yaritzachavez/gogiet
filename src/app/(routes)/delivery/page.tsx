@@ -1349,7 +1349,7 @@ export default function DeliveryDashboardPage() {
           );
           setCompletedTodayCount((current) => current + 1);
           setActiveDeliveriesCount((current) => Math.max(0, current - 1));
-          showDeliveryToast("Pedido entregado correctamente");
+          showDeliveryToast("Pedido marcado como entregado");
         }
 
         setOrdersError("");
@@ -1367,7 +1367,7 @@ export default function DeliveryDashboardPage() {
   const handleMarkDelivered = useCallback(
     (orderId: string) => {
       const confirmed = window.confirm(
-        "¿Confirmas que el pedido fue entregado?",
+        "¿Confirmas que ya entregaste este pedido?",
       );
 
       if (!confirmed) return;

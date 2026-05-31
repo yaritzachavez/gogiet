@@ -38,7 +38,12 @@ export const ORDER_STATUS_DEFINITIONS = [
   {
     code: "ready_for_pickup",
     label: "Listo para recoger",
-    aliases: ["ready_for_pickup", "listo_para_recoger"],
+    aliases: [
+      "ready_for_pickup",
+      "listo_para_recoger",
+      "ready_for_delivery",
+      "listo_para_entrega",
+    ],
   },
   {
     code: "delivery_requested",
@@ -57,6 +62,8 @@ export const ORDER_STATUS_DEFINITIONS = [
     label: "Repartidor asignado",
     aliases: [
       "driver_assigned",
+      "assigned",
+      "asignado",
       "assigned_to_driver",
       "asignado_a_repartidor",
       "repartidor_asignado",
