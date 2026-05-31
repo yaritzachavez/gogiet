@@ -3,6 +3,14 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import { getDriverLocationColumns } from "@/lib/driver-location";
+import {
+  type DriverOperationalStatus,
+  driverStatusToLabel,
+  getDriverStatusColumns,
+  isDriverAvailableStatus,
+  normalizeDriverStatus,
+} from "@/lib/driver-status";
 import { JWT_SECRET } from "@/lib/env";
 import {
   buildUserAvatarSelect,
@@ -20,6 +28,11 @@ type CourierRow = RowDataPacket & {
   phone: string | null;
   email: string | null;
   status_id: number | null;
+  is_available: number | boolean | null;
+  driver_status: DriverOperationalStatus | string | null;
+  last_latitude: string | number | null;
+  last_longitude: string | number | null;
+  last_location_at: string | null;
   vehicle: string | null;
   zone: string | null;
   total_deliveries: number | string | null;
@@ -64,10 +77,8 @@ function toNumber(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
 
-function toStatusLabel(statusId: number, activeAssignments: number) {
-  if (statusId !== 1) return "Suspendido";
-  if (activeAssignments > 0) return "Activo";
-  return "En descanso";
+function toStatusLabel(isAvailable: boolean, driverStatus: unknown) {
+  return driverStatusToLabel(normalizeDriverStatus(driverStatus, isAvailable));
 }
 
 export async function GET(req: NextRequest) {
@@ -110,6 +121,20 @@ export async function GET(req: NextRequest) {
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const avatarColumns = await ensureUserAvatarColumn();
     const avatarSelect = buildUserAvatarSelect("u", avatarColumns);
+    const driverStatusColumns = await getDriverStatusColumns();
+    const driverStatusSelect = driverStatusColumns.hasDriverStatus
+      ? "u.driver_status"
+      : "NULL AS driver_status";
+    const locationColumns = await getDriverLocationColumns();
+    const locationSelect = [
+      locationColumns.hasLatitude ? "u.last_latitude" : "NULL AS last_latitude",
+      locationColumns.hasLongitude
+        ? "u.last_longitude"
+        : "NULL AS last_longitude",
+      locationColumns.hasUpdatedAt
+        ? "u.last_location_at"
+        : "NULL AS last_location_at",
+    ].join(",\n          ");
 
     const [rows] = await pool.query<CourierRow[]>(
       `
@@ -120,6 +145,9 @@ export async function GET(req: NextRequest) {
           u.phone,
           u.email,
           u.status_id,
+          COALESCE(u.is_available, 1) AS is_available,
+          ${driverStatusSelect},
+          ${locationSelect},
           (
             SELECT vt.name
             FROM delivery d2
@@ -196,15 +224,38 @@ export async function GET(req: NextRequest) {
 
     const couriers = rows.map((row) => {
       const activeAssignments = toNumber(row.active_assignments);
+      const driverStatus = normalizeDriverStatus(
+        row.driver_status,
+        Boolean(row.is_available),
+      );
+      const isAvailable = isDriverAvailableStatus(driverStatus);
+      const status = toStatusLabel(isAvailable, driverStatus);
+      console.log("driver status sync", {
+        userId: row.id,
+        driverId: row.id,
+        statusFromAdmin: status,
+        statusFromDelivery: status,
+        isAvailable,
+        statusId: row.status_id,
+        driverStatus,
+      });
       return {
         id: row.id,
         name: row.name || "Repartidor sin nombre",
         profile_image_url: row.profile_image_url ?? null,
         phone: row.phone || "",
         email: row.email || "",
-        status: toStatusLabel(toNumber(row.status_id), activeAssignments),
+        status,
         vehicle: row.vehicle || "Sin vehículo registrado",
         zone: row.zone || "Sin zona registrada",
+        last_location:
+          row.last_latitude != null && row.last_longitude != null
+            ? {
+                latitude: Number(row.last_latitude),
+                longitude: Number(row.last_longitude),
+                updatedAt: row.last_location_at ?? null,
+              }
+            : null,
         total_deliveries: toNumber(row.total_deliveries),
         deliveries_today: toNumber(row.deliveries_today),
         deliveries_week: toNumber(row.deliveries_week),
@@ -221,6 +272,9 @@ export async function GET(req: NextRequest) {
         total: couriers.length,
         activos: couriers.filter((courier) => courier.status === "Activo")
           .length,
+        desconectados: couriers.filter(
+          (courier) => courier.status === "Desconectado",
+        ).length,
         descanso: couriers.filter((courier) => courier.status === "En descanso")
           .length,
         suspendidos: couriers.filter(

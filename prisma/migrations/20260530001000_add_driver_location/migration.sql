@@ -1,0 +1,4 @@
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `last_latitude` DECIMAL(10,7) NULL,
+  ADD COLUMN IF NOT EXISTS `last_longitude` DECIMAL(10,7) NULL,
+  ADD COLUMN IF NOT EXISTS `last_location_at` DATETIME NULL;

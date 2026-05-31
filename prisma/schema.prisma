@@ -27,6 +27,11 @@ model User {
   plates                          String?                 @map("vehicle_plate") @db.VarChar(40)
   notes                           String?                 @map("delivery_notes") @db.Text
   is_available                    Boolean                 @default(true)
+  driverStatus                    String?                 @default("ACTIVE") @map("driver_status") @db.VarChar(20)
+  driverStatusReason              String?                 @map("driver_status_reason") @db.Text
+  lastLatitude                    Decimal?                @map("last_latitude") @db.Decimal(10, 7)
+  lastLongitude                   Decimal?                @map("last_longitude") @db.Decimal(10, 7)
+  lastLocationAt                  DateTime?               @map("last_location_at") @db.DateTime(0)
   statusId                        Int                     @map("status_id")
   lastLogin                       DateTime?               @map("last_login") @db.DateTime(0)
   createdAt                       DateTime                @default(now()) @map("created_at") @db.DateTime(0)
@@ -327,10 +332,14 @@ model delivery {
   vehicle_type_id         Int?
   delivery_status_id      Int
   assigned_at             DateTime?               @db.DateTime(0)
+  to_business_at          DateTime?               @db.DateTime(0)
+  arrived_business_at     DateTime?               @db.DateTime(0)
   picked_up_at            DateTime?               @db.DateTime(0)
   in_route_at             DateTime?               @db.DateTime(0)
   delivered_at            DateTime?               @db.DateTime(0)
   failed_at               DateTime?               @db.DateTime(0)
+  incident_at             DateTime?               @db.DateTime(0)
+  incident_reason         String?                 @db.VarChar(255)
   estimated_distance_km   Decimal?                @db.Decimal(8, 2)
   estimated_duration_min  Int?
   delivery_notes          String?                 @db.VarChar(255)

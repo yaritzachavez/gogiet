@@ -10,6 +10,10 @@ import {
   pickFirstExistingColumn,
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
+import {
+  getDriverStatusColumns,
+  normalizeDriverStatus,
+} from "@/lib/driver-status";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 
 type AvailableDeliveryRow = RowDataPacket & {
@@ -109,6 +113,38 @@ export async function GET(req: NextRequest) {
       email: access.email,
       role: access.roles,
     });
+    const driverStatusColumns = await getDriverStatusColumns();
+    const driverStatusSelect = driverStatusColumns.hasDriverStatus
+      ? "driver_status"
+      : "NULL AS driver_status";
+    const [driverRows] = await pool.query<
+      (RowDataPacket & {
+        is_available: number | boolean | null;
+        driver_status: string | null;
+      })[]
+    >(
+      `
+        SELECT COALESCE(is_available, 1) AS is_available, ${driverStatusSelect}
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [userId],
+    );
+    const driverStatus = normalizeDriverStatus(
+      driverRows[0]?.driver_status,
+      Boolean(driverRows[0]?.is_available),
+    );
+
+    if (driverStatus !== "ACTIVE") {
+      return NextResponse.json({
+        success: true,
+        deliveries: [],
+        orders: [],
+        message: "Tu estado operativo no permite recibir pedidos.",
+      });
+    }
+
     const orderColumns = await getExistingColumns(
       pool,
       "orders",

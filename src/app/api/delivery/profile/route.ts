@@ -6,6 +6,14 @@ import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import pool, { getDbRuntimeConfig } from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
+  type DriverOperationalStatus,
+  driverStatusToLabel,
+  ensureDriverStatusColumns,
+  getDriverStatusColumns,
+  isDriverAvailableStatus,
+  normalizeDriverStatus,
+} from "@/lib/driver-status";
+import {
   buildUserAvatarSelect,
   ensureUserAvatarColumn,
   getPreferredUserAvatarColumn,
@@ -15,6 +23,7 @@ export const runtime = "nodejs";
 
 type DeliveryProfileRow = RowDataPacket & {
   id: number;
+  status_id: number | null;
   name: string | null;
   phone: string | null;
   profile_image_url: string | null;
@@ -23,6 +32,7 @@ type DeliveryProfileRow = RowDataPacket & {
   vehicle_plate: string | null;
   delivery_notes: string | null;
   is_available: number | boolean | null;
+  driver_status: DriverOperationalStatus | string | null;
 };
 
 type CurrentDatabaseRow = RowDataPacket & {
@@ -116,6 +126,12 @@ function normalizeProfilePayload(row: DeliveryProfileRow | undefined) {
     return null;
   }
 
+  const driverStatus = normalizeDriverStatus(
+    row.driver_status,
+    Boolean(row.is_available),
+  );
+  const isAvailable = isDriverAvailableStatus(driverStatus);
+
   return {
     id: Number(row.id),
     name: row.name ?? "Repartidor",
@@ -132,8 +148,32 @@ function normalizeProfilePayload(row: DeliveryProfileRow | undefined) {
     vehicle_type: row.vehicle_type ?? "",
     vehicle_plate: row.vehicle_plate ?? "",
     delivery_notes: row.delivery_notes ?? "",
-    is_available: Boolean(row.is_available),
+    is_available: isAvailable,
+    driver_status: driverStatus,
+    driver_status_label: driverStatusToLabel(driverStatus),
   };
+}
+
+function normalizeAvailabilityLabel(isAvailable: boolean) {
+  return isAvailable ? "Activo" : "En descanso";
+}
+
+function parseDriverStatusInput(
+  value: unknown,
+  fallback: DriverOperationalStatus,
+): DriverOperationalStatus {
+  const normalized = String(value ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (normalized === "OFFLINE" || normalized === "DISCONNECTED") {
+    return "OFFLINE";
+  }
+
+  if (normalized === "ACTIVE") return "ACTIVE";
+  if (normalized === "RESTING") return "RESTING";
+
+  return fallback;
 }
 
 export async function GET(req: NextRequest) {
@@ -178,11 +218,16 @@ export async function GET(req: NextRequest) {
     const isAvailableSelect = profileColumns.hasIsAvailable
       ? "u.is_available"
       : "1 AS is_available";
+    const driverStatusColumns = await getDriverStatusColumns();
+    const driverStatusSelect = driverStatusColumns.hasDriverStatus
+      ? "u.driver_status"
+      : "NULL AS driver_status";
 
     const [rows] = await pool.query<DeliveryProfileRow[]>(
       `
         SELECT
           u.id,
+          u.status_id,
           TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS name,
           u.phone,
           ${avatarSelect},
@@ -190,7 +235,8 @@ export async function GET(req: NextRequest) {
           ${vehicleTypeSelect},
           ${vehiclePlateSelect},
           ${deliveryNotesSelect},
-          ${isAvailableSelect}
+          ${isAvailableSelect},
+          ${driverStatusSelect}
         FROM users u
         WHERE u.id = ?
         LIMIT 1
@@ -198,9 +244,24 @@ export async function GET(req: NextRequest) {
       [authUser.user.id],
     );
 
+    const normalizedProfile = normalizeProfilePayload(rows[0]);
+    console.log("driver status sync", {
+      userId: authUser.user.id,
+      driverId: authUser.user.id,
+      statusFromAdmin: normalizedProfile
+        ? String(normalizedProfile.driver_status_label)
+        : null,
+      statusFromDelivery: normalizedProfile
+        ? String(normalizedProfile.driver_status_label)
+        : null,
+      isAvailable: normalizedProfile?.is_available ?? null,
+      statusId: rows[0]?.status_id ?? null,
+      driverStatus: rows[0]?.driver_status ?? null,
+    });
+
     return NextResponse.json({
       success: true,
-      profile: normalizeProfilePayload(rows[0]),
+      profile: normalizedProfile,
     });
   } catch (error) {
     console.error("Error GET /api/delivery/profile:", error);
@@ -271,6 +332,8 @@ export async function PATCH(req: NextRequest) {
     let deliveryNotes = "";
     let isAvailable = true;
     let avatarUrlToSave: string | null = null;
+    let isStatusOnlyUpdate = false;
+    let requestedDriverStatus: string | null = null;
 
     if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
@@ -284,6 +347,10 @@ export async function PATCH(req: NextRequest) {
       vehiclePlate = String(formData.get("vehicle_plate") ?? "").trim();
       deliveryNotes = String(formData.get("delivery_notes") ?? "").trim();
       isAvailable = String(formData.get("is_available") ?? "1") === "1";
+      isStatusOnlyUpdate = String(formData.get("status_only") ?? "") === "1";
+      requestedDriverStatus = String(
+        formData.get("driver_status") ?? "",
+      ).trim();
 
       const avatar = formData.get("avatar");
 
@@ -342,6 +409,112 @@ export async function PATCH(req: NextRequest) {
       vehiclePlate = String(body?.vehicle_plate ?? "").trim();
       deliveryNotes = String(body?.delivery_notes ?? "").trim();
       isAvailable = Boolean(body?.is_available);
+      isStatusOnlyUpdate = Boolean(body?.status_only);
+      requestedDriverStatus = String(body?.driver_status ?? "").trim();
+    }
+
+    if (isStatusOnlyUpdate) {
+      await ensureDriverStatusColumns();
+      const [currentRows] = await pool.query<DeliveryProfileRow[]>(
+        `
+          SELECT
+            id,
+            status_id,
+            is_available,
+            driver_status,
+            NULL AS name,
+            NULL AS phone,
+            NULL AS profile_image_url,
+            NULL AS delivery_zone,
+            NULL AS vehicle_type,
+            NULL AS vehicle_plate,
+            NULL AS delivery_notes
+          FROM users
+          WHERE id = ?
+          LIMIT 1
+        `,
+        [authUser.user.id],
+      );
+      const currentDriverStatus = normalizeDriverStatus(
+        currentRows[0]?.driver_status,
+        Boolean(currentRows[0]?.is_available),
+      );
+
+      if (
+        currentDriverStatus === "SUSPENDED" ||
+        currentDriverStatus === "DISABLED"
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "Tu estado operativo requiere revisión del administrador general.",
+          },
+          { status: 403 },
+        );
+      }
+
+      const nextDriverStatus = parseDriverStatusInput(
+        requestedDriverStatus,
+        isAvailable ? "ACTIVE" : "RESTING",
+      );
+      const nextIsAvailable = isDriverAvailableStatus(nextDriverStatus);
+      await pool.query<ResultSetHeader>(
+        `
+          UPDATE users
+          SET
+            is_available = ?,
+            driver_status = ?,
+            driver_status_reason = NULL,
+            updated_at = NOW()
+          WHERE id = ?
+        `,
+        [nextIsAvailable ? 1 : 0, nextDriverStatus, authUser.user.id],
+      );
+
+      const refreshedColumns = await ensureDeliveryProfileColumns();
+      const avatarSelect = buildUserAvatarSelect(
+        "u",
+        refreshedColumns.avatarColumns,
+      );
+
+      const [rows] = await pool.query<DeliveryProfileRow[]>(
+        `
+          SELECT
+            u.id,
+            u.status_id,
+            TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS name,
+            u.phone,
+            ${avatarSelect},
+            u.delivery_zone,
+            u.vehicle_type,
+            u.vehicle_plate,
+            u.delivery_notes,
+            u.is_available,
+            u.driver_status
+          FROM users u
+          WHERE u.id = ?
+          LIMIT 1
+        `,
+        [authUser.user.id],
+      );
+
+      const normalizedProfile = normalizeProfilePayload(rows[0]);
+      console.log("driver status sync", {
+        userId: authUser.user.id,
+        driverId: authUser.user.id,
+        statusFromAdmin: driverStatusToLabel(nextDriverStatus),
+        statusFromDelivery: driverStatusToLabel(nextDriverStatus),
+        isAvailable,
+        statusId: rows[0]?.status_id ?? null,
+        driverStatus: nextDriverStatus,
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Estado operativo actualizado correctamente",
+        profile: normalizedProfile,
+      });
     }
 
     if (!name) {
@@ -422,11 +595,16 @@ export async function PATCH(req: NextRequest) {
       "u",
       refreshedColumns.avatarColumns,
     );
+    const driverStatusColumns = await getDriverStatusColumns();
+    const driverStatusSelect = driverStatusColumns.hasDriverStatus
+      ? "u.driver_status"
+      : "NULL AS driver_status";
 
     const [rows] = await pool.query<DeliveryProfileRow[]>(
       `
         SELECT
           u.id,
+          u.status_id,
           TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS name,
           u.phone,
           ${avatarSelect},
@@ -434,7 +612,8 @@ export async function PATCH(req: NextRequest) {
           u.vehicle_type,
           u.vehicle_plate,
           u.delivery_notes,
-          u.is_available
+          u.is_available,
+          ${driverStatusSelect}
         FROM users u
         WHERE u.id = ?
         LIMIT 1
@@ -442,10 +621,25 @@ export async function PATCH(req: NextRequest) {
       [authUser.user.id],
     );
 
+    const normalizedProfile = normalizeProfilePayload(rows[0]);
+    console.log("driver status sync", {
+      userId: authUser.user.id,
+      driverId: authUser.user.id,
+      statusFromAdmin: normalizedProfile
+        ? String(normalizedProfile.driver_status_label)
+        : normalizeAvailabilityLabel(isAvailable),
+      statusFromDelivery: normalizedProfile
+        ? String(normalizedProfile.driver_status_label)
+        : normalizeAvailabilityLabel(isAvailable),
+      isAvailable: normalizedProfile?.is_available ?? isAvailable,
+      statusId: rows[0]?.status_id ?? null,
+      driverStatus: rows[0]?.driver_status ?? null,
+    });
+
     return NextResponse.json({
       success: true,
       message: "Perfil actualizado correctamente",
-      profile: normalizeProfilePayload(rows[0]),
+      profile: normalizedProfile,
     });
   } catch (error) {
     console.error("Error PATCH /api/delivery/profile:", error);

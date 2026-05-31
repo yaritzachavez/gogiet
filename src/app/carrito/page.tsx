@@ -361,6 +361,12 @@ export default function CarritoPage() {
       window.clearTimeout(timeoutId);
       const data = await res.json().catch(() => null);
 
+      if (!res.ok) {
+        throw new Error(
+          formatApiError(res.status, data, "No pudimos actualizar tu carrito."),
+        );
+      }
+
       if (
         data?.cart &&
         Array.isArray(data?.products) &&
@@ -414,16 +420,8 @@ export default function CarritoPage() {
         setCartId(data.cart.id);
         setCartItems(nextItems);
         syncCartStorage(nextItems);
-      } else if (data.cart && localSnapshot.length > 0) {
-        const localItems = mapStoredSnapshotToCartItems(localSnapshot);
-        setCartId(Number(data.cart.id) || null);
-        setCartItems(localItems);
-      } else if (localSnapshot.length > 0) {
-        const localItems = mapStoredSnapshotToCartItems(localSnapshot);
-        setCartId(null);
-        setCartItems(localItems);
       } else {
-        setCartId(null);
+        setCartId(data?.cart?.id ? Number(data.cart.id) : null);
         setCartItems([]);
         syncCartStorage([]);
       }

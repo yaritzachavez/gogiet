@@ -1,0 +1,3 @@
+ALTER TABLE `users`
+  ADD COLUMN IF NOT EXISTS `driver_status` VARCHAR(20) NULL DEFAULT 'ACTIVE',
+  ADD COLUMN IF NOT EXISTS `driver_status_reason` TEXT NULL;

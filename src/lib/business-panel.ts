@@ -8,6 +8,10 @@ import type {
 import { isAdminGeneral } from "@/lib/admin-security";
 import pool from "@/lib/db";
 import { getExistingTables } from "@/lib/db-schema";
+import {
+  getDriverStatusColumns,
+  normalizeDriverStatus,
+} from "@/lib/driver-status";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
@@ -32,6 +36,8 @@ type CourierAvailabilityRow = RowDataPacket & {
   email: string | null;
   phone: string | null;
   profile_image_url: string | null;
+  is_available: number | boolean | null;
+  driver_status: string | null;
   active_assignments: number | string | null;
   last_assigned_at: string | null;
 };
@@ -365,6 +371,10 @@ export async function findAvailableCourier(
 ): Promise<AvailableCourierResult> {
   const avatarColumns = await getUserAvatarColumns(executor);
   const avatarSelect = buildUserAvatarSelect("u", avatarColumns);
+  const driverStatusColumns = await getDriverStatusColumns(executor);
+  const driverStatusSelect = driverStatusColumns.hasDriverStatus
+    ? "u.driver_status"
+    : "NULL AS driver_status";
   const roleNames = ["repartidor", "delivery", "driver"];
   const excludedPlaceholders = excludedCourierIds.length
     ? `AND u.id NOT IN (${excludedCourierIds.map(() => "?").join(", ")})`
@@ -392,6 +402,8 @@ export async function findAvailableCourier(
         u.email,
         u.phone,
         ${avatarSelect},
+        COALESCE(u.is_available, 1) AS is_available,
+        ${driverStatusSelect},
         r.name AS role_name,
         (
           SELECT COUNT(*)
@@ -435,6 +447,10 @@ export async function findAvailableCourier(
     name: row.name ?? "Repartidor sin nombre",
     email: row.email ?? null,
     roleName: String(row.role_name),
+    driverStatus: normalizeDriverStatus(
+      row.driver_status,
+      Boolean(row.is_available),
+    ),
     activeAssignments: Number(row.active_assignments ?? 0),
   }));
 
@@ -453,7 +469,15 @@ export async function findAvailableCourier(
   let hasIsAvailable = false;
   let hasIsActive = false;
   let filteredCourierIds = new Set<number>(
-    courierUserRows.map((row) => Number(row.id)),
+    courierUserRows
+      .filter(
+        (row) =>
+          normalizeDriverStatus(
+            row.driver_status,
+            Boolean(row.is_available),
+          ) === "ACTIVE",
+      )
+      .map((row) => Number(row.id)),
   );
   let profileDebugRows: Array<Record<string, unknown>> = [];
 
@@ -515,7 +539,12 @@ export async function findAvailableCourier(
         .map((row) => Number(row.user_id))
         .filter((userId) => Number.isInteger(userId) && userId > 0);
 
-      filteredCourierIds = new Set(availableProfileUserIds);
+      const operationalActiveIds = filteredCourierIds;
+      filteredCourierIds = new Set(
+        availableProfileUserIds.filter((userId) =>
+          operationalActiveIds.has(userId),
+        ),
+      );
     }
   }
 

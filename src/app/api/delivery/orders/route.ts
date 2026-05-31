@@ -12,7 +12,9 @@ import {
 import { requireDriverAccess } from "@/lib/permissions";
 
 type DeliveryOrderRow = RowDataPacket & {
+  delivery_id: number;
   order_id: number;
+  driver_user_id: number | null;
   business_name: string;
   business_address: string | null;
   business_district: string | null;
@@ -65,6 +67,8 @@ function formatDeliveryStatus(value: unknown) {
   const normalized = normalizeStatus(value).replace(/\s+/g, "_");
 
   if (normalized === "en_camino") return "En camino";
+  if (normalized === "en_camino_negocio") return "En camino al negocio";
+  if (normalized === "llegue_al_negocio") return "Llegué al negocio";
   if (normalized === "listo_para_recoger") return "Listo para recoger";
   if (normalized === "recogido") return "Recogido";
   if (normalized === "aceptado") return "Pendiente";
@@ -129,7 +133,8 @@ export async function GET(req: NextRequest) {
       orderColumns,
       SHIPPING_FEE_COLUMN_CANDIDATES,
     );
-    const shippingFeeExpression = getShippingFeeSqlExpression(shippingFeeColumn);
+    const shippingFeeExpression =
+      getShippingFeeSqlExpression(shippingFeeColumn);
 
     logDbUsage("/api/delivery/orders", {
       userId,
@@ -140,7 +145,9 @@ export async function GET(req: NextRequest) {
     const [ordersRows] = await pool.query<DeliveryOrderRow[]>(
       `
         SELECT
+          d.id AS delivery_id,
           o.id AS order_id,
+          d.driver_user_id,
           b.name AS business_name,
           b.address AS business_address,
           b.district AS business_district,
@@ -221,6 +228,8 @@ export async function GET(req: NextRequest) {
       orderIds: activeOrdersRows.map((row) => Number(row.order_id)),
       assignmentsVisibles: activeOrdersRows.map((row) => ({
         orderId: Number(row.order_id),
+        deliveryId: Number(row.delivery_id),
+        driverId: row.driver_user_id,
         orderStatus: row.order_status,
         deliveryStatus: row.delivery_status,
       })),
@@ -230,9 +239,15 @@ export async function GET(req: NextRequest) {
       success: true,
       orders: activeOrdersRows.map((row) => ({
         id: Number(row.order_id),
+        deliveryId: Number(row.delivery_id),
+        driverId: row.driver_user_id,
         folio: `FG-${String(row.order_id).padStart(4, "0")}`,
         businessName: row.business_name,
-        businessAddress: [row.business_address, row.business_district, row.business_city]
+        businessAddress: [
+          row.business_address,
+          row.business_district,
+          row.business_city,
+        ]
           .filter(Boolean)
           .join(", "),
         total: Number(row.total_amount ?? 0),

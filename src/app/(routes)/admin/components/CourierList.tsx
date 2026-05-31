@@ -1,12 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppImage } from "@/components/ui/app-image";
 import { fetchWithSession } from "@/lib/client-auth";
 
-type CourierStatus = "Activo" | "En descanso" | "Suspendido";
+type CourierStatus =
+  | "Activo"
+  | "Desconectado"
+  | "En descanso"
+  | "Suspendido"
+  | "Desactivado";
 type EstadoFiltro = "Todos" | CourierStatus;
+type DriverActionStatus =
+  | "ACTIVE"
+  | "OFFLINE"
+  | "RESTING"
+  | "SUSPENDED"
+  | "DISABLED";
 
 type Courier = {
   id: number;
@@ -17,6 +28,11 @@ type Courier = {
   status: CourierStatus;
   vehicle: string;
   zone: string;
+  last_location: {
+    latitude: number;
+    longitude: number;
+    updatedAt: string | null;
+  } | null;
   total_deliveries: number;
   deliveries_today: number;
   deliveries_week: number;
@@ -30,6 +46,7 @@ type CourierResponse = {
   summary: {
     total: number;
     activos: number;
+    desconectados?: number;
     descanso: number;
     suspendidos: number;
   };
@@ -42,46 +59,105 @@ export function CourierList() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>("Todos");
+  const [updatingCourierId, setUpdatingCourierId] = useState<number | null>(
+    null,
+  );
+
+  const loadCouriers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetchWithSession(
+        "/api/admin/deliveries/repartidores",
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      const payload = (await response.json()) as CourierResponse;
+
+      if (!response.ok || !payload.success) {
+        console.error("Error real cargando repartidores:", {
+          status: response.status,
+          body: payload,
+        });
+        setError(payload.error || "No se pudieron cargar los repartidores.");
+        setCouriers([]);
+        return;
+      }
+
+      setCouriers(payload.couriers ?? []);
+    } catch (fetchError) {
+      console.error("Error cargando repartidores:", fetchError);
+      setError("No se pudieron cargar los repartidores.");
+      setCouriers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadCouriers = async () => {
-      try {
-        setLoading(true);
-        setError("");
-
-        const response = await fetchWithSession(
-          "/api/admin/deliveries/repartidores",
-          {
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        );
-
-        const payload = (await response.json()) as CourierResponse;
-
-        if (!response.ok || !payload.success) {
-          console.error("Error real cargando repartidores:", {
-            status: response.status,
-            body: payload,
-          });
-          setError(payload.error || "No se pudieron cargar los repartidores.");
-          setCouriers([]);
-          return;
-        }
-
-        setCouriers(payload.couriers ?? []);
-      } catch (fetchError) {
-        console.error("Error cargando repartidores:", fetchError);
-        setError("No se pudieron cargar los repartidores.");
-        setCouriers([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadCouriers();
-  }, []);
+  }, [loadCouriers]);
+
+  const updateCourierStatus = async (
+    courier: Courier,
+    status: DriverActionStatus,
+  ) => {
+    let reason: string | null = null;
+
+    if (status === "SUSPENDED") {
+      reason = window.prompt("Motivo de suspensión (opcional):")?.trim() ?? "";
+    }
+
+    if (status === "DISABLED") {
+      const confirmed = window.confirm(
+        "¿Seguro que deseas desactivar este repartidor para operar?",
+      );
+      if (!confirmed) return;
+      reason =
+        window.prompt("Motivo de desactivación (opcional):")?.trim() ?? "";
+    }
+
+    try {
+      setUpdatingCourierId(courier.id);
+      setError("");
+      const response = await fetchWithSession(
+        `/api/admin/delivery/drivers/${courier.id}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status, reason }),
+        },
+      );
+      const payload = (await response.json().catch(() => null)) as {
+        success?: boolean;
+        error?: string;
+      } | null;
+
+      if (!response.ok || payload?.success === false) {
+        throw new Error(
+          payload?.error || "No se pudo actualizar el estado del repartidor.",
+        );
+      }
+
+      await loadCouriers();
+    } catch (updateError) {
+      console.error("Error actualizando estado de repartidor:", updateError);
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : "No se pudo actualizar el estado del repartidor.",
+      );
+    } finally {
+      setUpdatingCourierId(null);
+    }
+  };
 
   const filteredCouriers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -104,6 +180,9 @@ export function CourierList() {
   const summary = useMemo(() => {
     const total = couriers.length;
     const activos = couriers.filter((courier) => courier.status === "Activo");
+    const desconectados = couriers.filter(
+      (courier) => courier.status === "Desconectado",
+    );
     const descanso = couriers.filter(
       (courier) => courier.status === "En descanso",
     );
@@ -114,6 +193,7 @@ export function CourierList() {
     return {
       total,
       activos: activos.length,
+      desconectados: desconectados.length,
       descanso: descanso.length,
       suspendidos: suspendidos.length,
     };
@@ -137,19 +217,21 @@ export function CourierList() {
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder="Buscar por nombre, teléfono, vehículo o zona"
-            className="min-w-[240px] rounded-xl border border-red-200/60 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-white/20 dark:bg-white/5"
+            className="min-w-[240px] rounded-xl border border-red-200/60 bg-white px-3 py-2 text-sm text-[#222222] shadow-sm transition placeholder:text-[#6b6b6b] focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-red-200/60 dark:bg-white dark:text-[#222222] dark:placeholder:text-[#6b6b6b]"
           />
           <select
             value={estadoFiltro}
             onChange={(event) =>
               setEstadoFiltro(event.target.value as EstadoFiltro)
             }
-            className="rounded-xl border border-red-200/60 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-white/20 dark:bg-white/5"
+            className="rounded-xl border border-red-200/60 bg-white px-3 py-2 text-sm text-[#222222] shadow-sm transition focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-red-200/60 dark:bg-white dark:text-[#222222]"
           >
             <option value="Todos">Todos los estados</option>
             <option value="Activo">Activos</option>
+            <option value="Desconectado">Desconectados</option>
             <option value="En descanso">En descanso</option>
             <option value="Suspendido">Suspendidos</option>
+            <option value="Desactivado">Desactivados</option>
           </select>
         </div>
       </header>
@@ -160,9 +242,14 @@ export function CourierList() {
         </div>
       ) : null}
 
-      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <SummaryCard label="Repartidores totales" value={summary.total} />
         <SummaryCard label="Activos" value={summary.activos} accent="orange" />
+        <SummaryCard
+          label="Desconectados"
+          value={summary.desconectados}
+          accent="stone"
+        />
         <SummaryCard
           label="En descanso"
           value={summary.descanso}
@@ -243,7 +330,25 @@ export function CourierList() {
                     </div>
                   </td>
                   <td className="px-6 py-3">{courier.vehicle}</td>
-                  <td className="px-6 py-3">{courier.zone}</td>
+                  <td className="px-6 py-3">
+                    <div className="flex flex-col gap-1">
+                      <span>{courier.zone}</span>
+                      {courier.last_location ? (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${courier.last_location.latitude},${courier.last_location.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-[#6e7f52] underline-offset-2 hover:underline"
+                        >
+                          Última ubicación
+                        </a>
+                      ) : (
+                        <span className="text-xs text-zinc-400">
+                          Sin GPS reciente
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-3">
                     <CourierStatusBadge status={courier.status} />
                   </td>
@@ -253,12 +358,39 @@ export function CourierList() {
                     <p>Semana: {courier.deliveries_week}</p>
                   </td>
                   <td className="px-6 py-3 text-center">
-                    <Link
-                      href={`/admin/deliveries/${courier.id}`}
-                      className="rounded-lg border border-red-200/60 px-3 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-white/20 dark:text-red-200 dark:hover:bg-white/10"
-                    >
-                      Revisar
-                    </Link>
+                    <div className="flex flex-col items-center justify-center gap-2 xl:flex-row">
+                      <Link
+                        href={`/admin/deliveries/${courier.id}`}
+                        className="rounded-lg border border-red-200/60 px-3 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-white/20 dark:text-red-200 dark:hover:bg-white/10"
+                      >
+                        Revisar
+                      </Link>
+                      <select
+                        aria-label={`Gestionar ${courier.name}`}
+                        value=""
+                        disabled={updatingCourierId === courier.id}
+                        onChange={(event) => {
+                          const nextStatus = event.target
+                            .value as DriverActionStatus;
+                          event.currentTarget.value = "";
+                          if (nextStatus) {
+                            void updateCourierStatus(courier, nextStatus);
+                          }
+                        }}
+                        className="rounded-lg border border-red-200/70 bg-white px-2 py-1 text-xs font-semibold text-[#222222] shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-200/70 dark:bg-white dark:text-[#222222]"
+                      >
+                        <option value="">
+                          {updatingCourierId === courier.id
+                            ? "Guardando..."
+                            : "Gestionar"}
+                        </option>
+                        <option value="ACTIVE">Activar</option>
+                        <option value="OFFLINE">Desconectar</option>
+                        <option value="RESTING">En descanso</option>
+                        <option value="SUSPENDED">Suspender</option>
+                        <option value="DISABLED">Desactivar</option>
+                      </select>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -277,14 +409,16 @@ function SummaryCard({
 }: {
   label: string;
   value: number;
-  accent?: "rose" | "orange" | "sky";
+  accent?: "rose" | "orange" | "sky" | "stone";
 }) {
   const palette =
     accent === "orange"
       ? "from-orange-200/80 to-orange-400/60 text-orange-700"
-      : accent === "sky"
-        ? "from-sky-200/80 to-sky-400/60 text-sky-700"
-        : "from-rose-200/80 to-red-400/60 text-red-700";
+      : accent === "stone"
+        ? "from-stone-200/80 to-stone-400/60 text-stone-700"
+        : accent === "sky"
+          ? "from-sky-200/80 to-sky-400/60 text-sky-700"
+          : "from-rose-200/80 to-red-400/60 text-red-700";
 
   return (
     <div className={`rounded-[18px] bg-gradient-to-br ${palette} p-0.5`}>
@@ -302,9 +436,13 @@ function CourierStatusBadge({ status }: { status: CourierStatus }) {
   const palette =
     status === "Activo"
       ? "bg-orange-100 text-orange-600"
-      : status === "En descanso"
-        ? "bg-sky-100 text-sky-600"
-        : "bg-rose-100 text-rose-600";
+      : status === "Desconectado"
+        ? "bg-stone-100 text-stone-600"
+        : status === "En descanso"
+          ? "bg-sky-100 text-sky-600"
+          : status === "Desactivado"
+            ? "bg-zinc-100 text-zinc-600"
+            : "bg-rose-100 text-rose-600";
 
   return (
     <span

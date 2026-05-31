@@ -1,4 +1,11 @@
-import { MapPin, Navigation, Package, PhoneCall } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  MapPin,
+  Navigation,
+  Package,
+  PhoneCall,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,12 +23,16 @@ interface CurrentDeliveriesCardProps {
   orders: DeliveryOrder[];
   activeDeliveriesCount?: number;
   isLoading?: boolean;
+  isRefreshing?: boolean;
   error?: string;
   actionLoadingOrderId?: string | null;
   onAcceptOrder?: (orderId: string) => void;
   onRejectOrder?: (orderId: string) => void;
+  onGoToBusiness?: (orderId: string) => void;
+  onArrivedBusiness?: (orderId: string) => void;
   onMarkPickedUp?: (orderId: string) => void;
   onMarkOnTheWay?: (orderId: string) => void;
+  onReportIncident?: (orderId: string) => void;
   onMarkDelivered?: (orderId: string) => void;
 }
 
@@ -71,6 +82,22 @@ function getVisualStatus(order: DeliveryOrder) {
     };
   }
 
+  if (normalized === "en_camino_negocio") {
+    return {
+      cardClass: "border-[#e5cfb3] bg-[#fff8ef] shadow-[#ead8c2]/70",
+      badgeClass: "border border-[#e2c49e] bg-[#fbefdf] text-[#9b6430]",
+      label: "EN CAMINO AL NEGOCIO",
+    };
+  }
+
+  if (normalized === "llegue_al_negocio") {
+    return {
+      cardClass: "border-[#d9c3a6] bg-[#fff8ef] shadow-[#ead8c2]/70",
+      badgeClass: "border border-[#d8c1a2] bg-[#f7ebdc] text-[#6e7f52]",
+      label: "LLEGUÉ AL NEGOCIO",
+    };
+  }
+
   return {
     cardClass: "border-[#dfd0bf] bg-[#fffaf3] shadow-[#e8d8c9]/70",
     badgeClass: "border border-[#e2d3c3] bg-[#f6eee4] text-[#6d5945]",
@@ -82,12 +109,16 @@ export function CurrentDeliveriesCard({
   orders,
   activeDeliveriesCount,
   isLoading = false,
+  isRefreshing = false,
   error,
   actionLoadingOrderId = null,
   onAcceptOrder,
   onRejectOrder,
+  onGoToBusiness,
+  onArrivedBusiness,
   onMarkPickedUp,
   onMarkOnTheWay,
+  onReportIncident,
   onMarkDelivered,
 }: CurrentDeliveriesCardProps) {
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
@@ -112,6 +143,11 @@ export function CurrentDeliveriesCard({
               </CardDescription>
             </div>
           </div>
+          {isRefreshing ? (
+            <span className="rounded-full border border-[#E7D8C7] bg-[#FFF9F2] px-3 py-1 text-[11px] font-extrabold uppercase tracking-[0.14em] text-[#9b6430]">
+              Actualizando...
+            </span>
+          ) : null}
           <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] px-4 py-3 text-center shadow-[0_8px_30px_rgba(180,140,90,0.08)] sm:px-5">
             <p className="text-3xl font-extrabold text-[#c56f2d]">
               {deliveriesCount}
@@ -155,16 +191,34 @@ export function CurrentDeliveriesCard({
                   order.canReject ?? !order.isAvailableDelivery;
                 const canMarkPickedUp =
                   !order.canRespond &&
-                  (normalizedAssignmentStatus === "aceptado" ||
-                    normalizedAssignmentStatus === "driver_assigned" ||
-                    normalizedAssignmentStatus === "repartidor_asignado");
+                  (normalizedAssignmentStatus === "llegue_al_negocio" ||
+                    normalizedAssignmentStatus === "arrived_business");
                 const canMarkOnTheWay =
                   !order.canRespond &&
                   normalizedAssignmentStatus === "recogido";
+                const canGoToBusiness =
+                  !order.canRespond &&
+                  (normalizedAssignmentStatus === "aceptado" ||
+                    normalizedAssignmentStatus === "driver_assigned" ||
+                    normalizedAssignmentStatus === "repartidor_asignado");
+                const canArrivedBusiness =
+                  !order.canRespond &&
+                  (normalizedAssignmentStatus === "en_camino_negocio" ||
+                    normalizedAssignmentStatus === "to_business");
                 const canMarkDelivered =
                   !order.canRespond &&
-                  (normalizedAssignmentStatus === "en_camino" ||
-                    normalizedAssignmentStatus === "on_the_way");
+                  !order.isAvailableDelivery &&
+                  (normalizedAssignmentStatus === "pendiente" ||
+                    normalizedAssignmentStatus === "pending" ||
+                    normalizedAssignmentStatus === "pendiente_aceptacion" ||
+                    normalizedAssignmentStatus === "listo_para_entrega" ||
+                    normalizedAssignmentStatus === "listo_para_recoger" ||
+                    normalizedAssignmentStatus === "ready_for_pickup" ||
+                    normalizedAssignmentStatus === "driver_assigned" ||
+                    normalizedAssignmentStatus === "repartidor_asignado" ||
+                    normalizedAssignmentStatus === "en_camino" ||
+                    normalizedAssignmentStatus === "on_the_way" ||
+                    normalizedAssignmentStatus === "recogido");
                 const googleMapsQuery =
                   order.address.latitude != null &&
                   order.address.longitude != null
@@ -327,6 +381,26 @@ export function CurrentDeliveriesCard({
                           Pedido recogido
                         </Button>
                       ) : null}
+                      {canGoToBusiness ? (
+                        <Button
+                          type="button"
+                          className="h-10 rounded-lg bg-[#e98a4a] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#d97836]"
+                          onClick={() => onGoToBusiness?.(order.id)}
+                          disabled={actionLoadingOrderId === order.id}
+                        >
+                          En camino al negocio
+                        </Button>
+                      ) : null}
+                      {canArrivedBusiness ? (
+                        <Button
+                          type="button"
+                          className="h-10 rounded-lg bg-[#6e7f52] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#5d6d44]"
+                          onClick={() => onArrivedBusiness?.(order.id)}
+                          disabled={actionLoadingOrderId === order.id}
+                        >
+                          Llegué al negocio
+                        </Button>
+                      ) : null}
                       {canMarkOnTheWay ? (
                         <Button
                           type="button"
@@ -337,14 +411,30 @@ export function CurrentDeliveriesCard({
                           En camino
                         </Button>
                       ) : null}
+                      {!order.canRespond && !order.isAvailableDelivery ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="h-10 rounded-lg border border-[#f0a26d] bg-[#fff5ec] px-4 text-xs font-bold text-[#9a3412] hover:bg-[#ffedd5]"
+                          onClick={() => onReportIncident?.(order.id)}
+                          disabled={actionLoadingOrderId === order.id}
+                        >
+                          Incidencia
+                        </Button>
+                      ) : null}
                       {canMarkDelivered ? (
                         <Button
                           type="button"
-                          className="h-10 rounded-lg bg-[#FF6A00] px-4 text-xs font-bold text-[#FFFDF8] hover:bg-[#EA580C]"
+                          className="h-10 rounded-lg bg-[#22c55e] px-4 text-xs font-bold text-[#FFFDF8] shadow-[0_8px_24px_rgba(34,197,94,0.22)] hover:bg-[#16a34a]"
                           onClick={() => onMarkDelivered?.(order.id)}
                           disabled={actionLoadingOrderId === order.id}
                         >
-                          Pedido entregado
+                          {actionLoadingOrderId === order.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          )}
+                          Entregado
                         </Button>
                       ) : null}
                       <Button

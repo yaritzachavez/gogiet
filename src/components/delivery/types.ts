@@ -32,6 +32,8 @@ export interface DeliveryOrderItem {
 
 export interface DeliveryOrder {
   id: string;
+  deliveryId?: number | null;
+  driverId?: number | null;
   status: DeliveryStatus;
   eta: string;
   paymentMethod: string;

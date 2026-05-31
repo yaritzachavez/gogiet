@@ -3,6 +3,13 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import {
+  type DriverOperationalStatus,
+  driverStatusToLabel,
+  getDriverStatusColumns,
+  isDriverAvailableStatus,
+  normalizeDriverStatus,
+} from "@/lib/driver-status";
 import { JWT_SECRET } from "@/lib/env";
 
 type JwtPayload = {
@@ -15,6 +22,8 @@ type CourierBaseRow = RowDataPacket & {
   phone: string | null;
   email: string | null;
   status_id: number | null;
+  is_available: number | boolean | null;
+  driver_status: DriverOperationalStatus | string | null;
   vehicle: string | null;
   zone: string | null;
   total_deliveries: number | string | null;
@@ -130,10 +139,8 @@ function toNumber(value: string | number | null | undefined) {
   return Number(value ?? 0);
 }
 
-function toStatusLabel(statusId: number, activeAssignments: number) {
-  if (statusId !== 1) return "Suspendido";
-  if (activeAssignments > 0) return "Activo";
-  return "En descanso";
+function toStatusLabel(isAvailable: boolean, driverStatus: unknown) {
+  return driverStatusToLabel(normalizeDriverStatus(driverStatus, isAvailable));
 }
 
 async function getCourierBase(courierId: number) {
@@ -160,6 +167,10 @@ async function getCourierBase(courierId: number) {
   weekStart.setDate(weekStart.getDate() + weekDiff);
   weekStart.setHours(0, 0, 0, 0);
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const driverStatusColumns = await getDriverStatusColumns();
+  const driverStatusSelect = driverStatusColumns.hasDriverStatus
+    ? "u.driver_status"
+    : "NULL AS driver_status";
 
   const [rows] = await pool.query<CourierBaseRow[]>(
     `
@@ -169,6 +180,8 @@ async function getCourierBase(courierId: number) {
         u.phone,
         u.email,
         u.status_id,
+        COALESCE(u.is_available, 1) AS is_available,
+        ${driverStatusSelect},
         (
           SELECT vt.name
           FROM delivery d2
@@ -372,7 +385,21 @@ export async function GET(
       { total_deliveries: 0, earnings: 0 },
     );
 
-    const activeAssignments = toNumber(courier.active_assignments);
+    const driverStatus = normalizeDriverStatus(
+      courier.driver_status,
+      Boolean(courier.is_available),
+    );
+    const isAvailable = isDriverAvailableStatus(driverStatus);
+    const status = toStatusLabel(isAvailable, driverStatus);
+    console.log("driver status sync", {
+      userId: courier.id,
+      driverId: courier.id,
+      statusFromAdmin: status,
+      statusFromDelivery: status,
+      isAvailable,
+      statusId: courier.status_id,
+      driverStatus,
+    });
 
     return NextResponse.json({
       success: true,
@@ -381,7 +408,7 @@ export async function GET(
         name: courier.name || "Repartidor sin nombre",
         phone: courier.phone || "",
         email: courier.email || "",
-        status: toStatusLabel(toNumber(courier.status_id), activeAssignments),
+        status,
         vehicle: courier.vehicle || "Sin vehículo registrado",
         zone: courier.zone || "Sin zona registrada",
         total_deliveries: toNumber(courier.total_deliveries),

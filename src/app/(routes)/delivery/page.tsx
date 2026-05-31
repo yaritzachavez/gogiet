@@ -45,6 +45,7 @@ type DeliveryProfile = {
   vehicle_plate: string;
   delivery_notes: string;
   is_available: boolean;
+  driver_status_label: string;
 };
 
 type DeliveryEvidenceDraft = {
@@ -63,6 +64,7 @@ const EMPTY_PROFILE: DeliveryProfile = {
   vehicle_plate: "",
   delivery_notes: "",
   is_available: true,
+  driver_status_label: "Activo",
 };
 
 const DELIVERY_FIELD_CLASS =
@@ -170,6 +172,14 @@ function parseDeliveryOrders(
 
     return {
       id: String(safeOrder.id ?? ""),
+      deliveryId:
+        safeOrder.deliveryId === null || safeOrder.deliveryId === undefined
+          ? null
+          : Number(safeOrder.deliveryId),
+      driverId:
+        safeOrder.driverId === null || safeOrder.driverId === undefined
+          ? null
+          : Number(safeOrder.driverId),
       folio: String(safeOrder.folio ?? safeOrder.id ?? ""),
       status: toDeliveryStatus(safeOrder.status),
       eta: String(safeOrder.eta ?? "Por confirmar"),
@@ -261,7 +271,10 @@ export default function DeliveryDashboardPage() {
     DeliveryNotification[]
   >([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [ordersRefreshing, setOrdersRefreshing] = useState(false);
   const [ordersError, setOrdersError] = useState("");
+  const [deliveryToast, setDeliveryToast] = useState("");
+  const [locationError, setLocationError] = useState("");
   const [activeOrderLoading, setActiveOrderLoading] = useState(true);
   const [activeOrderError, setActiveOrderError] = useState("");
   const [notificationsLoading, setNotificationsLoading] = useState(true);
@@ -297,6 +310,10 @@ export default function DeliveryDashboardPage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const currentOrdersRef = useRef<DeliveryOrder[]>([]);
+  const activeOrderRef = useRef<DeliveryOrder | null>(null);
+  const fetchSequenceRef = useRef(0);
+  const emptyAssignedPollsRef = useRef(0);
   const driverName = profile.name || user?.name || "Repartidor Gogi";
   const normalizedRoles = Array.isArray(user?.roles)
     ? user.roles.map((role) => String(role).toLowerCase())
@@ -305,6 +322,14 @@ export default function DeliveryDashboardPage() {
     normalizedRoles.length === 0 ||
     normalizedRoles.includes("repartidor") ||
     normalizedRoles.includes("admin_general");
+
+  useEffect(() => {
+    currentOrdersRef.current = currentOrders;
+  }, [currentOrders]);
+
+  useEffect(() => {
+    activeOrderRef.current = activeOrder;
+  }, [activeOrder]);
 
   const fetchDriverProfile = useCallback(async () => {
     const token = getStoredToken();
@@ -345,6 +370,10 @@ export default function DeliveryDashboardPage() {
         vehicle_plate: String(profilePayload?.vehicle_plate ?? ""),
         delivery_notes: String(profilePayload?.delivery_notes ?? ""),
         is_available: Boolean(profilePayload?.is_available ?? true),
+        driver_status_label: String(
+          profilePayload?.driver_status_label ??
+            (profilePayload?.is_available === false ? "En descanso" : "Activo"),
+        ),
       };
 
       setProfile(nextProfile);
@@ -422,363 +451,483 @@ export default function DeliveryDashboardPage() {
     }
   }, []);
 
-  const fetchDeliveryData = useCallback(async () => {
-    if (typeof window === "undefined") return;
+  const fetchDeliveryData = useCallback(
+    async (options?: { background?: boolean }) => {
+      if (typeof window === "undefined") return;
 
-    const token = getStoredToken();
+      const isBackgroundRefresh = Boolean(options?.background);
+      const requestId = fetchSequenceRef.current + 1;
+      fetchSequenceRef.current = requestId;
+      const hadCurrentOrders = currentOrdersRef.current.length > 0;
+      const hadActiveOrder = Boolean(activeOrderRef.current);
+      const shouldKeepPreviousData =
+        isBackgroundRefresh || hadCurrentOrders || hadActiveOrder;
+      const token = getStoredToken();
 
-    if (!token) {
-      setCurrentOrders([]);
-      setActiveOrder(null);
-      setDeliveryNotifications([]);
-      setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
-      setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
-      setOrdersLoading(false);
-      setActiveOrderLoading(false);
-      setNotificationsLoading(false);
-      setOrdersError("Debes iniciar sesión para ver tus entregas.");
-      setActiveOrderError("Debes iniciar sesión para ver tu entrega activa.");
-      setNotificationsError(
-        "Debes iniciar sesión para ver tus notificaciones.",
-      );
-      return;
-    }
-
-    try {
-      setOrdersLoading(true);
-      setActiveOrderLoading(true);
-      setNotificationsLoading(true);
-      setOrdersError("");
-      setActiveOrderError("");
-      setNotificationsError("");
-
-      const [
-        dashboardResponse,
-        ordersResponse,
-        availableResponse,
-        activeOrderResponse,
-        notificationsResponse,
-      ] = await Promise.all([
-        fetchWithSession("/api/delivery/dashboard", {
-          headers: buildAuthHeaders(),
-        }),
-        fetchWithSession("/api/delivery/orders", {
-          headers: buildAuthHeaders(),
-        }),
-        fetchWithSession("/api/delivery/available", {
-          headers: buildAuthHeaders(),
-        }),
-        fetchWithSession("/api/delivery/active-order", {
-          headers: buildAuthHeaders(),
-        }),
-        fetchWithSession("/api/delivery/notifications", {
-          headers: buildAuthHeaders(),
-        }),
-      ]);
-      const dashboardResponseText = await dashboardResponse.text();
-      let dashboardPayload: Record<string, unknown> = {};
-
-      try {
-        dashboardPayload = dashboardResponseText
-          ? JSON.parse(dashboardResponseText)
-          : {};
-      } catch {
-        dashboardPayload = { raw: dashboardResponseText };
-      }
-
-      if (
-        isAuthErrorStatus(dashboardResponse.status) ||
-        isAuthErrorStatus(ordersResponse.status) ||
-        isAuthErrorStatus(availableResponse.status) ||
-        isAuthErrorStatus(activeOrderResponse.status) ||
-        isAuthErrorStatus(notificationsResponse.status)
-      ) {
+      if (!token) {
+        emptyAssignedPollsRef.current = 0;
         setCurrentOrders([]);
         setActiveOrder(null);
         setDeliveryNotifications([]);
         setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
         setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
-        setOrdersError("Tu sesión expiró o no tienes permisos de repartidor.");
-        setActiveOrderError("");
-        setNotificationsError("");
+        setOrdersLoading(false);
+        setActiveOrderLoading(false);
+        setNotificationsLoading(false);
+        setOrdersError("Debes iniciar sesión para ver tus entregas.");
+        setActiveOrderError("Debes iniciar sesión para ver tu entrega activa.");
+        setNotificationsError(
+          "Debes iniciar sesión para ver tus notificaciones.",
+        );
         return;
       }
 
-      if (!dashboardResponse.ok || dashboardPayload.success === false) {
-        console.error("Error cargando dashboard del repartidor:", {
-          status: dashboardResponse.status,
-          statusText: dashboardResponse.statusText,
-          responseText: dashboardResponseText,
-          payload: dashboardPayload,
-        });
-        setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
-        setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
-      } else {
-        const dashboardData =
-          dashboardPayload.dashboard &&
-          typeof dashboardPayload.dashboard === "object"
-            ? (dashboardPayload.dashboard as Record<string, unknown>)
-            : null;
-        const statsData =
-          dashboardPayload.stats && typeof dashboardPayload.stats === "object"
-            ? (dashboardPayload.stats as Record<string, unknown>)
-            : null;
-
-        setActiveDeliveriesCount(
-          Number(
-            dashboardData?.activeDeliveriesCount ??
-              statsData?.activeDeliveries ??
-              0,
-          ),
-        );
-        setCompletedTodayCount(
-          Number(
-            dashboardData?.completedTodayCount ??
-              statsData?.completedDeliveries ??
-              0,
-          ),
-        );
-      }
-
-      const ordersResponseText = await ordersResponse.text();
-      let ordersPayload: Record<string, unknown> = {};
-
       try {
-        ordersPayload = ordersResponseText
-          ? JSON.parse(ordersResponseText)
-          : {};
-      } catch {
-        ordersPayload = { raw: ordersResponseText };
-      }
+        if (shouldKeepPreviousData) {
+          setOrdersRefreshing(true);
+        } else {
+          setOrdersLoading(true);
+          setActiveOrderLoading(true);
+          setNotificationsLoading(true);
+        }
+        if (!shouldKeepPreviousData) {
+          setOrdersError("");
+          setActiveOrderError("");
+          setNotificationsError("");
+        }
 
-      const parsedOrders = parseDeliveryOrders(ordersPayload, {
-        isAvailableDelivery: false,
-        canReject: true,
-      });
-      const availableResponseText = await availableResponse.text();
-      let availablePayload: Record<string, unknown> = {};
-
-      try {
-        availablePayload = availableResponseText
-          ? JSON.parse(availableResponseText)
-          : {};
-      } catch {
-        availablePayload = { raw: availableResponseText };
-      }
-
-      const parsedAvailableOrders =
-        availableResponse.ok && availablePayload.success !== false
-          ? parseDeliveryOrders(availablePayload, {
-              isAvailableDelivery: true,
-              canReject: false,
-            })
-          : [];
-      let visibleOrders: DeliveryOrder[] = parsedAvailableOrders;
-
-      if (!ordersResponse.ok || ordersPayload.success === false) {
-        console.error("Error real cargando entregas del repartidor:", {
-          status: ordersResponse.status,
-          statusText: ordersResponse.statusText,
-          responseText: ordersResponseText,
-          payload: ordersPayload,
-        });
-        setOrdersError(
-          parsedAvailableOrders.length > 0
-            ? ""
-            : (typeof ordersPayload.error === "string" &&
-                ordersPayload.error) ||
-                "No se pudieron cargar tus entregas. Intenta de nuevo.",
-        );
-        visibleOrders = parsedAvailableOrders;
-      }
-
-      if (!availableResponse.ok || availablePayload.success === false) {
-        console.error("Error cargando entregas disponibles:", {
-          status: availableResponse.status,
-          statusText: availableResponse.statusText,
-          responseText: availableResponseText,
-          payload: availablePayload,
-        });
-      }
-
-      if (ordersResponse.ok && ordersPayload.success !== false) {
-        visibleOrders = Array.from(
-          new Map(
-            [...parsedAvailableOrders, ...parsedOrders].map((order) => [
-              order.id,
-              order,
-            ]),
-          ).values(),
-        );
-      }
-
-      if (ordersResponse.ok && ordersPayload.success !== false) {
-        setOrdersError("");
-      }
-
-      setCurrentOrders(visibleOrders);
-
-      const activeOrderResponseText = await activeOrderResponse.text();
-      let activeOrderPayload: Record<string, unknown> = {};
-
-      try {
-        activeOrderPayload = activeOrderResponseText
-          ? JSON.parse(activeOrderResponseText)
-          : {};
-      } catch {
-        activeOrderPayload = { raw: activeOrderResponseText };
-      }
-
-      if (!activeOrderResponse.ok || activeOrderPayload.success === false) {
-        console.error("Error real cargando orden activa del repartidor:", {
-          status: activeOrderResponse.status,
-          statusText: activeOrderResponse.statusText,
-          responseText: activeOrderResponseText,
-          payload: activeOrderPayload,
-        });
-        setActiveOrder(null);
-        setActiveOrderError(
-          (typeof activeOrderPayload.error === "string" &&
-            activeOrderPayload.error) ||
-            "No se pudo cargar tu entrega activa.",
-        );
-      }
-
-      const activeOrderData =
-        activeOrderPayload.activeOrder &&
-        typeof activeOrderPayload.activeOrder === "object"
-          ? (activeOrderPayload.activeOrder as Record<string, unknown>)
-          : activeOrderPayload.order &&
-              typeof activeOrderPayload.order === "object"
-            ? (activeOrderPayload.order as Record<string, unknown>)
-            : null;
-
-      if (!activeOrderData) {
-        setActiveOrder(null);
-        setActiveOrderError("");
-      } else {
-        setActiveOrder({
-          id: String(activeOrderData.id ?? ""),
-          folio: String(activeOrderData.folio ?? activeOrderData.id ?? ""),
-          status: toDeliveryStatus(activeOrderData.status),
-          eta: "Por confirmar",
-          paymentMethod: String(activeOrderData.paymentMethod ?? "Sin método"),
-          amount: Number(activeOrderData.amount ?? 0),
-          shippingFee: Number(activeOrderData.shippingFee ?? 0),
-          businessName: String(activeOrderData.businessName ?? ""),
-          businessAddress: String(activeOrderData.businessAddress ?? ""),
-          fullAddress: String(activeOrderData.fullAddress ?? ""),
-          address: {
-            street: String(activeOrderData.fullAddress ?? ""),
-            neighborhood: String(activeOrderData.zoneName ?? ""),
-            city: String(activeOrderData.city ?? ""),
-            references: String(activeOrderData.references ?? ""),
-            latitude:
-              typeof activeOrderData.latitude === "number"
-                ? Number(activeOrderData.latitude)
-                : null,
-            longitude:
-              typeof activeOrderData.longitude === "number"
-                ? Number(activeOrderData.longitude)
-                : null,
-            fullAddress: String(activeOrderData.fullAddress ?? ""),
-          },
-          contact: {
-            name: String(activeOrderData.customerName ?? "Cliente"),
-            phone: String(activeOrderData.customerPhone ?? ""),
-          },
-          zoneName: String(activeOrderData.zoneName ?? ""),
-          notes: String(activeOrderData.references ?? ""),
-          customerReference: String(activeOrderData.references ?? ""),
+        console.log("[delivery-panel] fetch start", {
+          requestId,
+          isBackgroundRefresh,
+          hadCurrentOrders,
+          hadActiveOrder,
         });
 
-        setActiveOrderError("");
-      }
+        const [
+          dashboardResponse,
+          ordersResponse,
+          availableResponse,
+          activeOrderResponse,
+          notificationsResponse,
+        ] = await Promise.all([
+          fetchWithSession("/api/delivery/dashboard", {
+            headers: buildAuthHeaders(),
+          }),
+          fetchWithSession("/api/delivery/orders", {
+            headers: buildAuthHeaders(),
+          }),
+          fetchWithSession("/api/delivery/available", {
+            headers: buildAuthHeaders(),
+          }),
+          fetchWithSession("/api/delivery/active-order", {
+            headers: buildAuthHeaders(),
+          }),
+          fetchWithSession("/api/delivery/notifications", {
+            headers: buildAuthHeaders(),
+          }),
+        ]);
 
-      const notificationsResponseText = await notificationsResponse.text();
-      let notificationsPayload: Record<string, unknown> = {};
+        if (requestId !== fetchSequenceRef.current) {
+          console.log("[delivery-panel] fetch ignored stale response", {
+            requestId,
+            latestRequestId: fetchSequenceRef.current,
+          });
+          return;
+        }
+        const dashboardResponseText = await dashboardResponse.text();
+        let dashboardPayload: Record<string, unknown> = {};
 
-      try {
-        notificationsPayload = notificationsResponseText
-          ? JSON.parse(notificationsResponseText)
-          : {};
-      } catch {
-        notificationsPayload = { raw: notificationsResponseText };
-      }
+        try {
+          dashboardPayload = dashboardResponseText
+            ? JSON.parse(dashboardResponseText)
+            : {};
+        } catch {
+          dashboardPayload = { raw: dashboardResponseText };
+        }
 
-      if (!notificationsResponse.ok || notificationsPayload.success === false) {
-        console.warn("Error real cargando notificaciones del repartidor:", {
-          status: notificationsResponse.status,
-          statusText: notificationsResponse.statusText,
-          responseText: notificationsResponseText,
-          payload: notificationsPayload,
+        if (
+          isAuthErrorStatus(dashboardResponse.status) ||
+          isAuthErrorStatus(ordersResponse.status) ||
+          isAuthErrorStatus(availableResponse.status) ||
+          isAuthErrorStatus(activeOrderResponse.status) ||
+          isAuthErrorStatus(notificationsResponse.status)
+        ) {
+          emptyAssignedPollsRef.current = 0;
+          setCurrentOrders([]);
+          setActiveOrder(null);
+          setDeliveryNotifications([]);
+          if (!shouldKeepPreviousData) {
+            setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
+            setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
+          }
+          setOrdersError(
+            "Tu sesión expiró o no tienes permisos de repartidor.",
+          );
+          setActiveOrderError("");
+          setNotificationsError("");
+          return;
+        }
+
+        if (!dashboardResponse.ok || dashboardPayload.success === false) {
+          console.error("Error cargando dashboard del repartidor:", {
+            status: dashboardResponse.status,
+            statusText: dashboardResponse.statusText,
+            responseText: dashboardResponseText,
+            payload: dashboardPayload,
+          });
+          setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
+          setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
+        } else {
+          const dashboardData =
+            dashboardPayload.dashboard &&
+            typeof dashboardPayload.dashboard === "object"
+              ? (dashboardPayload.dashboard as Record<string, unknown>)
+              : null;
+          const statsData =
+            dashboardPayload.stats && typeof dashboardPayload.stats === "object"
+              ? (dashboardPayload.stats as Record<string, unknown>)
+              : null;
+
+          setActiveDeliveriesCount(
+            Number(
+              dashboardData?.activeDeliveriesCount ??
+                statsData?.activeDeliveries ??
+                0,
+            ),
+          );
+          setCompletedTodayCount(
+            Number(
+              dashboardData?.completedTodayCount ??
+                statsData?.completedDeliveries ??
+                0,
+            ),
+          );
+        }
+
+        const ordersResponseText = await ordersResponse.text();
+        let ordersPayload: Record<string, unknown> = {};
+
+        try {
+          ordersPayload = ordersResponseText
+            ? JSON.parse(ordersResponseText)
+            : {};
+        } catch {
+          ordersPayload = { raw: ordersResponseText };
+        }
+
+        const parsedOrders = parseDeliveryOrders(ordersPayload, {
+          isAvailableDelivery: false,
+          canReject: true,
         });
-        setDeliveryNotifications([]);
-        setNotificationsError("Tu sesión expiró o no tienes permisos.");
-      } else {
-        const parsedNotifications = Array.isArray(
-          notificationsPayload.notifications,
-        )
-          ? (
-              notificationsPayload.notifications as Array<
-                Record<string, unknown>
-              >
-            ).map((notification) => ({
-              id: String(notification.id ?? ""),
-              type: String(notification.type ?? "pedido"),
-              title: String(notification.title ?? "Notificación"),
-              message: String(notification.message ?? ""),
-              timestamp: String(notification.createdAt ?? ""),
-              createdAt: String(notification.createdAt ?? ""),
-              status:
-                notification.status === null ||
-                notification.status === undefined
-                  ? undefined
-                  : String(notification.status),
-              orderId:
-                notification.orderId === null ||
-                notification.orderId === undefined
-                  ? null
-                  : Number(notification.orderId),
-              folio:
-                notification.folio === null || notification.folio === undefined
-                  ? null
-                  : String(notification.folio),
-              unread: !notification.isRead,
-            }))
-          : [];
+        const availableResponseText = await availableResponse.text();
+        let availablePayload: Record<string, unknown> = {};
 
-        console.log("[delivery-panel] respuesta panel repartidor:", {
-          orders: visibleOrders.map((order) => ({
+        try {
+          availablePayload = availableResponseText
+            ? JSON.parse(availableResponseText)
+            : {};
+        } catch {
+          availablePayload = { raw: availableResponseText };
+        }
+
+        const parsedAvailableOrders =
+          availableResponse.ok && availablePayload.success !== false
+            ? parseDeliveryOrders(availablePayload, {
+                isAvailableDelivery: true,
+                canReject: false,
+              })
+            : [];
+        let visibleOrders: DeliveryOrder[] = parsedAvailableOrders;
+
+        if (!ordersResponse.ok || ordersPayload.success === false) {
+          console.error("Error real cargando entregas del repartidor:", {
+            status: ordersResponse.status,
+            statusText: ordersResponse.statusText,
+            responseText: ordersResponseText,
+            payload: ordersPayload,
+          });
+          if (!shouldKeepPreviousData) {
+            setOrdersError(
+              parsedAvailableOrders.length > 0
+                ? ""
+                : (typeof ordersPayload.error === "string" &&
+                    ordersPayload.error) ||
+                    "No se pudieron cargar tus entregas. Intenta de nuevo.",
+            );
+          }
+          visibleOrders = parsedAvailableOrders;
+        }
+
+        if (!availableResponse.ok || availablePayload.success === false) {
+          console.error("Error cargando entregas disponibles:", {
+            status: availableResponse.status,
+            statusText: availableResponse.statusText,
+            responseText: availableResponseText,
+            payload: availablePayload,
+          });
+        }
+
+        if (ordersResponse.ok && ordersPayload.success !== false) {
+          visibleOrders = Array.from(
+            new Map(
+              [...parsedAvailableOrders, ...parsedOrders].map((order) => [
+                order.id,
+                order,
+              ]),
+            ).values(),
+          );
+        }
+
+        if (ordersResponse.ok && ordersPayload.success !== false) {
+          setOrdersError("");
+        }
+
+        const shouldPreserveOrdersOnEmpty =
+          shouldKeepPreviousData &&
+          visibleOrders.length === 0 &&
+          currentOrdersRef.current.length > 0 &&
+          emptyAssignedPollsRef.current < 1;
+
+        if (visibleOrders.length === 0) {
+          emptyAssignedPollsRef.current += 1;
+        } else {
+          emptyAssignedPollsRef.current = 0;
+        }
+
+        console.log("[delivery-panel] fetch orders result", {
+          requestId,
+          returnedOrders: visibleOrders.map((order) => ({
             id: order.id,
-            folio: order.folio,
-            businessName: order.businessName,
-            canRespond: order.canRespond,
+            deliveryId: order.deliveryId,
+            driverId: order.driverId,
+            assignmentStatus: order.assignmentStatus,
+            status: order.status,
             isAvailableDelivery: order.isAvailableDelivery,
+            canRespond: order.canRespond,
           })),
+          preservedPrevious: shouldPreserveOrdersOnEmpty,
+          emptyAssignedPolls: emptyAssignedPollsRef.current,
         });
 
-        setDeliveryNotifications(parsedNotifications);
-        setNotificationsError("");
+        if (!shouldPreserveOrdersOnEmpty) {
+          setCurrentOrders(visibleOrders);
+        }
+
+        const activeOrderResponseText = await activeOrderResponse.text();
+        let activeOrderPayload: Record<string, unknown> = {};
+
+        try {
+          activeOrderPayload = activeOrderResponseText
+            ? JSON.parse(activeOrderResponseText)
+            : {};
+        } catch {
+          activeOrderPayload = { raw: activeOrderResponseText };
+        }
+
+        if (!activeOrderResponse.ok || activeOrderPayload.success === false) {
+          console.error("Error real cargando orden activa del repartidor:", {
+            status: activeOrderResponse.status,
+            statusText: activeOrderResponse.statusText,
+            responseText: activeOrderResponseText,
+            payload: activeOrderPayload,
+          });
+          if (!shouldKeepPreviousData) {
+            setActiveOrder(null);
+            setActiveOrderError(
+              (typeof activeOrderPayload.error === "string" &&
+                activeOrderPayload.error) ||
+                "No se pudo cargar tu entrega activa.",
+            );
+          }
+        }
+
+        const activeOrderData =
+          activeOrderPayload.activeOrder &&
+          typeof activeOrderPayload.activeOrder === "object"
+            ? (activeOrderPayload.activeOrder as Record<string, unknown>)
+            : activeOrderPayload.order &&
+                typeof activeOrderPayload.order === "object"
+              ? (activeOrderPayload.order as Record<string, unknown>)
+              : null;
+
+        if (!activeOrderData) {
+          const shouldPreserveActiveOrder =
+            shouldKeepPreviousData &&
+            Boolean(activeOrderRef.current) &&
+            emptyAssignedPollsRef.current <= 1;
+
+          console.log("[delivery-panel] active order empty", {
+            requestId,
+            preservedPrevious: shouldPreserveActiveOrder,
+            previousOrderId: activeOrderRef.current?.id ?? null,
+          });
+
+          if (!shouldPreserveActiveOrder) {
+            setActiveOrder(null);
+          }
+          setActiveOrderError("");
+        } else {
+          const nextActiveOrder = {
+            id: String(activeOrderData.id ?? ""),
+            deliveryId:
+              activeOrderData.deliveryId === null ||
+              activeOrderData.deliveryId === undefined
+                ? null
+                : Number(activeOrderData.deliveryId),
+            driverId:
+              activeOrderData.driverId === null ||
+              activeOrderData.driverId === undefined
+                ? null
+                : Number(activeOrderData.driverId),
+            folio: String(activeOrderData.folio ?? activeOrderData.id ?? ""),
+            status: toDeliveryStatus(activeOrderData.status),
+            eta: "Por confirmar",
+            paymentMethod: String(
+              activeOrderData.paymentMethod ?? "Sin método",
+            ),
+            amount: Number(activeOrderData.amount ?? 0),
+            shippingFee: Number(activeOrderData.shippingFee ?? 0),
+            businessName: String(activeOrderData.businessName ?? ""),
+            businessAddress: String(activeOrderData.businessAddress ?? ""),
+            fullAddress: String(activeOrderData.fullAddress ?? ""),
+            address: {
+              street: String(activeOrderData.fullAddress ?? ""),
+              neighborhood: String(activeOrderData.zoneName ?? ""),
+              city: String(activeOrderData.city ?? ""),
+              references: String(activeOrderData.references ?? ""),
+              latitude:
+                typeof activeOrderData.latitude === "number"
+                  ? Number(activeOrderData.latitude)
+                  : null,
+              longitude:
+                typeof activeOrderData.longitude === "number"
+                  ? Number(activeOrderData.longitude)
+                  : null,
+              fullAddress: String(activeOrderData.fullAddress ?? ""),
+            },
+            contact: {
+              name: String(activeOrderData.customerName ?? "Cliente"),
+              phone: String(activeOrderData.customerPhone ?? ""),
+            },
+            zoneName: String(activeOrderData.zoneName ?? ""),
+            notes: String(activeOrderData.references ?? ""),
+            customerReference: String(activeOrderData.references ?? ""),
+          };
+
+          console.log("[delivery-panel] active order result", {
+            requestId,
+            id: nextActiveOrder.id,
+            status: nextActiveOrder.status,
+            driverId:
+              "driverId" in activeOrderData
+                ? String(activeOrderData.driverId ?? "")
+                : null,
+          });
+
+          setActiveOrder(nextActiveOrder);
+
+          setActiveOrderError("");
+        }
+
+        const notificationsResponseText = await notificationsResponse.text();
+        let notificationsPayload: Record<string, unknown> = {};
+
+        try {
+          notificationsPayload = notificationsResponseText
+            ? JSON.parse(notificationsResponseText)
+            : {};
+        } catch {
+          notificationsPayload = { raw: notificationsResponseText };
+        }
+
+        if (
+          !notificationsResponse.ok ||
+          notificationsPayload.success === false
+        ) {
+          console.warn("Error real cargando notificaciones del repartidor:", {
+            status: notificationsResponse.status,
+            statusText: notificationsResponse.statusText,
+            responseText: notificationsResponseText,
+            payload: notificationsPayload,
+          });
+          if (!shouldKeepPreviousData) {
+            setDeliveryNotifications([]);
+          }
+          setNotificationsError("Tu sesión expiró o no tienes permisos.");
+        } else {
+          const parsedNotifications = Array.isArray(
+            notificationsPayload.notifications,
+          )
+            ? (
+                notificationsPayload.notifications as Array<
+                  Record<string, unknown>
+                >
+              ).map((notification) => ({
+                id: String(notification.id ?? ""),
+                type: String(notification.type ?? "pedido"),
+                title: String(notification.title ?? "Notificación"),
+                message: String(notification.message ?? ""),
+                timestamp: String(notification.createdAt ?? ""),
+                createdAt: String(notification.createdAt ?? ""),
+                status:
+                  notification.status === null ||
+                  notification.status === undefined
+                    ? undefined
+                    : String(notification.status),
+                orderId:
+                  notification.orderId === null ||
+                  notification.orderId === undefined
+                    ? null
+                    : Number(notification.orderId),
+                folio:
+                  notification.folio === null ||
+                  notification.folio === undefined
+                    ? null
+                    : String(notification.folio),
+                unread: !notification.isRead,
+              }))
+            : [];
+
+          console.log("[delivery-panel] respuesta panel repartidor:", {
+            orders: visibleOrders.map((order) => ({
+              id: order.id,
+              folio: order.folio,
+              businessName: order.businessName,
+              canRespond: order.canRespond,
+              isAvailableDelivery: order.isAvailableDelivery,
+            })),
+          });
+
+          setDeliveryNotifications(parsedNotifications);
+          setNotificationsError("");
+        }
+      } catch (error) {
+        console.error("Error cargando entregas del repartidor:", error);
+        if (!shouldKeepPreviousData) {
+          setCurrentOrders([]);
+          setActiveOrder(null);
+          setDeliveryNotifications([]);
+          setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
+          setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
+        }
+        if (!shouldKeepPreviousData) {
+          setOrdersError(
+            "No se pudieron cargar tus entregas. Intenta de nuevo.",
+          );
+          setActiveOrderError("No se pudo cargar tu entrega activa.");
+          setNotificationsError(
+            "No se pudieron cargar tus notificaciones. Intenta de nuevo.",
+          );
+        }
+      } finally {
+        setOrdersLoading(false);
+        setActiveOrderLoading(false);
+        setNotificationsLoading(false);
+        setOrdersRefreshing(false);
       }
-    } catch (error) {
-      console.error("Error cargando entregas del repartidor:", error);
-      setCurrentOrders([]);
-      setActiveOrder(null);
-      setDeliveryNotifications([]);
-      setActiveDeliveriesCount(EMPTY_DASHBOARD_STATS.activeDeliveries);
-      setCompletedTodayCount(EMPTY_DASHBOARD_STATS.completedDeliveries);
-      setOrdersError("No se pudieron cargar tus entregas. Intenta de nuevo.");
-      setActiveOrderError("No se pudo cargar tu entrega activa.");
-      setNotificationsError(
-        "No se pudieron cargar tus notificaciones. Intenta de nuevo.",
-      );
-    } finally {
-      setOrdersLoading(false);
-      setActiveOrderLoading(false);
-      setNotificationsLoading(false);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const fetchDeliveryHistory = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -877,7 +1026,7 @@ export default function DeliveryDashboardPage() {
     fetchDeliveryData();
 
     const intervalId = window.setInterval(() => {
-      fetchDeliveryData();
+      fetchDeliveryData({ background: true });
     }, 10000);
 
     return () => {
@@ -900,6 +1049,82 @@ export default function DeliveryDashboardPage() {
       window.clearInterval(intervalId);
     };
   }, [fetchEarnings]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const shouldTrackLocation =
+      profile.driver_status_label === "Activo" || Boolean(activeOrder);
+
+    if (!shouldTrackLocation) {
+      return;
+    }
+
+    if (!("geolocation" in navigator)) {
+      setLocationError("GPS no disponible en este dispositivo.");
+      return;
+    }
+
+    let cancelled = false;
+
+    const sendLocation = () => {
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          if (cancelled) return;
+
+          try {
+            const response = await fetchWithSession("/api/delivery/location", {
+              method: "PATCH",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              }),
+            });
+
+            if (!response.ok) {
+              const payload = (await response.json().catch(() => null)) as {
+                error?: string;
+              } | null;
+              setLocationError(
+                payload?.error || "No se pudo actualizar tu ubicación.",
+              );
+              return;
+            }
+
+            setLocationError("");
+          } catch (error) {
+            console.warn("No se pudo enviar ubicación del repartidor:", error);
+            setLocationError("No se pudo actualizar tu ubicación.");
+          }
+        },
+        (error) => {
+          if (cancelled) return;
+
+          setLocationError(
+            error.code === error.PERMISSION_DENIED
+              ? "Activa el permiso de ubicación para compartir tu ruta."
+              : "No se pudo obtener tu ubicación actual.",
+          );
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 30000,
+          timeout: 12000,
+        },
+      );
+    };
+
+    sendLocation();
+    const intervalId = window.setInterval(sendLocation, 45000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeOrder, profile.driver_status_label]);
 
   const handleAssignmentResponse = useCallback(
     async (orderId: string, action: "accept" | "reject") => {
@@ -961,14 +1186,11 @@ export default function DeliveryDashboardPage() {
     [refreshDeliveryPanel],
   );
 
-  const handleMarkDelivered = useCallback((orderId: string) => {
-    setDeliveryEvidence({
-      orderId,
-      note: "",
-      photo: null,
-      error: "",
-    });
-    setDeliveryEvidenceOpen(true);
+  const showDeliveryToast = useCallback((message: string) => {
+    setDeliveryToast(message);
+    window.setTimeout(() => {
+      setDeliveryToast("");
+    }, 3500);
   }, []);
 
   const handleConfirmDelivered = useCallback(async () => {
@@ -1061,7 +1283,16 @@ export default function DeliveryDashboardPage() {
   }, [deliveryEvidence, refreshDeliveryPanel]);
 
   const handleDeliveryStatusUpdate = useCallback(
-    async (orderId: string, status: "recogido" | "on_the_way") => {
+    async (
+      orderId: string,
+      status:
+        | "to_business"
+        | "arrived_business"
+        | "recogido"
+        | "on_the_way"
+        | "incident"
+        | "delivered",
+    ) => {
       if (typeof window === "undefined") return;
 
       const token = getStoredToken();
@@ -1108,6 +1339,24 @@ export default function DeliveryDashboardPage() {
           return;
         }
 
+        if (status === "delivered") {
+          currentOrdersRef.current = currentOrdersRef.current.filter(
+            (order) => order.id !== orderId,
+          );
+          if (activeOrderRef.current?.id === orderId) {
+            activeOrderRef.current = null;
+          }
+          setCurrentOrders((current) =>
+            current.filter((order) => order.id !== orderId),
+          );
+          setActiveOrder((current) =>
+            current?.id === orderId ? null : current,
+          );
+          setCompletedTodayCount((current) => current + 1);
+          setActiveDeliveriesCount((current) => Math.max(0, current - 1));
+          showDeliveryToast("Pedido entregado correctamente");
+        }
+
         setOrdersError("");
         await refreshDeliveryPanel();
       } catch (error) {
@@ -1117,7 +1366,20 @@ export default function DeliveryDashboardPage() {
         setAssignmentActionOrderId(null);
       }
     },
-    [refreshDeliveryPanel],
+    [refreshDeliveryPanel, showDeliveryToast],
+  );
+
+  const handleMarkDelivered = useCallback(
+    (orderId: string) => {
+      const confirmed = window.confirm(
+        "¿Confirmas que el pedido fue entregado?",
+      );
+
+      if (!confirmed) return;
+
+      void handleDeliveryStatusUpdate(orderId, "delivered");
+    },
+    [handleDeliveryStatusUpdate],
   );
 
   const handleAvatarChange = useCallback(
@@ -1245,6 +1507,10 @@ export default function DeliveryDashboardPage() {
         is_available: Boolean(
           savedProfile?.is_available ?? profileForm.is_available,
         ),
+        driver_status_label: String(
+          savedProfile?.driver_status_label ??
+            (savedProfile?.is_available === false ? "En descanso" : "Activo"),
+        ),
       };
 
       setProfile(nextProfile);
@@ -1262,6 +1528,129 @@ export default function DeliveryDashboardPage() {
       setProfileSaving(false);
     }
   }, [avatarFile, avatarPreview, driverName, profileForm]);
+
+  const updateOperationalStatus = useCallback(
+    async (
+      nextIsAvailable: boolean,
+      driverStatus: "ACTIVE" | "RESTING" | "OFFLINE",
+    ) => {
+      const token = getStoredToken();
+
+      if (!token) {
+        setProfileError("Debes iniciar sesión para actualizar tu estado.");
+        return;
+      }
+
+      const previousProfile = profile;
+      const nextProfile = {
+        ...profile,
+        is_available: nextIsAvailable,
+        driver_status_label:
+          driverStatus === "OFFLINE"
+            ? "Desconectado"
+            : nextIsAvailable
+              ? "Activo"
+              : "En descanso",
+      };
+      setProfile(nextProfile);
+      setProfileForm((current) => ({
+        ...current,
+        is_available: nextIsAvailable,
+      }));
+
+      try {
+        const formData = new FormData();
+        formData.append("name", nextProfile.name || driverName);
+        formData.append("phone", nextProfile.phone);
+        formData.append("delivery_zone", nextProfile.delivery_zone);
+        formData.append("vehicle_type", nextProfile.vehicle_type);
+        formData.append("vehicle_plate", nextProfile.vehicle_plate);
+        formData.append("delivery_notes", nextProfile.delivery_notes);
+        formData.append("is_available", nextIsAvailable ? "1" : "0");
+        formData.append("status_only", "1");
+        formData.append("driver_status", driverStatus);
+
+        const response = await fetchWithSession("/api/delivery/profile", {
+          method: "PATCH",
+          body: formData,
+        });
+        const payload = (await response.json().catch(() => null)) as Record<
+          string,
+          unknown
+        > | null;
+
+        if (!response.ok || payload?.success === false) {
+          throw new Error(
+            (typeof payload?.error === "string" && payload.error) ||
+              "No se pudo actualizar el estado operativo.",
+          );
+        }
+
+        const savedProfile =
+          payload?.profile && typeof payload.profile === "object"
+            ? (payload.profile as Record<string, unknown>)
+            : null;
+        const syncedProfile: DeliveryProfile = {
+          name: String(savedProfile?.name ?? nextProfile.name ?? driverName),
+          phone: String(savedProfile?.phone ?? nextProfile.phone),
+          profile_image_url:
+            getProfileImageUrl(savedProfile) ?? nextProfile.profile_image_url,
+          delivery_zone: String(
+            savedProfile?.delivery_zone ?? nextProfile.delivery_zone,
+          ),
+          vehicle_type: String(
+            savedProfile?.vehicle_type ?? nextProfile.vehicle_type,
+          ),
+          vehicle_plate: String(
+            savedProfile?.vehicle_plate ?? nextProfile.vehicle_plate,
+          ),
+          delivery_notes: String(
+            savedProfile?.delivery_notes ?? nextProfile.delivery_notes,
+          ),
+          is_available: Boolean(
+            savedProfile?.is_available ?? nextProfile.is_available,
+          ),
+          driver_status_label: String(
+            savedProfile?.driver_status_label ??
+              (savedProfile?.is_available === false ? "En descanso" : "Activo"),
+          ),
+        };
+
+        setProfile(syncedProfile);
+        setProfileForm((current) => ({
+          ...current,
+          is_available: syncedProfile.is_available,
+        }));
+      } catch (error) {
+        console.error("Error sincronizando estado operativo:", error);
+        setProfile(previousProfile);
+        setProfileForm((current) => ({
+          ...current,
+          is_available: previousProfile.is_available,
+        }));
+        setProfileError(
+          error instanceof Error
+            ? error.message
+            : "No se pudo actualizar el estado operativo.",
+        );
+      }
+    },
+    [driverName, profile],
+  );
+
+  const handleAvailabilityChange = useCallback(
+    async (nextIsAvailable: boolean) => {
+      await updateOperationalStatus(
+        nextIsAvailable,
+        nextIsAvailable ? "ACTIVE" : "RESTING",
+      );
+    },
+    [updateOperationalStatus],
+  );
+
+  const handleGoOffline = useCallback(async () => {
+    await updateOperationalStatus(false, "OFFLINE");
+  }, [updateOperationalStatus]);
 
   if (user && !canAccessDelivery) {
     return (
@@ -1284,16 +1673,30 @@ export default function DeliveryDashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#F6F0E7] text-[#4B3425]">
+      {deliveryToast ? (
+        <div className="fixed right-4 top-24 z-[60] rounded-2xl border border-[#86efac] bg-[#dcfce7] px-5 py-3 text-sm font-extrabold text-[#166534] shadow-[0_12px_30px_rgba(34,197,94,0.22)]">
+          {deliveryToast}
+        </div>
+      ) : null}
+      {locationError ? (
+        <div className="fixed left-4 top-24 z-[60] max-w-sm rounded-2xl border border-[#fed7aa] bg-[#fff7ed] px-5 py-3 text-sm font-bold text-[#9a3412] shadow-[0_12px_30px_rgba(180,140,90,0.14)]">
+          {locationError}
+        </div>
+      ) : null}
       <div className="min-h-screen bg-[#F6F0E7]">
         <div className="section-shell responsive-stack py-5 sm:py-7 lg:py-8">
           <DeliveryHeader
             driverName={driverName}
+            profileImageUrl={profile.profile_image_url}
             serviceArea={profile.delivery_zone || "Sin zona configurada"}
             isAvailable={profile.is_available}
+            operationalStatusLabel={profile.driver_status_label}
             pendingOrders={activeDeliveriesCount}
             completedToday={completedTodayCount}
             lastSync="Actualizado ahora"
             onLogout={logout}
+            onAvailabilityChange={handleAvailabilityChange}
+            onGoOffline={handleGoOffline}
             onOpenSettings={() => {
               setProfileForm(profile);
               setProfileError("");
@@ -1307,6 +1710,7 @@ export default function DeliveryDashboardPage() {
               orders={currentOrders}
               activeDeliveriesCount={activeDeliveriesCount}
               isLoading={ordersLoading}
+              isRefreshing={ordersRefreshing}
               error={ordersError}
               actionLoadingOrderId={assignmentActionOrderId}
               onAcceptOrder={(orderId) =>
@@ -1315,11 +1719,20 @@ export default function DeliveryDashboardPage() {
               onRejectOrder={(orderId) =>
                 handleAssignmentResponse(orderId, "reject")
               }
+              onGoToBusiness={(orderId) =>
+                handleDeliveryStatusUpdate(orderId, "to_business")
+              }
+              onArrivedBusiness={(orderId) =>
+                handleDeliveryStatusUpdate(orderId, "arrived_business")
+              }
               onMarkPickedUp={(orderId) =>
                 handleDeliveryStatusUpdate(orderId, "recogido")
               }
               onMarkOnTheWay={(orderId) =>
                 handleDeliveryStatusUpdate(orderId, "on_the_way")
+              }
+              onReportIncident={(orderId) =>
+                handleDeliveryStatusUpdate(orderId, "incident")
               }
               onMarkDelivered={handleMarkDelivered}
             />

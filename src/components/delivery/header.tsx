@@ -9,36 +9,44 @@ import {
   Settings,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { UserAvatar } from "@/components/shared/user-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface DeliveryHeaderProps {
   driverName?: string;
+  profileImageUrl?: string | null;
   serviceArea?: string;
   isAvailable?: boolean;
+  operationalStatusLabel?: string;
   pendingOrders?: number;
   completedToday?: number;
   lastSync?: string;
   onLogout?: () => void;
   onOpenSettings?: () => void;
+  onAvailabilityChange?: (isAvailable: boolean) => void | Promise<void>;
+  onGoOffline?: () => void | Promise<void>;
   onReportIncident?: (payload: { type: string; notes: string }) => void;
   onChatMessage?: (message: string) => void;
 }
 
 export function DeliveryHeader({
   driverName = "Repartidor",
+  profileImageUrl = null,
   serviceArea = "Sin zona configurada",
   isAvailable = true,
+  operationalStatusLabel,
   pendingOrders = 0,
   completedToday = 0,
   lastSync = "Actualizado ahora",
   onLogout,
   onOpenSettings,
+  onAvailabilityChange,
+  onGoOffline,
   onReportIncident,
   onChatMessage,
 }: DeliveryHeaderProps) {
   const [isActive, setIsActive] = useState(true);
-  const [isPaused, setIsPaused] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
@@ -47,22 +55,31 @@ export function DeliveryHeader({
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const availabilityLabel = useMemo(
-    () => (isActive ? "Activo" : "Inactivo"),
-    [isActive],
+    () => operationalStatusLabel || (isActive ? "Activo" : "En descanso"),
+    [isActive, operationalStatusLabel],
   );
+  const isAdminLocked =
+    availabilityLabel === "Suspendido" || availabilityLabel === "Desactivado";
 
   useEffect(() => {
     setIsActive(isAvailable);
-    setIsPaused(!isAvailable);
   }, [isAvailable]);
 
-  const handlePauseToggle = () => {
-    setIsPaused((prev) => !prev);
+  const handleAvailabilityChange = async (nextIsAvailable: boolean) => {
+    if (isAdminLocked) {
+      setActionMessage(
+        "Tu estado operativo requiere revisión del administrador general.",
+      );
+      return;
+    }
+
+    setIsActive(nextIsAvailable);
     setActionMessage(
-      !isPaused
-        ? "Pausaste las entregas por 10 minutos. Recuerda reanudar cuando estés listo."
-        : "Has reanudado tus entregas.",
+      nextIsAvailable
+        ? "Has reanudado tus entregas."
+        : "Pausaste las entregas. Recuerda reanudar cuando estés listo.",
     );
+    await onAvailabilityChange?.(nextIsAvailable);
   };
 
   const handleReportSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -106,14 +123,23 @@ export function DeliveryHeader({
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#b36a2b]">
             Repartidor autorizado
           </p>
-          <div>
-            <h1 className="fluid-title max-w-3xl font-extrabold text-balance">
-              Hola, {driverName}
-            </h1>
-            <p className="fluid-subtitle mt-2 max-w-2xl text-[#6e5d4b]">
-              Revisa entregas asignadas, confirma ubicaciones y mantén tu estado
-              de servicio al día durante el turno.
-            </p>
+          <div className="flex items-start justify-between gap-4 pr-12 sm:items-center sm:pr-14">
+            <div className="min-w-0">
+              <h1 className="fluid-title max-w-3xl font-extrabold text-balance">
+                Hola, {driverName}
+              </h1>
+              <p className="fluid-subtitle mt-2 max-w-2xl text-[#6e5d4b]">
+                Revisa entregas asignadas, confirma ubicaciones y mantén tu
+                estado de servicio al día durante el turno.
+              </p>
+            </div>
+            <UserAvatar
+              name={driverName}
+              src={profileImageUrl}
+              size={56}
+              className="border-2 border-[#e98a4a] !bg-[#f6ebdd] text-[#222222] shadow-[0_8px_24px_rgba(233,138,74,0.18)]"
+              textClassName="text-[#222222]"
+            />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -154,12 +180,14 @@ export function DeliveryHeader({
           <Button
             type="button"
             variant="outline"
-            onClick={() => setIsActive((prev) => !prev)}
+            disabled={isAdminLocked}
+            onClick={() => handleAvailabilityChange(!isActive)}
             className={cn(
               "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-5 text-sm font-extrabold shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
               isActive
                 ? "!bg-[#6e7f52] text-[#fffffd] hover:!bg-[#5d6d44]"
                 : "!bg-[#e98a4a] text-[#fffffd] hover:!bg-[#d97836]",
+              isAdminLocked && "!bg-[#8b8b8b] opacity-80",
             )}
           >
             <CirclePower className="h-4 w-4" />
@@ -169,16 +197,18 @@ export function DeliveryHeader({
           <div className="grid gap-3 sm:grid-cols-2">
             <Button
               type="button"
+              disabled={isAdminLocked}
               className={cn(
                 "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
-                isPaused
+                !isActive
                   ? "!bg-[#6e7f52] hover:!bg-[#5d6d44]"
                   : "!bg-[#e98a4a] hover:!bg-[#d97836]",
+                isAdminLocked && "!bg-[#8b8b8b] opacity-80",
               )}
-              onClick={handlePauseToggle}
+              onClick={() => handleAvailabilityChange(!isActive)}
             >
               <PauseCircle className="h-4 w-4" />
-              {isPaused ? "Reanudar" : "Pausar entregas"}
+              {isActive ? "Pausar entregas" : "Reanudar"}
             </Button>
             <Button
               type="button"
@@ -205,10 +235,13 @@ export function DeliveryHeader({
             <Button
               variant="destructive"
               className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 !bg-[#222222] px-5 text-sm font-extrabold text-[#fffffd] shadow-[0_8px_30px_rgba(180,140,90,0.08)] hover:!bg-[#3a3a3a]"
-              onClick={onLogout}
+              onClick={async () => {
+                await onGoOffline?.();
+                onLogout?.();
+              }}
             >
               <LogOut className="h-4 w-4" />
-              Cerrar sesión
+              Desconectar
             </Button>
           </div>
         </div>

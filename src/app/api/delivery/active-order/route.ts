@@ -3,16 +3,18 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
   getExistingColumns,
   getShippingFeeSqlExpression,
   pickFirstExistingColumn,
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
-import { resolveDeliveryAccess } from "@/lib/delivery-access";
 
 type ActiveOrderRow = RowDataPacket & {
+  delivery_id: number;
   order_id: number;
+  driver_user_id: number | null;
   business_name: string | null;
   business_address: string | null;
   business_district: string | null;
@@ -43,6 +45,8 @@ const ACTIVE_STATUS_PRIORITY = [
   "en_camino",
   "en_entrega",
   "recogido",
+  "llegue_al_negocio",
+  "en_camino_negocio",
   "listo_para_recoger",
   "aceptado",
 ];
@@ -94,6 +98,8 @@ function formatDeliveryStatus(value: unknown) {
   const normalized = normalizeStatus(value);
 
   if (normalized === "en_camino") return "En camino";
+  if (normalized === "en_camino_negocio") return "En camino al negocio";
+  if (normalized === "llegue_al_negocio") return "Llegué al negocio";
   if (normalized === "listo_para_recoger") return "Listo para recoger";
   if (normalized === "recogido") return "Recogido";
   if (normalized === "en_entrega") return "En entrega";
@@ -161,12 +167,15 @@ export async function GET(req: NextRequest) {
       orderColumns,
       SHIPPING_FEE_COLUMN_CANDIDATES,
     );
-    const shippingFeeExpression = getShippingFeeSqlExpression(shippingFeeColumn);
+    const shippingFeeExpression =
+      getShippingFeeSqlExpression(shippingFeeColumn);
 
     const [orderRows] = await pool.query<ActiveOrderRow[]>(
       `
         SELECT
+          d.id AS delivery_id,
           o.id AS order_id,
+          d.driver_user_id,
           b.name AS business_name,
           b.address AS business_address,
           b.district AS business_district,
@@ -224,8 +233,19 @@ export async function GET(req: NextRequest) {
 
     const activeOrder = activeRows[0];
 
+    console.log("[api/delivery/active-order] orden activa estable:", {
+      userId,
+      deliveryId: Number(activeOrder.delivery_id),
+      orderId: Number(activeOrder.order_id),
+      driverId: activeOrder.driver_user_id,
+      orderStatus: activeOrder.order_status,
+      deliveryStatus: activeOrder.delivery_status,
+    });
+
     const payload = {
       id: Number(activeOrder.order_id),
+      deliveryId: Number(activeOrder.delivery_id),
+      driverId: Number(activeOrder.driver_user_id),
       folio: `FG-${String(activeOrder.order_id).padStart(4, "0")}`,
       businessName: activeOrder.business_name ?? "Negocio",
       businessAddress: [
