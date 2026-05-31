@@ -125,6 +125,14 @@ const ACTIVE_DELIVERY_STATUS_NAMES = [
   "aceptado",
   "en_camino",
   "repartidor_asignado",
+  "driver_assigned",
+  "asignado",
+  "listo_para_recoger",
+  "ready_for_pickup",
+  "en_camino_negocio",
+  "llegue_al_negocio",
+  "recogido",
+  "on_the_way",
 ] as const;
 
 export async function resolveBusinessAccess(

@@ -18,6 +18,7 @@ interface DeliveryHeaderProps {
   profileImageUrl?: string | null;
   serviceArea?: string;
   isAvailable?: boolean;
+  operationalStatus?: string;
   operationalStatusLabel?: string;
   pendingOrders?: number;
   completedToday?: number;
@@ -35,6 +36,7 @@ export function DeliveryHeader({
   profileImageUrl = null,
   serviceArea = "Sin zona configurada",
   isAvailable = true,
+  operationalStatus,
   operationalStatusLabel,
   pendingOrders = 0,
   completedToday = 0,
@@ -46,7 +48,6 @@ export function DeliveryHeader({
   onReportIncident,
   onChatMessage,
 }: DeliveryHeaderProps) {
-  const [isActive, setIsActive] = useState(true);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
@@ -54,16 +55,31 @@ export function DeliveryHeader({
   const [reportNotes, setReportNotes] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
+  const normalizedOperationalStatus = String(operationalStatus ?? "")
+    .trim()
+    .toUpperCase();
+  const isOperationalActive =
+    normalizedOperationalStatus === "ACTIVE" ||
+    (!normalizedOperationalStatus && isAvailable);
   const availabilityLabel = useMemo(
-    () => operationalStatusLabel || (isActive ? "Activo" : "En descanso"),
-    [isActive, operationalStatusLabel],
+    () =>
+      operationalStatusLabel ||
+      (isOperationalActive ? "Activo" : "En descanso"),
+    [isOperationalActive, operationalStatusLabel],
   );
   const isAdminLocked =
     availabilityLabel === "Suspendido" || availabilityLabel === "Desactivado";
 
   useEffect(() => {
-    setIsActive(isAvailable);
-  }, [isAvailable]);
+    if (isOperationalActive) {
+      setActionMessage((current) =>
+        current ===
+        "Pausaste las entregas. Recuerda reanudar cuando estés listo."
+          ? null
+          : current,
+      );
+    }
+  }, [isOperationalActive]);
 
   const handleAvailabilityChange = async (nextIsAvailable: boolean) => {
     if (isAdminLocked) {
@@ -73,13 +89,23 @@ export function DeliveryHeader({
       return;
     }
 
-    setIsActive(nextIsAvailable);
-    setActionMessage(
-      nextIsAvailable
-        ? "Has reanudado tus entregas."
-        : "Pausaste las entregas. Recuerda reanudar cuando estés listo.",
-    );
-    await onAvailabilityChange?.(nextIsAvailable);
+    console.log("Estado delivery antes:", normalizedOperationalStatus);
+    console.log("Cambiando estado a:", nextIsAvailable ? "ACTIVE" : "RESTING");
+    setActionMessage(null);
+    try {
+      await onAvailabilityChange?.(nextIsAvailable);
+      setActionMessage(
+        nextIsAvailable
+          ? "Ya estás activo para recibir pedidos"
+          : "Pausaste las entregas. Recuerda reanudar cuando estés listo.",
+      );
+    } catch (error) {
+      setActionMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar tu estado operativo.",
+      );
+    }
   };
 
   const handleReportSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -167,7 +193,7 @@ export function DeliveryHeader({
                 <span
                   className={cn(
                     "h-2.5 w-2.5 rounded-full",
-                    isActive ? "bg-[#6e7f52]" : "bg-[#e98a4a]",
+                    isOperationalActive ? "bg-[#6e7f52]" : "bg-[#e98a4a]",
                   )}
                 />
                 {availabilityLabel}
@@ -181,10 +207,10 @@ export function DeliveryHeader({
             type="button"
             variant="outline"
             disabled={isAdminLocked}
-            onClick={() => handleAvailabilityChange(!isActive)}
+            onClick={() => handleAvailabilityChange(!isOperationalActive)}
             className={cn(
               "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-5 text-sm font-extrabold shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
-              isActive
+              isOperationalActive
                 ? "!bg-[#6e7f52] text-[#fffffd] hover:!bg-[#5d6d44]"
                 : "!bg-[#e98a4a] text-[#fffffd] hover:!bg-[#d97836]",
               isAdminLocked && "!bg-[#8b8b8b] opacity-80",
@@ -200,15 +226,15 @@ export function DeliveryHeader({
               disabled={isAdminLocked}
               className={cn(
                 "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
-                !isActive
+                !isOperationalActive
                   ? "!bg-[#6e7f52] hover:!bg-[#5d6d44]"
                   : "!bg-[#e98a4a] hover:!bg-[#d97836]",
                 isAdminLocked && "!bg-[#8b8b8b] opacity-80",
               )}
-              onClick={() => handleAvailabilityChange(!isActive)}
+              onClick={() => handleAvailabilityChange(!isOperationalActive)}
             >
               <PauseCircle className="h-4 w-4" />
-              {isActive ? "Pausar entregas" : "Reanudar"}
+              {isOperationalActive ? "Pausar entregas" : "Reanudar entregas"}
             </Button>
             <Button
               type="button"

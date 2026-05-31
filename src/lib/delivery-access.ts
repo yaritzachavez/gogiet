@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 
 import pool from "@/lib/db";
 import {
+  ensureDriverStatusColumns,
   isDriverAvailableStatus,
   normalizeDriverStatus,
 } from "@/lib/driver-status";
@@ -19,6 +20,8 @@ function isNonEmptyString(value: string | null): value is string {
 }
 
 export async function resolveDeliveryAccess(userId: number) {
+  await ensureDriverStatusColumns();
+
   const [userInfoRows] = await pool.query<DeliveryUserInfoRow[]>(
     `
       SELECT

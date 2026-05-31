@@ -123,7 +123,15 @@ async function getCourierActiveAssignmentsCount(
           'pendiente_aceptacion',
           'aceptado',
           'en_camino',
-          'repartidor_asignado'
+          'repartidor_asignado',
+          'driver_assigned',
+          'asignado',
+          'listo_para_recoger',
+          'ready_for_pickup',
+          'en_camino_negocio',
+          'llegue_al_negocio',
+          'recogido',
+          'on_the_way'
         )
     `,
     [userId],
@@ -348,6 +356,7 @@ async function ensureOrdersDriverColumn(connection: PoolConnection) {
 async function getOrderForAssignment(
   connection: PoolConnection,
   orderId: number,
+  options?: { forUpdate?: boolean },
 ) {
   const [rows] = await connection.query<OrderRow[]>(
     `
@@ -362,6 +371,7 @@ async function getOrderForAssignment(
       LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
       WHERE o.id = ?
       LIMIT 1
+      ${options?.forUpdate ? "FOR UPDATE" : ""}
     `,
     [orderId],
   );
@@ -372,6 +382,7 @@ async function getOrderForAssignment(
 async function getDeliveryByOrderId(
   connection: PoolConnection,
   orderId: number,
+  options?: { forUpdate?: boolean },
 ) {
   const [rows] = await connection.query<DeliveryRow[]>(
     `
@@ -384,6 +395,7 @@ async function getDeliveryByOrderId(
       LEFT JOIN delivery_status_catalog dsc ON dsc.id = d.delivery_status_id
       WHERE d.order_id = ?
       LIMIT 1
+      ${options?.forUpdate ? "FOR UPDATE" : ""}
     `,
     [orderId],
   );
@@ -439,7 +451,9 @@ export async function requestCourierAssignment(params: {
     await connection.beginTransaction();
     await ensureOrdersDriverColumn(connection);
 
-    const order = await getOrderForAssignment(connection, params.orderId);
+    const order = await getOrderForAssignment(connection, params.orderId, {
+      forUpdate: true,
+    });
 
     if (!order) {
       throw new DeliveryAssignmentError("Pedido no encontrado", 404);
@@ -481,6 +495,7 @@ export async function requestCourierAssignment(params: {
     const existingDelivery = await getDeliveryByOrderId(
       connection,
       params.orderId,
+      { forUpdate: true },
     );
     const existingDeliveryIsActive =
       existingDelivery && !existingDelivery.delivery_status_is_final;
@@ -488,12 +503,43 @@ export async function requestCourierAssignment(params: {
       existingDelivery?.delivery_status_name,
     );
 
-    if (existingDeliveryIsActive) {
+    const existingDriverId = Number(existingDelivery?.driver_user_id ?? 0);
+    const existingOfferCanBeRetried =
+      existingDeliveryIsActive &&
+      existingDriverId > 0 &&
+      (existingDeliveryStatus === "pendiente_aceptacion" ||
+        existingDeliveryStatus === "pending_driver" ||
+        existingDeliveryStatus === "disponible" ||
+        existingDeliveryStatus === "available") &&
+      !(await resolveDeliveryAccess(existingDriverId)
+        .then((access) => access.canOperate)
+        .catch(() => false));
+
+    if (existingOfferCanBeRetried) {
+      await markCarouselAttemptStatus({
+        connection,
+        orderId: params.orderId,
+        driverUserId: existingDriverId,
+        status: "REJECTED",
+      });
+
+      logger.warn(
+        "delivery.inactive_pending_offer_retried",
+        "Oferta pendiente reasignada porque el repartidor ya no puede operar",
+        {
+          orderId: params.orderId,
+          previousDriverUserId: existingDriverId,
+          previousDeliveryStatus: existingDeliveryStatus,
+        },
+      );
+    }
+
+    if (existingDeliveryIsActive && !existingOfferCanBeRetried) {
       await connection.commit();
 
-      if (Number(existingDelivery?.driver_user_id ?? 0) > 0) {
+      if (existingDriverId > 0) {
         return {
-          courierId: Number(existingDelivery?.driver_user_id ?? 0),
+          courierId: existingDriverId,
           courierName: null,
           courierPhone: null,
           courierAvatarUrl: null,
@@ -839,18 +885,31 @@ export async function respondToCourierAssignment(params: {
     await connection.beginTransaction();
     await ensureOrdersDriverColumn(connection);
 
-    const order = await getOrderForAssignment(connection, params.orderId);
+    const order = await getOrderForAssignment(connection, params.orderId, {
+      forUpdate: true,
+    });
 
     if (!order) {
       throw new DeliveryAssignmentError("Pedido no encontrado", 404);
     }
 
-    const delivery = await getDeliveryByOrderId(connection, params.orderId);
+    const delivery = await getDeliveryByOrderId(connection, params.orderId, {
+      forUpdate: true,
+    });
 
     if (!delivery) {
       throw new DeliveryAssignmentError(
         "No existe una asignacion para este pedido.",
         404,
+      );
+    }
+
+    const deliveryAccess = await resolveDeliveryAccess(params.userId);
+
+    if (!deliveryAccess.allowed) {
+      throw new DeliveryAssignmentError(
+        "No autorizado para responder asignaciones de repartidor.",
+        403,
       );
     }
 
@@ -880,8 +939,6 @@ export async function respondToCourierAssignment(params: {
     }
 
     if (params.action === "accept") {
-      const deliveryAccess = await resolveDeliveryAccess(params.userId);
-
       if (!deliveryAccess.canOperate) {
         throw new DeliveryAssignmentError(
           "Tu estado operativo no permite aceptar entregas.",

@@ -9,6 +9,13 @@ type ColumnRow = RowDataPacket & {
   column_name: string;
 };
 
+type MysqlDuplicateColumnError = Error & {
+  code?: string;
+  errno?: number;
+};
+
+let cachedDriverStatusColumns: DriverStatusColumns | null = null;
+
 export type DriverOperationalStatus =
   | "ACTIVE"
   | "OFFLINE"
@@ -41,6 +48,10 @@ const VALID_DRIVER_STATUSES = new Set<DriverOperationalStatus>([
 export async function getDriverStatusColumns(
   executor: Queryable = pool,
 ): Promise<DriverStatusColumns> {
+  if (executor === pool && cachedDriverStatusColumns) {
+    return cachedDriverStatusColumns;
+  }
+
   await assertTablesExist(executor, ["users"]);
 
   const [rows] = await executor.query<ColumnRow[]>(
@@ -61,48 +72,94 @@ export async function getDriverStatusColumns(
     rows.map((row) => String(row.column_name).toLowerCase()),
   );
 
-  return {
+  const columns = {
     hasDriverStatus: columnNames.has("driver_status"),
     hasDriverStatusReason: columnNames.has("driver_status_reason"),
     hasDriverActiveSince: columnNames.has("driver_active_since"),
   };
+
+  if (executor === pool) {
+    cachedDriverStatusColumns = columns;
+  }
+
+  return columns;
 }
 
 export async function ensureDriverStatusColumns(executor: Queryable = pool) {
   const columns = await getDriverStatusColumns(executor);
 
+  async function addColumnIfMissing(
+    hasColumn: boolean,
+    statement: string,
+    columnName: string,
+  ) {
+    if (hasColumn) return;
+
+    try {
+      await executor.query(statement);
+      cachedDriverStatusColumns = null;
+    } catch (error) {
+      const mysqlError = error as MysqlDuplicateColumnError;
+
+      if (
+        mysqlError?.code === "ER_DUP_FIELDNAME" ||
+        mysqlError?.errno === 1060 ||
+        String(mysqlError?.message ?? "").includes(
+          `Duplicate column name '${columnName}'`,
+        )
+      ) {
+        cachedDriverStatusColumns = null;
+        return;
+      }
+
+      throw error;
+    }
+  }
+
   if (!columns.hasDriverStatus) {
-    await executor.query(
+    await addColumnIfMissing(
+      columns.hasDriverStatus,
       `
         ALTER TABLE users
         ADD COLUMN driver_status VARCHAR(20) NULL DEFAULT 'ACTIVE'
       `,
+      "driver_status",
     );
   }
 
   if (!columns.hasDriverStatusReason) {
-    await executor.query(
+    await addColumnIfMissing(
+      columns.hasDriverStatusReason,
       `
         ALTER TABLE users
         ADD COLUMN driver_status_reason TEXT NULL
       `,
+      "driver_status_reason",
     );
   }
 
   if (!columns.hasDriverActiveSince) {
-    await executor.query(
+    await addColumnIfMissing(
+      columns.hasDriverActiveSince,
       `
         ALTER TABLE users
         ADD COLUMN driver_active_since DATETIME NULL
       `,
+      "driver_active_since",
     );
   }
 
-  return {
+  const ensuredColumns = {
     hasDriverStatus: true,
     hasDriverStatusReason: true,
     hasDriverActiveSince: true,
   };
+
+  if (executor === pool) {
+    cachedDriverStatusColumns = ensuredColumns;
+  }
+
+  return ensuredColumns;
 }
 
 export function normalizeDriverStatus(

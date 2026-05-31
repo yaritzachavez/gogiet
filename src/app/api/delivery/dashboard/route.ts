@@ -1,126 +1,84 @@
-import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import pool, { logDbUsage } from "@/lib/db";
+import { getCurrentDriverDeliveries } from "@/lib/delivery/current-driver-orders";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 
-type DeliveryDashboardRow = RowDataPacket & {
-  order_id: number;
-  business_name: string;
-  customer_name: string | null;
-  street: string | null;
-  external_number: string | null;
-  internal_number: string | null;
-  neighborhood: string | null;
-  city: string | null;
-  state: string | null;
-  total_amount: string | number | null;
-  order_status: string | null;
-  delivery_status: string | null;
-  delivered_at: string | null;
-};
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
+  }
 
-type AvailableCountRow = RowDataPacket & {
-  total: number | string | null;
-};
-
-const ACTIVE_DELIVERY_STATUSES = new Set([
-  "pendiente",
-  "pendiente_aceptacion",
-  "aceptado",
-  "en_camino",
-  "repartidor_asignado",
-  "driver_assigned",
-  "asignado",
-  "listo_para_recoger",
-  "recogido",
-  "llegue_al_negocio",
-  "en_camino_negocio",
-]);
-
-const COMPLETED_DELIVERY_STATUSES = new Set([
-  "completado",
-  "completed",
-  "entregado",
-  "delivered",
-  "pedido_entregado",
-  "cancelado",
-  "cancelled",
-  "rechazado",
-]);
-
-function normalizeStatus(value: unknown) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "_");
-}
-
-function buildAddress(row: DeliveryDashboardRow) {
-  return [
-    row.street?.trim(),
-    row.external_number?.trim(),
-    row.internal_number?.trim() ? `Int. ${row.internal_number.trim()}` : null,
-    row.neighborhood?.trim(),
-    row.city?.trim(),
-    row.state?.trim(),
-  ]
-    .filter(Boolean)
-    .join(", ");
-}
-
-function isToday(value: string | null) {
-  if (!value) return false;
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-
-  const now = new Date();
-
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
+  try {
+    return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)));
+  } catch {
+    return {
+      message: String(error),
+    };
+  }
 }
 
 export async function GET(req: NextRequest) {
   const requestContext = getRequestLoggerContext(req);
+
   try {
     const authUser = getAuthUser(req);
 
     if (!authUser?.token) {
       return NextResponse.json(
-        { success: false, error: "Token faltante", dashboard: null },
+        { success: false, ok: false, error: "Token faltante", dashboard: null },
         { status: 401 },
       );
     }
 
     if (!authUser?.user) {
       return NextResponse.json(
-        { success: false, error: "Token inválido", dashboard: null },
+        { success: false, ok: false, error: "Token inválido", dashboard: null },
         { status: 401 },
       );
     }
 
     const userId = authUser.user.id;
+    console.log("[DELIVERY DASHBOARD] inicio");
+    console.log("[DELIVERY DASHBOARD] user", userId);
+
     const access = await resolveDeliveryAccess(userId);
 
     if (!access.allowed) {
       return NextResponse.json(
         {
           success: false,
+          ok: false,
           error: "No autorizado para acceder al panel de repartidor",
           dashboard: null,
           stats: null,
+          activeDeliveries: [],
+          availableOffers: [],
+          driver: {
+            userId,
+            email: access.email,
+            roles: access.roles,
+            operationalStatus: access.operationalStatus,
+            canOperate: access.canOperate,
+          },
         },
         { status: 403 },
       );
     }
+
+    console.log("[DELIVERY DASHBOARD] driver", {
+      userId,
+      email: access.email,
+      roles: access.roles,
+      operationalStatus: access.operationalStatus,
+      canOperate: access.canOperate,
+    });
 
     logDbUsage("/api/delivery/dashboard", {
       userId,
@@ -128,158 +86,87 @@ export async function GET(req: NextRequest) {
       role: access.roles,
     });
 
-    const [rows] = await pool.query<DeliveryDashboardRow[]>(
-      `
-        SELECT
-          o.id AS order_id,
-          b.name AS business_name,
-          TRIM(CONCAT_WS(' ', u.first_name, u.last_name)) AS customer_name,
-          a.street,
-          a.external_number,
-          a.internal_number,
-          a.neighborhood,
-          a.city,
-          a.state,
-          o.total_amount,
-          osc.name AS order_status,
-          dsc.name AS delivery_status,
-          COALESCE(d.delivered_at, o.delivered_at) AS delivered_at
-        FROM delivery d
-        INNER JOIN orders o ON o.id = d.order_id
-        INNER JOIN business b ON b.id = o.business_id
-        LEFT JOIN users u ON u.id = o.user_id
-        LEFT JOIN addresses a ON a.id = o.address_id
-        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
-        LEFT JOIN delivery_status_catalog dsc ON dsc.id = d.delivery_status_id
-        WHERE d.driver_user_id = ?
-        ORDER BY o.created_at DESC, d.id DESC
-      `,
-      [userId],
+    const { activeDeliveries } = await getCurrentDriverDeliveries(userId, pool);
+    const dashboard = {
+      activeDeliveriesCount: activeDeliveries.length,
+      completedTodayCount: 0,
+      currentDeliveries: activeDeliveries.map((delivery) => ({
+        id: delivery.id,
+        businessName: delivery.businessName,
+        customerName: delivery.customerName,
+        address: delivery.address,
+        total: delivery.total,
+        orderStatus: delivery.status,
+        deliveryStatus: delivery.assignmentStatus,
+      })),
+      completedDeliveriesToday: [],
+    };
+
+    console.log(
+      "[DELIVERY DASHBOARD] activeDeliveries",
+      activeDeliveries.length,
     );
-    const [availableCountRows] = await pool.query<AvailableCountRow[]>(
-      `
-        SELECT COUNT(*) AS total
-        FROM delivery d
-        INNER JOIN orders o ON o.id = d.order_id
-        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
-        LEFT JOIN delivery_status_catalog dsc ON dsc.id = d.delivery_status_id
-        WHERE d.driver_user_id IS NULL
-          AND COALESCE(dsc.is_final, 0) = 0
-          AND LOWER(
-            REPLACE(
-              REPLACE(
-                REPLACE(
-                  REPLACE(COALESCE(dsc.name, ''), 'á', 'a'),
-                  'é',
-                  'e'
-                ),
-                'í',
-                'i'
-              ),
-              ' ',
-              '_'
-            )
-          ) IN ('pending_driver', 'disponible', 'available')
-          AND LOWER(
-            REPLACE(
-              REPLACE(
-                REPLACE(
-                  REPLACE(COALESCE(osc.name, ''), 'á', 'a'),
-                  'é',
-                  'e'
-                ),
-                'í',
-                'i'
-              ),
-              ' ',
-              '_'
-            )
-          ) IN ('listo_para_recoger', 'ready_for_pickup')
-      `,
-    );
-    const availableDeliveriesCount = Number(availableCountRows[0]?.total ?? 0);
-
-    const activeAssignments = rows.filter((row) => {
-      const deliveryStatus = normalizeStatus(row.delivery_status);
-      const orderStatus = normalizeStatus(row.order_status);
-      const isCompleted = COMPLETED_DELIVERY_STATUSES.has(deliveryStatus);
-
-      return (
-        !row.delivered_at &&
-        !isCompleted &&
-        (ACTIVE_DELIVERY_STATUSES.has(deliveryStatus) ||
-          ACTIVE_DELIVERY_STATUSES.has(orderStatus))
-      );
-    });
-
-    const completedTodayAssignments = rows.filter((row) => {
-      const deliveryStatus = normalizeStatus(row.delivery_status);
-      const orderStatus = normalizeStatus(row.order_status);
-
-      return (
-        isToday(row.delivered_at) &&
-        (COMPLETED_DELIVERY_STATUSES.has(deliveryStatus) ||
-          COMPLETED_DELIVERY_STATUSES.has(orderStatus))
-      );
-    });
+    console.log("[DELIVERY DASHBOARD] offers", 0);
 
     logger.info(
       "delivery.dashboard_loaded",
       "Dashboard de repartidor calculado",
       {
         ...requestContext,
-        activeDeliveriesCount: activeAssignments.length,
-        completedTodayCount: completedTodayAssignments.length,
-        availableDeliveriesCount,
+        activeDeliveriesCount: activeDeliveries.length,
+        completedTodayCount: 0,
+        availableDeliveriesCount: 0,
       },
     );
 
-    const dashboard = {
-      activeDeliveriesCount: activeAssignments.length,
-      completedTodayCount: completedTodayAssignments.length,
-      currentDeliveries: activeAssignments.map((row) => ({
-        id: Number(row.order_id),
-        businessName: row.business_name,
-        customerName: row.customer_name ?? "Cliente",
-        address: buildAddress(row),
-        total: Number(row.total_amount ?? 0),
-        orderStatus: row.order_status ?? "",
-        deliveryStatus: row.delivery_status ?? "",
-      })),
-      completedDeliveriesToday: completedTodayAssignments.map((row) => ({
-        id: Number(row.order_id),
-        businessName: row.business_name,
-        customerName: row.customer_name ?? "Cliente",
-        address: buildAddress(row),
-        total: Number(row.total_amount ?? 0),
-        deliveredAt: row.delivered_at,
-      })),
-    };
-
     return NextResponse.json({
       success: true,
+      ok: true,
       dashboard,
       stats: {
-        activeDeliveries: activeAssignments.length,
-        completedDeliveries: completedTodayAssignments.length,
-        availableDeliveries: availableDeliveriesCount,
+        activeDeliveries: activeDeliveries.length,
+        completedDeliveries: 0,
+        availableDeliveries: 0,
         earnings: 0,
+      },
+      activeDeliveries,
+      availableOffers: [],
+      driver: {
+        userId,
+        email: access.email,
+        roles: access.roles,
+        operationalStatus: access.operationalStatus,
+        canOperate: access.canOperate,
       },
     });
   } catch (error) {
+    const serializedError = serializeError(error);
+    console.error("[DELIVERY DASHBOARD ERROR]", serializedError);
     logger.error(
       "delivery.dashboard_error",
       "Error cargando dashboard del repartidor",
       {
         ...requestContext,
-        error,
+        error: serializedError,
       },
     );
+
     return NextResponse.json(
       {
         success: false,
-        error: "No se pudo cargar el dashboard del repartidor.",
+        ok: false,
+        error:
+          serializedError && typeof serializedError === "object"
+            ? String(
+                (serializedError as Record<string, unknown>).message ??
+                  "No se pudo cargar el dashboard del repartidor.",
+              )
+            : "No se pudo cargar el dashboard del repartidor.",
+        debug:
+          process.env.NODE_ENV === "production" ? undefined : serializedError,
         dashboard: null,
+        activeDeliveries: [],
+        availableOffers: [],
       },
       { status: 500 },
     );

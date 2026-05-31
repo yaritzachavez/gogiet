@@ -468,7 +468,7 @@ export async function PATCH(req: NextRequest) {
             driver_status_reason = NULL,
             driver_active_since = CASE
               WHEN ? = 'ACTIVE'
-                THEN COALESCE(driver_active_since, NOW())
+                THEN NOW()
               ELSE NULL
             END,
             updated_at = NOW()
@@ -515,7 +515,7 @@ export async function PATCH(req: NextRequest) {
         driverId: authUser.user.id,
         statusFromAdmin: driverStatusToLabel(nextDriverStatus),
         statusFromDelivery: driverStatusToLabel(nextDriverStatus),
-        isAvailable,
+        isAvailable: nextIsAvailable,
         statusId: rows[0]?.status_id ?? null,
         driverStatus: nextDriverStatus,
       });
@@ -561,6 +561,12 @@ export async function PATCH(req: NextRequest) {
     const nameParts = name.split(/\s+/).filter(Boolean);
     const firstName = nameParts.slice(0, 1).join(" ");
     const lastName = nameParts.slice(1).join(" ");
+    await ensureDriverStatusColumns();
+    const nextDriverStatus = parseDriverStatusInput(
+      requestedDriverStatus,
+      isAvailable ? "ACTIVE" : "RESTING",
+    );
+    const nextIsAvailable = isDriverAvailableStatus(nextDriverStatus);
 
     const fields = [
       "first_name = ?",
@@ -571,6 +577,13 @@ export async function PATCH(req: NextRequest) {
       "vehicle_plate = ?",
       "delivery_notes = ?",
       "is_available = ?",
+      "driver_status = ?",
+      "driver_status_reason = NULL",
+      `driver_active_since = CASE
+        WHEN ? = 'ACTIVE'
+          THEN NOW()
+        ELSE NULL
+      END`,
       "updated_at = NOW()",
     ];
     const values: Array<string | number | null> = [
@@ -581,7 +594,9 @@ export async function PATCH(req: NextRequest) {
       vehicleType,
       vehiclePlate || null,
       deliveryNotes || null,
-      isAvailable ? 1 : 0,
+      nextIsAvailable ? 1 : 0,
+      nextDriverStatus,
+      nextDriverStatus,
     ];
 
     if (avatarUrlToSave) {

@@ -208,10 +208,10 @@ export function CurrentDeliveriesCard({
                   (normalizedAssignmentStatus === "en_camino_negocio" ||
                     normalizedAssignmentStatus === "to_business");
                 const canMarkDelivered =
+                  !order.canRespond &&
                   !order.isAvailableDelivery &&
                   (normalizedAssignmentStatus === "pendiente" ||
                     normalizedAssignmentStatus === "pending" ||
-                    normalizedAssignmentStatus === "pendiente_aceptacion" ||
                     normalizedAssignmentStatus === "listo_para_entrega" ||
                     normalizedAssignmentStatus === "ready_for_delivery" ||
                     normalizedAssignmentStatus === "asignado" ||

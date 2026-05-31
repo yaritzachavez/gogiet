@@ -26,6 +26,7 @@ import {
   OrderStatusTransitionError,
   validateOrderStatusTransition,
 } from "@/lib/order-status-guard";
+import { ensureCanonicalOrderStatus } from "@/lib/order-status-server";
 
 type AssignedOrderRow = RowDataPacket & {
   delivery_id: number;
@@ -145,15 +146,12 @@ export async function PATCH(
       );
     }
 
-    if (
-      deliveryAccess.operationalStatus === "SUSPENDED" ||
-      deliveryAccess.operationalStatus === "DISABLED"
-    ) {
+    if (!deliveryAccess.canOperate) {
       return NextResponse.json(
         {
           success: false,
           error:
-            "Tu estado operativo requiere revisión del administrador general.",
+            "Tu estado operativo no permite actualizar entregas. Activa entregas para continuar.",
           operationalStatus: deliveryAccess.operationalStatus,
         },
         { status: 403 },
@@ -186,6 +184,8 @@ export async function PATCH(
     const shippingFeeExpression =
       getShippingFeeSqlExpression(shippingFeeColumn);
 
+    await connection.beginTransaction();
+
     const [rows] = await connection.query<AssignedOrderRow[]>(
       `
         SELECT
@@ -207,11 +207,13 @@ export async function PATCH(
         INNER JOIN delivery d ON d.order_id = o.id
         WHERE o.id = ?
         LIMIT 1
+        FOR UPDATE
       `,
       [orderId],
     );
 
     if (!rows.length) {
+      await connection.rollback();
       return NextResponse.json(
         { success: false, error: "Pedido no encontrado o sin asignación" },
         { status: 404 },
@@ -221,6 +223,7 @@ export async function PATCH(
     const order = rows[0];
 
     if (Number(order.driver_user_id) !== authUser.user.id) {
+      await connection.rollback();
       return NextResponse.json(
         { success: false, error: "Este pedido no está asignado a tu cuenta" },
         { status: 403 },
@@ -228,6 +231,7 @@ export async function PATCH(
     }
 
     if (order.order_delivered_at || order.delivery_delivered_at) {
+      await connection.rollback();
       return NextResponse.json(
         { success: false, error: "La entrega ya fue completada" },
         { status: 409 },
@@ -250,8 +254,6 @@ export async function PATCH(
                 ? "delivered"
                 : "en_camino";
 
-    await connection.beginTransaction();
-
     if (
       requestedStatus === "to_business" ||
       requestedStatus === "en_camino_negocio"
@@ -272,8 +274,10 @@ export async function PATCH(
             ${hasToBusinessAt ? "to_business_at = COALESCE(to_business_at, NOW())," : ""}
             updated_at = NOW()
           WHERE order_id = ?
+            AND driver_user_id = ?
+            AND delivered_at IS NULL
         `,
-        [deliveryStatusId, orderId],
+        [deliveryStatusId, orderId, authUser.user.id],
       );
     } else if (
       requestedStatus === "arrived_business" ||
@@ -296,8 +300,10 @@ export async function PATCH(
             ${hasArrivedBusinessAt ? "arrived_business_at = COALESCE(arrived_business_at, NOW())," : ""}
             updated_at = NOW()
           WHERE order_id = ?
+            AND driver_user_id = ?
+            AND delivered_at IS NULL
         `,
-        [deliveryStatusId, orderId],
+        [deliveryStatusId, orderId, authUser.user.id],
       );
     } else if (
       requestedStatus === "incident" ||
@@ -320,14 +326,17 @@ export async function PATCH(
             ${hasIncidentReason ? "incident_reason = ?," : ""}
             updated_at = NOW()
           WHERE order_id = ?
+            AND driver_user_id = ?
+            AND delivered_at IS NULL
         `,
         hasIncidentReason
           ? [
               deliveryStatusId,
               "Incidencia reportada desde panel delivery",
               orderId,
+              authUser.user.id,
             ]
-          : [deliveryStatusId, orderId],
+          : [deliveryStatusId, orderId, authUser.user.id],
       );
     } else if (
       requestedStatus === "delivered" ||
@@ -367,20 +376,35 @@ export async function PATCH(
       const driverEarning = shippingFeeAmount * COURIER_EARNING_RATE;
       const platformFee = shippingFeeAmount - driverEarning;
 
-      await applyValidatedOrderStatusTransition(connection, {
-        orderId,
-        nextStatus: "delivered",
-        actorUserId: authUser.user.id,
-        actorRole: "driver",
-        currentStatus,
-        metadata: {
-          endpoint: "/api/delivery/orders/[orderId]/status",
-          driver_action: "delivered",
-          directDeliveryButton: true,
-        },
-      });
+      const { statusId: deliveredOrderStatusId } =
+        await ensureCanonicalOrderStatus("delivered", connection);
 
-      await connection.query<ResultSetHeader>(
+      const [orderUpdateResult] = await connection.query<ResultSetHeader>(
+        `
+          UPDATE orders
+          SET
+            order_status_id = ?,
+            delivered_at = COALESCE(delivered_at, NOW()),
+            updated_at = NOW()
+          WHERE id = ?
+            AND delivered_at IS NULL
+        `,
+        [deliveredOrderStatusId, orderId],
+      );
+
+      if (orderUpdateResult.affectedRows !== 1) {
+        await connection.rollback();
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "No se pudo confirmar la entrega: el pedido ya fue actualizado.",
+          },
+          { status: 409 },
+        );
+      }
+
+      const [deliveryUpdateResult] = await connection.query<ResultSetHeader>(
         `
           UPDATE delivery
           SET
@@ -392,11 +416,30 @@ export async function PATCH(
             ${hasDriverEarning ? "driver_earning = ?," : ""}
             updated_at = NOW()
           WHERE order_id = ?
+            AND driver_user_id = ?
+            AND delivered_at IS NULL
         `,
         hasDriverEarning
-          ? [deliveryStatusId, Number(driverEarning.toFixed(2)), orderId]
-          : [deliveryStatusId, orderId],
+          ? [
+              deliveryStatusId,
+              Number(driverEarning.toFixed(2)),
+              orderId,
+              authUser.user.id,
+            ]
+          : [deliveryStatusId, orderId, authUser.user.id],
       );
+
+      if (deliveryUpdateResult.affectedRows !== 1) {
+        await connection.rollback();
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              "No se pudo confirmar la entrega: el pedido ya cambió de estado.",
+          },
+          { status: 409 },
+        );
+      }
 
       await saveDriverEarning(
         {
@@ -470,8 +513,10 @@ export async function PATCH(
             picked_up_at = COALESCE(picked_up_at, NOW()),
             updated_at = NOW()
           WHERE order_id = ?
+            AND driver_user_id = ?
+            AND delivered_at IS NULL
         `,
-        [deliveryStatusId, orderId],
+        [deliveryStatusId, orderId, authUser.user.id],
       );
 
       await connection.query<ResultSetHeader>(
@@ -528,8 +573,10 @@ export async function PATCH(
             in_route_at = COALESCE(in_route_at, NOW()),
             updated_at = NOW()
           WHERE order_id = ?
+            AND driver_user_id = ?
+            AND delivered_at IS NULL
         `,
-        [deliveryStatusId, orderId],
+        [deliveryStatusId, orderId, authUser.user.id],
       );
 
       await connection.query<ResultSetHeader>(
