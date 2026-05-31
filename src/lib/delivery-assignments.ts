@@ -10,6 +10,7 @@ import {
   resolveBusinessAccess,
 } from "@/lib/business-panel";
 import pool from "@/lib/db";
+import { ensureDriverStatusColumns } from "@/lib/driver-status";
 import { logger } from "@/lib/logger";
 import {
   createNotification,
@@ -49,6 +50,27 @@ type CourierCapacityRow = RowDataPacket & {
 type DeliveryDriverColumnRow = RowDataPacket & {
   is_nullable: string;
 };
+
+type CarouselStateRow = RowDataPacket & {
+  id: number;
+  last_driver_user_id: number | null;
+};
+
+type AssignmentAttemptRow = RowDataPacket & {
+  driver_user_id: number;
+};
+
+type CarouselCourier = {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
+  activeAssignments: number;
+  activeSince?: string | null;
+};
+
+let deliveryCarouselSchemaReady = false;
 
 export class DeliveryAssignmentError extends Error {
   status: number;
@@ -122,6 +144,199 @@ async function deliverySupportsUnassignedDriver(connection: PoolConnection) {
   );
 
   return rows[0]?.is_nullable === "YES";
+}
+
+async function ensureDeliveryCarouselSchema(connection: PoolConnection) {
+  if (deliveryCarouselSchemaReady) return;
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS delivery_assignment_carousel_state (
+      id TINYINT NOT NULL PRIMARY KEY,
+      last_driver_user_id INT NULL,
+      last_order_id INT NULL,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS delivery_assignment_attempts (
+      id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      order_id INT NOT NULL,
+      driver_user_id INT NOT NULL,
+      status VARCHAR(24) NOT NULL,
+      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY uk_delivery_assignment_attempt (
+        order_id,
+        driver_user_id
+      ),
+      KEY idx_delivery_assignment_attempt_order (order_id),
+      KEY idx_delivery_assignment_attempt_driver (driver_user_id)
+    )
+  `);
+
+  await connection.query(`
+    INSERT IGNORE INTO delivery_assignment_carousel_state (id)
+    VALUES (1)
+  `);
+
+  deliveryCarouselSchemaReady = true;
+}
+
+async function getRejectedCourierIdsForOrder(
+  connection: PoolConnection,
+  orderId: number,
+) {
+  const [rows] = await connection.query<AssignmentAttemptRow[]>(
+    `
+      SELECT driver_user_id
+      FROM delivery_assignment_attempts
+      WHERE order_id = ?
+        AND status = 'REJECTED'
+    `,
+    [orderId],
+  );
+
+  return new Set(rows.map((row) => Number(row.driver_user_id)));
+}
+
+function rotateCouriersAfterLastAssigned(
+  couriers: CarouselCourier[],
+  lastDriverUserId: number | null,
+) {
+  if (couriers.length === 0 || !lastDriverUserId) return couriers;
+
+  const lastIndex = couriers.findIndex(
+    (courier) => Number(courier.id) === Number(lastDriverUserId),
+  );
+
+  if (lastIndex < 0) return couriers;
+
+  return [
+    ...couriers.slice(lastIndex + 1),
+    ...couriers.slice(0, lastIndex + 1),
+  ];
+}
+
+async function selectNextCarouselCourier(params: {
+  connection: PoolConnection;
+  orderId: number;
+  availableCouriers: CarouselCourier[];
+}) {
+  await ensureDeliveryCarouselSchema(params.connection);
+
+  const [stateRows] = await params.connection.query<CarouselStateRow[]>(
+    `
+      SELECT id, last_driver_user_id
+      FROM delivery_assignment_carousel_state
+      WHERE id = 1
+      FOR UPDATE
+    `,
+  );
+  const lastDriverUserId =
+    Number(stateRows[0]?.last_driver_user_id ?? 0) || null;
+  const rejectedCourierIds = await getRejectedCourierIdsForOrder(
+    params.connection,
+    params.orderId,
+  );
+  const rotatedCouriers = rotateCouriersAfterLastAssigned(
+    params.availableCouriers,
+    lastDriverUserId,
+  );
+  const selectedCourier =
+    rotatedCouriers.find((courier) => !rejectedCourierIds.has(courier.id)) ??
+    null;
+
+  logger.info(
+    "delivery.carousel_selection",
+    "Carrusel de repartidores evaluado",
+    {
+      orderId: params.orderId,
+      lastDriverUserId,
+      activeCourierOrder: params.availableCouriers.map((courier) => ({
+        id: courier.id,
+        activeSince: courier.activeSince ?? null,
+        activeAssignments: courier.activeAssignments,
+      })),
+      rejectedCourierIds: Array.from(rejectedCourierIds),
+      selectedCourierId: selectedCourier?.id ?? null,
+    },
+  );
+
+  if (!selectedCourier) return null;
+
+  await params.connection.query<ResultSetHeader>(
+    `
+      INSERT INTO delivery_assignment_attempts (
+        order_id,
+        driver_user_id,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, 'OFFERED', NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        status = VALUES(status),
+        updated_at = NOW()
+    `,
+    [params.orderId, selectedCourier.id],
+  );
+
+  await params.connection.query<ResultSetHeader>(
+    `
+      UPDATE delivery_assignment_carousel_state
+      SET
+        last_driver_user_id = ?,
+        last_order_id = ?,
+        updated_at = NOW()
+      WHERE id = 1
+    `,
+    [selectedCourier.id, params.orderId],
+  );
+
+  return selectedCourier;
+}
+
+async function markCarouselAttemptStatus(params: {
+  connection: PoolConnection;
+  orderId: number;
+  driverUserId: number;
+  status: "ACCEPTED" | "REJECTED";
+}) {
+  await ensureDeliveryCarouselSchema(params.connection);
+  await params.connection.query<ResultSetHeader>(
+    `
+      INSERT INTO delivery_assignment_attempts (
+        order_id,
+        driver_user_id,
+        status,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        status = VALUES(status),
+        updated_at = NOW()
+    `,
+    [params.orderId, params.driverUserId, params.status],
+  );
+
+  if (params.status === "ACCEPTED") {
+    await params.connection.query<ResultSetHeader>(
+      `
+        UPDATE delivery_assignment_carousel_state
+        SET
+          last_driver_user_id = ?,
+          last_order_id = ?,
+          updated_at = NOW()
+        WHERE id = 1
+      `,
+      [params.driverUserId, params.orderId],
+    );
+  }
 }
 
 async function ensureOrdersDriverColumn(connection: PoolConnection) {
@@ -209,6 +424,8 @@ export async function requestCourierAssignment(params: {
   const connection = await pool.getConnection();
 
   try {
+    await ensureDeliveryCarouselSchema(connection);
+    await ensureDriverStatusColumns(connection);
     logger.info(
       "delivery.assignment_requested",
       "Solicitud de repartidor recibida",
@@ -316,7 +533,11 @@ export async function requestCourierAssignment(params: {
 
     const courierSearch = await findAvailableCourier(connection);
     const availableCouriers = courierSearch.availableCouriers;
-    const selectedCourier = courierSearch.courier;
+    const selectedCourier = await selectNextCarouselCourier({
+      connection,
+      orderId: params.orderId,
+      availableCouriers,
+    });
     const supportsUnassignedDriver =
       await deliverySupportsUnassignedDriver(connection);
     const noActiveCouriers = availableCouriers.length === 0;
@@ -343,10 +564,10 @@ export async function requestCourierAssignment(params: {
       },
     );
 
-    if (supportsUnassignedDriver) {
+    if (!selectedCourier && supportsUnassignedDriver) {
       const deliveryStatusId = await ensureDeliveryStatus(
         "pending_driver",
-        "Entrega disponible para repartidores",
+        "Entrega sin repartidor disponible",
         2,
         false,
         connection,
@@ -394,23 +615,8 @@ export async function requestCourierAssignment(params: {
         [params.orderId],
       );
 
-      await createNotificationsForUsers(
-        availableCouriers.map((courier) => courier.id),
-        {
-          type: "NEW_DELIVERY_AVAILABLE",
-          title: `Nueva entrega disponible #FG-${String(params.orderId).padStart(4, "0")}`,
-          message: `Hay un pedido listo para recoger en ${order.business_name}. Revísalo y acéptalo desde tu panel.`,
-          relatedId: params.orderId,
-        },
-        connection,
-      );
-
-      let adminNotified = false;
-
-      if (noActiveCouriers) {
-        await createNotificationsForAdminGeneral(adminAlertPayload, connection);
-        adminNotified = true;
-      }
+      await createNotificationsForAdminGeneral(adminAlertPayload, connection);
+      const adminNotified = true;
 
       await recordAuditLog(
         {
@@ -427,7 +633,7 @@ export async function requestCourierAssignment(params: {
           newValue: {
             deliveryStatus: "pending_driver",
             orderStatus: order.order_status_name,
-            notifiedCourierIds: availableCouriers.map((courier) => courier.id),
+            notifiedCourierIds: [],
             noActiveCouriers,
           },
         },
@@ -436,20 +642,12 @@ export async function requestCourierAssignment(params: {
 
       logger.info(
         "delivery.broadcast_created",
-        "Solicitud abierta de entrega creada",
+        "Solicitud de entrega creada sin repartidor disponible",
         {
           orderId: params.orderId,
           deliveryStatusId,
           businessId: Number(order.business_id),
-          availableCourierIds: availableCouriers.map((courier) => courier.id),
-        },
-      );
-      logger.debug(
-        "delivery.broadcast_notified",
-        "Notificación enviada a repartidores",
-        {
-          orderId: params.orderId,
-          notifiedCourierIds: availableCouriers.map((courier) => courier.id),
+          availableCourierIds: [],
         },
       );
 
@@ -460,13 +658,12 @@ export async function requestCourierAssignment(params: {
         courierName: null,
         courierPhone: null,
         courierAvatarUrl: null,
-        notifiedCourierIds: availableCouriers.map((courier) => courier.id),
+        notifiedCourierIds: [],
         deliveryRequested: true,
-        noActiveCouriers,
+        noActiveCouriers: true,
         adminNotified,
-        message: noActiveCouriers
-          ? "El pedido quedó listo y la solicitud se creó, pero no hay repartidores activos en este momento."
-          : "La solicitud de entrega ya quedó disponible para repartidores activos.",
+        message:
+          "El pedido quedó listo, pero no hay repartidores activos disponibles en el carrusel.",
       };
     }
 
@@ -636,6 +833,8 @@ export async function respondToCourierAssignment(params: {
   const connection = await pool.getConnection();
 
   try {
+    await ensureDeliveryCarouselSchema(connection);
+    await ensureDriverStatusColumns(connection);
     await connection.beginTransaction();
     await ensureOrdersDriverColumn(connection);
 
@@ -727,7 +926,7 @@ export async function respondToCourierAssignment(params: {
         actorUserId: params.userId,
       });
 
-      await connection.query<ResultSetHeader>(
+      const [deliveryUpdateResult] = await connection.query<ResultSetHeader>(
         `
           UPDATE delivery
           SET
@@ -736,9 +935,29 @@ export async function respondToCourierAssignment(params: {
             assigned_at = COALESCE(assigned_at, NOW()),
             updated_at = NOW()
           WHERE order_id = ?
+            AND (
+              driver_user_id = ?
+              OR (
+                driver_user_id IS NULL
+                AND ? = 1
+              )
+            )
         `,
-        [params.userId, deliveryStatusId, params.orderId],
+        [
+          params.userId,
+          deliveryStatusId,
+          params.orderId,
+          params.userId,
+          isOpenAvailableDelivery ? 1 : 0,
+        ],
       );
+
+      if (deliveryUpdateResult.affectedRows !== 1) {
+        throw new DeliveryAssignmentError(
+          "Esta entrega ya fue tomada por otro repartidor.",
+          409,
+        );
+      }
 
       await connection.query<ResultSetHeader>(
         `
@@ -815,6 +1034,13 @@ export async function respondToCourierAssignment(params: {
         connection,
       );
 
+      await markCarouselAttemptStatus({
+        connection,
+        orderId: params.orderId,
+        driverUserId: params.userId,
+        status: "ACCEPTED",
+      });
+
       await connection.commit();
 
       return {
@@ -829,24 +1055,19 @@ export async function respondToCourierAssignment(params: {
       );
     }
 
-    const deliveryStatusId = await ensureDeliveryStatus(
-      "rechazado",
-      "Asignacion rechazada por el repartidor",
-      99,
-      true,
+    await markCarouselAttemptStatus({
       connection,
-    );
-    await connection.query<ResultSetHeader>(
-      `
-        UPDATE delivery
-        SET
-          delivery_status_id = ?,
-          failed_at = NOW(),
-          updated_at = NOW()
-        WHERE order_id = ?
-      `,
-      [deliveryStatusId, params.orderId],
-    );
+      orderId: params.orderId,
+      driverUserId: params.userId,
+      status: "REJECTED",
+    });
+
+    const courierSearch = await findAvailableCourier(connection);
+    const nextCourier = await selectNextCarouselCourier({
+      connection,
+      orderId: params.orderId,
+      availableCouriers: courierSearch.availableCouriers,
+    });
 
     await connection.query<ResultSetHeader>(
       `
@@ -859,6 +1080,104 @@ export async function respondToCourierAssignment(params: {
       [params.orderId],
     );
 
+    if (nextCourier) {
+      const nextDeliveryStatusId = await ensureDeliveryStatus(
+        "pendiente_aceptacion",
+        "Asignación pendiente de respuesta del repartidor",
+        2,
+        false,
+        connection,
+      );
+
+      await connection.query<ResultSetHeader>(
+        `
+          UPDATE delivery
+          SET
+            driver_user_id = ?,
+            delivery_status_id = ?,
+            assigned_at = NOW(),
+            failed_at = NULL,
+            updated_at = NOW()
+          WHERE order_id = ?
+        `,
+        [nextCourier.id, nextDeliveryStatusId, params.orderId],
+      );
+
+      await createNotificationsForUsers(
+        [nextCourier.id],
+        {
+          type: "NEW_DELIVERY_AVAILABLE",
+          title: `Nueva entrega disponible #FG-${String(params.orderId).padStart(4, "0")}`,
+          message: `Hay un pedido listo para recoger en ${order.business_name}. Revísalo y acéptalo desde tu panel.`,
+          relatedId: params.orderId,
+        },
+        connection,
+      );
+
+      await recordAuditLog(
+        {
+          userId: params.userId,
+          action: "DRIVER_REJECT_DELIVERY_REASSIGNED",
+          resourceType: "order",
+          resourceId: params.orderId,
+          oldValue: {
+            deliveryStatus: delivery.delivery_status_name,
+            orderStatus: order.order_status_name,
+            rejectedDriverUserId: params.userId,
+          },
+          newValue: {
+            deliveryStatus: "pendiente_aceptacion",
+            orderStatus: order.order_status_name,
+            nextDriverUserId: nextCourier.id,
+          },
+        },
+        connection,
+      );
+
+      logger.info(
+        "delivery.carousel_reassigned_after_reject",
+        "Entrega ofrecida al siguiente repartidor del carrusel",
+        {
+          orderId: params.orderId,
+          rejectedDriverUserId: params.userId,
+          nextDriverUserId: nextCourier.id,
+        },
+      );
+
+      await connection.commit();
+
+      return {
+        message:
+          "Entrega rechazada correctamente. Se ofreció al siguiente repartidor.",
+      };
+    }
+
+    const supportsUnassignedDriver =
+      await deliverySupportsUnassignedDriver(connection);
+    const terminalStatusId = await ensureDeliveryStatus(
+      supportsUnassignedDriver ? "pending_driver" : "rechazado",
+      supportsUnassignedDriver
+        ? "Entrega sin repartidor disponible"
+        : "Asignacion rechazada por el repartidor",
+      supportsUnassignedDriver ? 2 : 99,
+      !supportsUnassignedDriver,
+      connection,
+    );
+
+    await connection.query<ResultSetHeader>(
+      `
+        UPDATE delivery
+        SET
+          driver_user_id = NULL,
+          delivery_status_id = ?,
+          assigned_at = NULL,
+          failed_at = NOW(),
+          updated_at = NOW()
+        WHERE order_id = ?
+      `,
+      [terminalStatusId, params.orderId],
+    );
+
     const businessUserIds = await getBusinessNotificationUserIds(
       connection,
       Number(order.business_id),
@@ -868,10 +1187,27 @@ export async function respondToCourierAssignment(params: {
       businessUserIds,
       {
         type: "pedido",
-        title: `Asignacion rechazada #FG-${String(params.orderId).padStart(4, "0")}`,
+        title: `Sin repartidor disponible #FG-${String(params.orderId).padStart(4, "0")}`,
         message:
-          "El repartidor rechazo esta asignacion. Puedes solicitar otro repartidor desde el panel del negocio.",
+          "El repartidor rechazó la asignación y el carrusel no encontró otro repartidor disponible.",
         relatedId: params.orderId,
+      },
+      connection,
+    );
+
+    await createNotificationsForAdminGeneral(
+      {
+        type: "delivery",
+        title: `Sin repartidores disponibles #FG-${String(params.orderId).padStart(4, "0")}`,
+        message:
+          "Todos los repartidores disponibles rechazaron o no hay cupo activo para este pedido.",
+        relatedId: params.orderId,
+        dataJson: {
+          order_id: params.orderId,
+          business_id: Number(order.business_id),
+          rejected_driver_user_id: params.userId,
+          issue: "delivery_carousel_exhausted",
+        },
       },
       connection,
     );
@@ -879,16 +1215,20 @@ export async function respondToCourierAssignment(params: {
     await recordAuditLog(
       {
         userId: params.userId,
-        action: "DRIVER_REJECT_DELIVERY",
+        action: "DRIVER_REJECT_DELIVERY_NO_COURIER_AVAILABLE",
         resourceType: "order",
         resourceId: params.orderId,
         oldValue: {
           deliveryStatus: delivery.delivery_status_name,
           orderStatus: order.order_status_name,
+          rejectedDriverUserId: params.userId,
         },
         newValue: {
-          deliveryStatus: "rechazado",
+          deliveryStatus: supportsUnassignedDriver
+            ? "pending_driver"
+            : "rechazado",
           orderStatus: order.order_status_name,
+          noActiveCouriers: true,
         },
       },
       connection,
@@ -897,7 +1237,8 @@ export async function respondToCourierAssignment(params: {
     await connection.commit();
 
     return {
-      message: "Entrega rechazada correctamente.",
+      message:
+        "Entrega rechazada correctamente. No hay otro repartidor disponible.",
     };
   } catch (error) {
     await connection.rollback();

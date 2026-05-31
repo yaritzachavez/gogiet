@@ -19,6 +19,7 @@ export type DriverOperationalStatus =
 export type DriverStatusColumns = {
   hasDriverStatus: boolean;
   hasDriverStatusReason: boolean;
+  hasDriverActiveSince: boolean;
 };
 
 export const DRIVER_STATUS_LABELS: Record<DriverOperationalStatus, string> = {
@@ -48,7 +49,11 @@ export async function getDriverStatusColumns(
       FROM information_schema.columns
       WHERE table_schema = DATABASE()
         AND table_name = 'users'
-        AND column_name IN ('driver_status', 'driver_status_reason')
+        AND column_name IN (
+          'driver_status',
+          'driver_status_reason',
+          'driver_active_since'
+        )
     `,
   );
 
@@ -59,6 +64,7 @@ export async function getDriverStatusColumns(
   return {
     hasDriverStatus: columnNames.has("driver_status"),
     hasDriverStatusReason: columnNames.has("driver_status_reason"),
+    hasDriverActiveSince: columnNames.has("driver_active_since"),
   };
 }
 
@@ -83,9 +89,19 @@ export async function ensureDriverStatusColumns(executor: Queryable = pool) {
     );
   }
 
+  if (!columns.hasDriverActiveSince) {
+    await executor.query(
+      `
+        ALTER TABLE users
+        ADD COLUMN driver_active_since DATETIME NULL
+      `,
+    );
+  }
+
   return {
     hasDriverStatus: true,
     hasDriverStatusReason: true,
+    hasDriverActiveSince: true,
   };
 }
 

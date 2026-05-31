@@ -40,6 +40,7 @@ type CourierAvailabilityRow = RowDataPacket & {
   driver_status: string | null;
   active_assignments: number | string | null;
   last_assigned_at: string | null;
+  driver_active_since: string | Date | null;
 };
 
 type CourierRoleRow = RowDataPacket & {
@@ -103,6 +104,7 @@ export type AvailableCourierResult = {
     phone: string | null;
     avatarUrl: string | null;
     activeAssignments: number;
+    activeSince: string | null;
   } | null;
   availableCouriers: Array<{
     id: number;
@@ -111,6 +113,7 @@ export type AvailableCourierResult = {
     phone: string | null;
     avatarUrl: string | null;
     activeAssignments: number;
+    activeSince: string | null;
   }>;
   debug: CourierDebug;
 };
@@ -375,6 +378,9 @@ export async function findAvailableCourier(
   const driverStatusSelect = driverStatusColumns.hasDriverStatus
     ? "u.driver_status"
     : "NULL AS driver_status";
+  const activeSinceSelect = driverStatusColumns.hasDriverActiveSince
+    ? "COALESCE(u.driver_active_since, u.updated_at, u.created_at)"
+    : "COALESCE(u.updated_at, u.created_at)";
   const roleNames = ["repartidor", "delivery", "driver"];
   const excludedPlaceholders = excludedCourierIds.length
     ? `AND u.id NOT IN (${excludedCourierIds.map(() => "?").join(", ")})`
@@ -426,6 +432,7 @@ export async function findAvailableCourier(
               )
             ) IN (?, ?, ?, ?, ?)
         ) AS active_assignments,
+        ${activeSinceSelect} AS driver_active_since,
         (
           SELECT MAX(COALESCE(d.assigned_at, d.created_at))
           FROM delivery d
@@ -437,7 +444,7 @@ export async function findAvailableCourier(
       WHERE LOWER(r.name) IN (?, ?, ?)
         AND COALESCE(u.status_id, 0) = 1
         ${excludedPlaceholders}
-      ORDER BY active_assignments ASC, last_assigned_at ASC, u.id ASC
+      ORDER BY driver_active_since ASC, u.id ASC
     `,
     [...ACTIVE_DELIVERY_STATUS_NAMES, ...roleNames, ...excludedCourierIds],
   );
@@ -602,6 +609,9 @@ export async function findAvailableCourier(
         activeAssignments: Number(
           couriersWithCapacity[0].active_assignments ?? 0,
         ),
+        activeSince: couriersWithCapacity[0].driver_active_since
+          ? String(couriersWithCapacity[0].driver_active_since)
+          : null,
       }
     : null;
 
@@ -612,6 +622,9 @@ export async function findAvailableCourier(
     phone: row.phone ?? null,
     avatarUrl: row.profile_image_url ?? null,
     activeAssignments: Number(row.active_assignments ?? 0),
+    activeSince: row.driver_active_since
+      ? String(row.driver_active_since)
+      : null,
   }));
 
   logger.info(

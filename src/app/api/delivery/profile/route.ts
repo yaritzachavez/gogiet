@@ -466,10 +466,20 @@ export async function PATCH(req: NextRequest) {
             is_available = ?,
             driver_status = ?,
             driver_status_reason = NULL,
+            driver_active_since = CASE
+              WHEN ? = 'ACTIVE'
+                THEN COALESCE(driver_active_since, NOW())
+              ELSE NULL
+            END,
             updated_at = NOW()
           WHERE id = ?
         `,
-        [nextIsAvailable ? 1 : 0, nextDriverStatus, authUser.user.id],
+        [
+          nextIsAvailable ? 1 : 0,
+          nextDriverStatus,
+          nextDriverStatus,
+          authUser.user.id,
+        ],
       );
 
       const refreshedColumns = await ensureDeliveryProfileColumns();

@@ -136,10 +136,15 @@ export async function PATCH(
           is_available = ?,
           driver_status = ?,
           driver_status_reason = ?,
+          driver_active_since = CASE
+            WHEN ? = 'ACTIVE'
+              THEN COALESCE(driver_active_since, NOW())
+            ELSE NULL
+          END,
           updated_at = NOW()
         WHERE id = ?
       `,
-      [nextIsAvailable ? 1 : 0, nextStatus, reason, driverId],
+      [nextIsAvailable ? 1 : 0, nextStatus, reason, nextStatus, driverId],
     );
 
     await safeRecordAuditLog(
