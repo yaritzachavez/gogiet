@@ -6,6 +6,8 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
+import { isAuthUserActive } from "@/lib/auth-users";
+import { getBusinessOpenStatus } from "@/lib/business-hours";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
@@ -702,6 +704,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const userIsActive = await isAuthUserActive(userId);
+    if (!userIsActive) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Tu cuenta está inactiva. Contacta a soporte.",
+        },
+        { status: 403 },
+      );
+    }
+
     if (!items.length) {
       return NextResponse.json(
         {
@@ -932,16 +945,24 @@ export async function POST(req: NextRequest) {
       isOpen: Boolean(business?.is_open),
     });
 
+    const businessOpenNow = business
+      ? await getBusinessOpenStatus(conn, businessId, {
+          statusId: Number(business.status_id ?? 1),
+          fallbackOpen: Boolean(business.is_open),
+        })
+      : false;
+
     if (
       !business ||
       Number(business.status_id ?? 0) !== 1 ||
-      !business.is_open
+      !businessOpenNow
     ) {
       await conn.rollback();
       return NextResponse.json(
         {
           success: false,
-          error: "Este negocio no está disponible para recibir pedidos",
+          error:
+            "Este negocio está cerrado por el momento. Puedes volver dentro de su horario de atención.",
         },
         { status: 400 },
       );
@@ -1263,26 +1284,26 @@ export async function POST(req: NextRequest) {
       conn,
     );
 
-    await createNotificationForBusinessSafely(
-      businessId,
-      {
-        type: "pedido",
-        title: `Pedido nuevo #${orderId}`,
-        message:
-          paymentMethodName === "transferencia"
-            ? "Se recibió un pedido con transferencia. Espera la validación del pago antes de prepararlo."
-            : paymentMethodName === "mercadopago"
-              ? "Se recibió un pedido con pago en línea pendiente. Prepáralo cuando Mercado Pago confirme el cobro."
+    if (paymentMethodName !== "mercadopago") {
+      await createNotificationForBusinessSafely(
+        businessId,
+        {
+          type: "pedido",
+          title: `Pedido nuevo #${orderId}`,
+          message:
+            paymentMethodName === "transferencia"
+              ? "Se recibió un pedido con transferencia. Espera la validación del pago antes de prepararlo."
               : "Tienes un pedido nuevo pendiente de preparación en tu negocio.",
-        relatedId: orderId,
-        dataJson: {
-          order_id: orderId,
-          business_id: businessId,
-          payment_method: paymentMethodName,
+          relatedId: orderId,
+          dataJson: {
+            order_id: orderId,
+            business_id: businessId,
+            payment_method: paymentMethodName,
+          },
         },
-      },
-      conn,
-    );
+        conn,
+      );
+    }
 
     if (paymentMethodName === "transferencia") {
       stage = "notify_transfer_review";

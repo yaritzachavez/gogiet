@@ -131,6 +131,17 @@ npm run dev
 
 Abre [http://localhost:3000](http://localhost:3000) para visualizar la aplicación.
 
+### Variables de entorno para Mercado Pago
+
+```bash
+MERCADOPAGO_ACCESS_TOKEN=
+MERCADOPAGO_PUBLIC_KEY=
+MERCADOPAGO_WEBHOOK_SECRET=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+El webhook público para configurar en Mercado Pago es `/api/webhooks/mercadopago`.
+
 ---
 
 ## 📘 Estructura del Proyecto

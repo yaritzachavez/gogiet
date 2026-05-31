@@ -17,6 +17,7 @@ import {
   normalizePhone,
   validatePasswordStrength,
 } from "@/lib/auth-account-shared";
+import { getActiveAuthStatusId } from "@/lib/auth-users";
 import pool from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { RuntimeSchemaError } from "@/lib/runtime-schema";
@@ -71,6 +72,7 @@ type AuthSchemaState = {
   hasRateLimitsTable: boolean;
   hasAuditLogsTable: boolean;
   hasEmailVerified: boolean;
+  hasEmailVerifiedAt: boolean;
   hasVerificationCode: boolean;
   hasVerificationExpiresAt: boolean;
   hasVerificationSentAt: boolean;
@@ -207,6 +209,7 @@ async function getAuthSchemaState(connection?: PoolConnection) {
       tableChecks.find(([tableName]) => tableName === "auth_audit_logs")?.[1],
     ),
     hasEmailVerified: userColumns.has("email_verified"),
+    hasEmailVerifiedAt: userColumns.has("email_verified_at"),
     hasVerificationCode: userColumns.has("verification_code"),
     hasVerificationExpiresAt: userColumns.has("verification_expires_at"),
     hasVerificationSentAt: userColumns.has("verification_sent_at"),
@@ -253,6 +256,7 @@ export async function ensureAuthSecuritySchema(connection?: PoolConnection) {
 
     const missingUserColumns = [
       !schemaState.hasEmailVerified ? "email_verified" : null,
+      !schemaState.hasEmailVerifiedAt ? "email_verified_at" : null,
       !schemaState.hasVerificationCode ? "verification_code" : null,
       !schemaState.hasVerificationExpiresAt ? "verification_expires_at" : null,
       !schemaState.hasVerificationSentAt ? "verification_sent_at" : null,
@@ -598,29 +602,32 @@ export async function invalidateUserSessions(userId: number) {
 
 export async function isSessionTokenActive(token: string) {
   const schema = await getUserSessionsSchema();
+  const activeStatusId = await getActiveAuthStatusId();
   const persistedToken = getPersistedSessionTokenValue(token, schema);
-  const where = [`${schema.tokenColumn} = ?`];
+  const where = [`s.${schema.tokenColumn} = ?`, "u.status_id = ?"];
+  const params: Array<string | number> = [persistedToken, activeStatusId];
 
   if (schema.hasStatus) {
-    where.push("status = 'active'");
+    where.push("s.status = 'active'");
   }
 
   if (schema.hasRevokedAt) {
-    where.push("revoked_at IS NULL");
+    where.push("s.revoked_at IS NULL");
   }
 
   if (schema.hasExpiresAt) {
-    where.push("expires_at > NOW()");
+    where.push("s.expires_at > NOW()");
   }
 
   const [rows] = await pool.query<RowDataPacket[]>(
     `
-      SELECT id
-      FROM user_sessions
+      SELECT s.id
+      FROM user_sessions s
+      INNER JOIN users u ON u.id = s.user_id
       WHERE ${where.join(" AND ")}
       LIMIT 1
     `,
-    [persistedToken],
+    params,
   );
 
   return rows.length > 0;

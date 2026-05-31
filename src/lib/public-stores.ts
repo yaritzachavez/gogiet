@@ -1,5 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 
+import { getBusinessOpenStatuses } from "@/lib/business-hours";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
@@ -128,6 +129,20 @@ export async function getPublicStores(search?: string | null) {
       : [],
   );
 
+  const openStatuses = await getBusinessOpenStatuses(
+    pool,
+    rows.map((store) => Number(store.id)),
+    new Map(
+      rows.map((store) => [
+        Number(store.id),
+        {
+          statusId: Number(store.status_id ?? 1),
+          fallbackOpen: Boolean(store.is_open_now),
+        },
+      ]),
+    ),
+  );
+
   return rows.map((store) => ({
     id: store.id,
     name: store.name,
@@ -145,7 +160,8 @@ export async function getPublicStores(search?: string | null) {
     min_order_amount: store.min_order_amount,
     estimated_delivery_minutes: store.estimated_delivery_minutes,
     rating_average: Number(store.rating_average ?? 0),
-    is_open_now: Boolean(store.is_open_now),
+    is_open_now:
+      openStatuses.get(Number(store.id)) ?? Boolean(store.is_open_now),
     status_id: store.status_id,
     created_at: store.created_at,
     updated_at: store.updated_at,

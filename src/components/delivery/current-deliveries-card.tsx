@@ -93,8 +93,8 @@ export function CurrentDeliveriesCard({
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
 
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-5">
+    <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F3E6D7] text-[#c56f2d]">
@@ -119,7 +119,7 @@ export function CurrentDeliveriesCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 p-4 sm:p-5">
+      <CardContent className="space-y-4 bg-[#F7F1E8] p-4 sm:p-5">
         {isLoading ? (
           <p className="rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             Cargando entregas...

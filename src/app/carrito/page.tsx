@@ -145,8 +145,9 @@ const PAYMENT_METHOD_OPTIONS = [
   },
   {
     id: "mercadopago",
-    label: "Tarjeta / Mercado Pago",
-    description: "Paga con crédito o débito en Checkout Pro.",
+    label: "Pagar con Mercado Pago",
+    description:
+      "Serás redirigido a Mercado Pago para completar tu pago de forma segura.",
   },
   {
     id: "transferencia",
@@ -895,7 +896,7 @@ export default function CarritoPage() {
             : "Tu pedido se creó, pero no pudimos abrir Mercado Pago.";
 
         router.push(
-          `/payments/mercadopago/status?status=failure&orderId=${orderId}&message=${encodeURIComponent(message)}`,
+          `/checkout/failure?orderId=${orderId}&message=${encodeURIComponent(message)}`,
         );
         return;
       }
@@ -967,10 +968,12 @@ export default function CarritoPage() {
       const data = await res.json().catch(() => null);
       if (res.ok && data?.success && data?.order?.id) {
         const createdOrderId = Number(data.order.id);
-        setCartItems([]);
-        setCartId(null);
-        syncCartStorage([]);
-        window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+        if (selectedPaymentMethod !== "mercadopago") {
+          setCartItems([]);
+          setCartId(null);
+          syncCartStorage([]);
+          window.dispatchEvent(new Event(CART_UPDATED_EVENT));
+        }
         setTransferDialogOpen(false);
         setPaymentDialogOpen(false);
         setTransferReceiptFile(null);
@@ -1375,7 +1378,7 @@ export default function CarritoPage() {
               {selectedPaymentMethod === "transferencia"
                 ? "Transferencia"
                 : selectedPaymentMethod === "mercadopago"
-                  ? "Tarjeta / Mercado Pago"
+                  ? "Mercado Pago"
                   : "Efectivo al recibir"}
             </p>
           </div>
@@ -1401,7 +1404,11 @@ export default function CarritoPage() {
               size="lg"
               className="w-full"
             >
-              {submittingOrder ? "Procesando..." : "Finalizar Pedido"}
+              {submittingOrder
+                ? "Procesando..."
+                : selectedPaymentMethod === "mercadopago"
+                  ? "Pagar con Mercado Pago"
+                  : "Finalizar Pedido"}
             </Button>
           </DialogFooter>
         </DialogContent>

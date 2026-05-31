@@ -246,6 +246,7 @@ export default function BusinessDetailPage() {
   const [savedAddress, setSavedAddress] = useState<SavedAddress | null>(
     initialAddress,
   );
+  const isBusinessOpen = Boolean(business?.is_open_now);
 
   // ✅ 2. Sincronizar estado local si el usuario carga después del montaje inicial
   useEffect(() => {
@@ -309,6 +310,14 @@ export default function BusinessDetailPage() {
 
   // --- Lógica de Personalización ---
   const openCustomizationModal = async (product: ProductDetail) => {
+    if (!isBusinessOpen) {
+      notify.warning(
+        "Este negocio está cerrado por el momento. Puedes volver dentro de su horario de atención.",
+        "Negocio cerrado",
+      );
+      return;
+    }
+
     setSelectedProduct(product);
     setCustomizationGroups([]);
     setModalQuantity(1);
@@ -329,6 +338,14 @@ export default function BusinessDetailPage() {
 
   // ✅ 3. Validación de dirección antes de agregar al carrito
   const handleAddToCart = async () => {
+    if (!isBusinessOpen) {
+      notify.warning(
+        "Este negocio está cerrado por el momento. Puedes volver dentro de su horario de atención.",
+        "Negocio cerrado",
+      );
+      return;
+    }
+
     if (!selectedProduct || !user) {
       if (!user) {
         const message = "Necesitas iniciar sesión para comprar.";
@@ -670,6 +687,13 @@ export default function BusinessDetailPage() {
           </SectionCard>
         </section>
 
+        {!isBusinessOpen ? (
+          <div className="mb-3 rounded-[22px] border border-red-200/30 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100 shadow-[0_14px_34px_rgba(0,0,0,0.16)] sm:mb-4">
+            Este negocio está cerrado por el momento. Puedes volver dentro de su
+            horario de atención.
+          </div>
+        ) : null}
+
         <section className="min-w-0">
           <div className="mb-2.5 flex flex-col gap-1.5 sm:mb-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -745,7 +769,8 @@ export default function BusinessDetailPage() {
                         )}
                       </div>
                       <Button
-                        className="h-11 w-11 shrink-0 rounded-2xl bg-orange-500 p-0 text-white shadow-[0_14px_28px_rgba(255,107,0,0.28)] hover:bg-orange-600"
+                        disabled={!isBusinessOpen}
+                        className="h-11 w-11 shrink-0 rounded-2xl bg-orange-500 p-0 text-white shadow-[0_14px_28px_rgba(255,107,0,0.28)] hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:shadow-none"
                         onClick={() => openCustomizationModal(product)}
                         aria-label={`Agregar ${product.name}`}
                       >
@@ -856,7 +881,7 @@ export default function BusinessDetailPage() {
               </button>
             </div>
             <Button
-              disabled={addingProductId !== null}
+              disabled={addingProductId !== null || !isBusinessOpen}
               onClick={handleAddToCart}
               className="h-12 flex-1 rounded-2xl bg-orange-600 text-base font-bold hover:bg-orange-700 sm:text-lg"
             >

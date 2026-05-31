@@ -14,6 +14,11 @@ model User {
   email                           String                  @unique(map: "uk_users_email") @db.VarChar(120)
   phone                           String?                 @unique(map: "uk_users_phone") @db.VarChar(20)
   password                        String                  @map("password_hash") @db.VarChar(255)
+  emailVerified                   Boolean?                @default(false) @map("email_verified")
+  emailVerifiedAt                 DateTime?               @map("email_verified_at") @db.DateTime(0)
+  verificationCode                String?                 @map("verification_code") @db.VarChar(12)
+  verificationExpiresAt           DateTime?               @map("verification_expires_at") @db.DateTime(0)
+  verificationSentAt              DateTime?               @map("verification_sent_at") @db.DateTime(0)
   birthDate                       DateTime?               @map("birth_date") @db.Date
   profile_image_url               String?                 @db.VarChar(255)
   avatar_url                      String?                 @db.VarChar(255)
@@ -255,6 +260,7 @@ model business_hours {
   open_time   DateTime? @db.Time(0)
   close_time  DateTime? @db.Time(0)
   is_closed   Boolean   @default(false)
+  is_24_hours Boolean   @default(false)
   created_at  DateTime  @default(now()) @db.DateTime(0)
   updated_at  DateTime  @default(now()) @db.DateTime(0)
 

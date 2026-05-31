@@ -6,6 +6,7 @@ import {
   ensureAuthSecuritySchema,
   getRequestIp,
   getRequestUserAgent,
+  getUserColumns,
   hashPassword,
   isValidEmail,
   normalizeEmail,
@@ -130,6 +131,7 @@ export async function POST(req: Request) {
     }
 
     await ensureAuthSecuritySchema();
+    const userColumns = await getUserColumns();
 
     const [rows] = await pool.query<UserRow[]>(
       `
@@ -183,23 +185,38 @@ export async function POST(req: Request) {
     const passwordHash = await hashPassword(password);
     const activeStatusId = await getActiveAuthStatusId();
 
+    const updateFields = [
+      "first_name = ?",
+      "last_name = ?",
+      "phone = ?",
+      "password_hash = ?",
+      "status_id = ?",
+      userColumns.has("status") ? "status = 'ACTIVE'" : null,
+      "email_verified = 1",
+      userColumns.has("email_verified_at")
+        ? "email_verified_at = COALESCE(email_verified_at, NOW())"
+        : null,
+      "verification_code = NULL",
+      "verification_expires_at = NULL",
+      "verification_sent_at = NULL",
+      "updated_at = NOW()",
+    ].filter(Boolean);
+    const updateValues: Array<string | number | null> = [
+      firstName,
+      lastName,
+      phone,
+      passwordHash,
+      activeStatusId,
+      user.id,
+    ];
+
     await pool.query<ResultSetHeader>(
       `
         UPDATE users
-        SET
-          first_name = ?,
-          last_name = ?,
-          phone = ?,
-          password_hash = ?,
-          status_id = ?,
-          email_verified = 1,
-          verification_code = NULL,
-          verification_expires_at = NULL,
-          verification_sent_at = NULL,
-          updated_at = NOW()
+        SET ${updateFields.join(", ")}
         WHERE id = ?
       `,
-      [firstName, lastName, phone, passwordHash, activeStatusId, user.id],
+      updateValues,
     );
 
     const defaultRoleName = mapPublicRoleToDbRole("CLIENTE");

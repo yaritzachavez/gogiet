@@ -338,15 +338,44 @@ export default function RegisterForm() {
         </div>
 
         {/* Terms */}
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="terms"
-            checked={acceptTerms}
-            onCheckedChange={(checked) => setAcceptTerms(checked === true)}
-          />
-          <Label htmlFor="terms" className="text-sm text-[#b3b3b3]">
-            Acepto Términos de uso y política de privacidad
-          </Label>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="terms"
+              checked={acceptTerms}
+              onCheckedChange={(checked) => setAcceptTerms(checked === true)}
+              aria-describedby="terms-description"
+              className="mt-0.5 border-white/20 bg-white/5"
+            />
+            <Label htmlFor="terms" className="text-sm leading-6 text-[#d8d0c6]">
+              Acepto los{" "}
+              <Link
+                href="/terminos"
+                className="font-semibold text-orange-300 underline-offset-4 hover:text-orange-200 hover:underline"
+              >
+                Términos y Condiciones
+              </Link>{" "}
+              y el{" "}
+              <Link
+                href="/privacidad"
+                className="font-semibold text-orange-300 underline-offset-4 hover:text-orange-200 hover:underline"
+              >
+                Aviso de Privacidad
+              </Link>{" "}
+              de Gogi Eats.
+            </Label>
+          </div>
+          <p
+            id="terms-description"
+            className="mt-3 pl-7 text-xs leading-5 text-[#9f968c] sm:text-[13px] sm:leading-6"
+          >
+            Al registrarte aceptas que Gogi Eats use tus datos de nombre,
+            correo, teléfono y ubicación únicamente para crear tu cuenta,
+            validar tu identidad, procesar pedidos, coordinar entregas, enviar
+            avisos sobre tu pedido, brindar soporte y mejorar el servicio.
+            También aceptas las reglas de uso de la plataforma, tiempos de
+            entrega, cancelaciones, reembolsos y responsabilidades como cliente.
+          </p>
         </div>
 
         <Button

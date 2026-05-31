@@ -35,6 +35,11 @@ type RawUser = {
   created_at?: string;
   updated_at?: string;
   status_id?: number;
+  status?: string | null;
+  is_active?: boolean | number;
+  isActive?: boolean;
+  email_verified?: boolean | number;
+  email_verified_at?: string | null;
   is_verified?: boolean;
   roles?: RawRole[];
 };
@@ -55,6 +60,21 @@ const ROLE_LABELS: Record<string, string> = {
   business_staff: "VENDEDOR",
 };
 
+function resolveAccountActive(user: {
+  is_active?: boolean | number;
+  isActive?: boolean;
+  status?: string | null;
+}) {
+  if (typeof user.isActive === "boolean") return user.isActive;
+  if (typeof user.is_active === "boolean") return user.is_active;
+  if (Number(user.is_active ?? 0) === 1) return true;
+
+  const status = String(user.status ?? "")
+    .trim()
+    .toUpperCase();
+  return status === "ACTIVE" || status === "ACTIVO";
+}
+
 function normalizeUser(rawUser: RawUser): DBUser {
   return {
     id: rawUser.id,
@@ -65,7 +85,10 @@ function normalizeUser(rawUser: RawUser): DBUser {
     created_at: rawUser.created_at ? new Date(rawUser.created_at) : new Date(),
     updated_at: rawUser.updated_at ? new Date(rawUser.updated_at) : new Date(),
     status_id: rawUser.status_id ?? 0,
-    is_verified: rawUser.is_verified ?? false,
+    status: rawUser.status ?? null,
+    is_active: resolveAccountActive(rawUser),
+    is_verified: Boolean(rawUser.is_verified ?? rawUser.email_verified),
+    email_verified_at: rawUser.email_verified_at ?? null,
     roles: Array.isArray(rawUser.roles)
       ? rawUser.roles
           .map((role) => role?.name)
@@ -82,6 +105,20 @@ function getRoleLabel(roles: string[] | undefined) {
   return roles.map((role) => ROLE_LABELS[role] ?? role).join(", ");
 }
 
+function EmailVerifiedBadge({ verified }: { verified: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold sm:px-3 ${
+        verified
+          ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/30 dark:bg-sky-500/15 dark:text-sky-200"
+          : "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-white/15 dark:bg-white/5 dark:text-zinc-300"
+      }`}
+    >
+      {verified ? "Sí" : "No"}
+    </span>
+  );
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<DBUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,6 +130,7 @@ export default function AdminUsersPage() {
     [],
   );
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -196,6 +234,64 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleToggleStatus = async (user: DBUser) => {
+    const isActive = Boolean(user.is_active);
+    const nextIsActive = !isActive;
+
+    if (
+      isActive &&
+      !window.confirm("¿Seguro que deseas desactivar este usuario?")
+    ) {
+      return;
+    }
+
+    try {
+      setUpdatingStatusId(user.id);
+      setError(null);
+
+      const response = await fetchWithSession(
+        `/api/admin/users/${user.id}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            isActive: nextIsActive,
+          }),
+        },
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok || !data?.success) {
+        throw new Error(
+          data?.error || "No se pudo actualizar el estado del usuario.",
+        );
+      }
+
+      const nextStatusId = Number(
+        data.user?.status_id ?? (nextIsActive ? 1 : 2),
+      );
+      setUsers((currentUsers) =>
+        currentUsers.map((currentUser) =>
+          currentUser.id === user.id
+            ? {
+                ...currentUser,
+                status_id: nextStatusId,
+                status: nextIsActive ? "ACTIVE" : "INACTIVE",
+                is_active: nextIsActive,
+              }
+            : currentUser,
+        ),
+      );
+    } catch (statusError) {
+      console.error("Error actualizando estado de usuario:", statusError);
+      setError("No se pudo actualizar el estado del usuario.");
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const toggleRole = (role: UserRoleOption["value"]) => {
     setSelectedRoles((current) =>
       current.includes(role)
@@ -206,7 +302,7 @@ export default function AdminUsersPage() {
 
   const stats = useMemo(() => {
     const total = users.length;
-    const activos = users.filter((user) => user.status_id === 1).length;
+    const activos = users.filter((user) => user.is_active).length;
     const repartidores = users.filter((user) =>
       user.roles?.includes("repartidor"),
     ).length;
@@ -282,7 +378,10 @@ export default function AdminUsersPage() {
                 <th className="px-3 py-2.5 sm:px-4 sm:py-3">Usuario</th>
                 <th className="px-3 py-2.5 sm:px-4 sm:py-3">Contacto</th>
                 <th className="hidden sm:table-cell px-3 py-2.5 sm:px-4 sm:py-3">
-                  Estado
+                  Estado de cuenta
+                </th>
+                <th className="hidden lg:table-cell px-3 py-2.5 sm:px-4 sm:py-3">
+                  Correo verificado
                 </th>
                 <th className="hidden md:table-cell px-3 py-2.5 sm:px-4 sm:py-3">
                   Rol
@@ -299,7 +398,7 @@ export default function AdminUsersPage() {
               ) : error ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-red-500 sm:px-4 sm:py-8"
                   >
                     <AlertCircle className="mx-auto mb-2 h-4 w-4 sm:h-5 sm:w-5" />
@@ -309,7 +408,7 @@ export default function AdminUsersPage() {
               ) : users.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-zinc-400 sm:px-4 sm:py-8"
                   >
                     No hay usuarios registrados.
@@ -318,7 +417,7 @@ export default function AdminUsersPage() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="px-3 py-6 text-center text-zinc-400 sm:px-4 sm:py-8"
                   >
                     No se encontraron usuarios
@@ -344,7 +443,12 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="hidden sm:table-cell px-3 py-2.5 sm:px-4 sm:py-3">
-                      <StatusBadge status={user.status_id} />
+                      <StatusBadge isActive={Boolean(user.is_active)} />
+                    </td>
+                    <td className="hidden lg:table-cell px-3 py-2.5 sm:px-4 sm:py-3">
+                      <EmailVerifiedBadge
+                        verified={Boolean(user.is_verified)}
+                      />
                     </td>
                     <td className="hidden md:table-cell px-3 py-2.5 sm:px-4 sm:py-3">
                       <span className="rounded-full border border-red-200/60 px-3 py-1 text-xs font-semibold text-red-600 dark:border-white/20 dark:text-red-200">
@@ -357,14 +461,34 @@ export default function AdminUsersPage() {
                           Protegido
                         </span>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(user)}
-                          className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200/60 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-white/20 dark:text-red-200 dark:hover:bg-white/10 sm:gap-1.5 sm:px-3 sm:py-2"
-                        >
-                          <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          <span className="hidden sm:inline">Cambiar rol</span>
-                        </button>
+                        <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(user)}
+                            disabled={updatingStatusId === user.id}
+                            className={`inline-flex min-w-[86px] items-center justify-center rounded-lg border px-2 py-1.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-3 sm:py-2 ${
+                              user.is_active
+                                ? "border-rose-200/80 text-rose-600 hover:bg-rose-50 dark:border-rose-400/25 dark:text-rose-200 dark:hover:bg-rose-500/10"
+                                : "border-emerald-200/80 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-400/25 dark:text-emerald-200 dark:hover:bg-emerald-500/10"
+                            }`}
+                          >
+                            {updatingStatusId === user.id
+                              ? "Guardando..."
+                              : user.is_active
+                                ? "Desactivar"
+                                : "Activar"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(user)}
+                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200/60 px-2 py-1.5 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-white/20 dark:text-red-200 dark:hover:bg-white/10 sm:gap-1.5 sm:px-3 sm:py-2"
+                          >
+                            <Edit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                            <span className="hidden sm:inline">
+                              Cambiar rol
+                            </span>
+                          </button>
+                        </div>
                       )}
                     </td>
                   </tr>

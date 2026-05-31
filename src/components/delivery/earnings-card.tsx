@@ -62,8 +62,8 @@ export function EarningsCard({
       : `${comparisonToYesterday}% vs ayer`;
 
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-5 text-[#3B2D25] sm:pb-6">
+    <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5 text-[#3B2D25] sm:pb-6">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <Wallet className="h-5 w-5" />
           Ganancias
@@ -72,7 +72,7 @@ export function EarningsCard({
           Seguimiento rápido de tus ingresos diarios, propinas y avance semanal.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5 pt-5 sm:pt-6">
+      <CardContent className="space-y-5 bg-[#F7F1E8] pt-5 sm:pt-6">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">

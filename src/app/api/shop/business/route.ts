@@ -1,5 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
+import { getBusinessOpenStatuses } from "@/lib/business-hours";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
@@ -58,6 +59,20 @@ export async function GET() {
       ORDER BY b.id DESC
     `);
 
+    const openStatuses = await getBusinessOpenStatuses(
+      pool,
+      rows.map((business) => Number(business.id)),
+      new Map(
+        rows.map((business) => [
+          Number(business.id),
+          {
+            statusId: Number(business.status_id ?? 1),
+            fallbackOpen: Boolean(business.is_open_now),
+          },
+        ]),
+      ),
+    );
+
     const businesses = rows.map((business) => ({
       id: business.id,
       name: business.name,
@@ -72,7 +87,8 @@ export async function GET() {
       min_order_amount: business.min_order_amount,
       estimated_delivery_minutes: business.estimated_delivery_minutes,
       rating_average: Number(business.rating_average ?? 0),
-      is_open_now: Boolean(business.is_open_now),
+      is_open_now:
+        openStatuses.get(Number(business.id)) ?? Boolean(business.is_open_now),
       status_id: business.status_id,
       status_name: business.status_name,
       created_at: business.created_at,

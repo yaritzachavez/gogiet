@@ -58,6 +58,7 @@ const ACTIVE_STATUS_NAMES = ["active", "activo"];
 let cachedUsersColumns: Set<string> | null = null;
 let cachedPasswordColumn: UserPasswordColumn | null = null;
 let cachedActiveStatusId: number | null = null;
+let cachedInactiveStatusId: number | null = null;
 
 async function getUsersColumns() {
   if (cachedUsersColumns) {
@@ -219,6 +220,50 @@ export async function getActiveAuthStatusId() {
   throw new Error(
     "No se encontró ni se pudo crear un estado activo en status_catalog para registrar usuarios.",
   );
+}
+
+export async function getInactiveAuthStatusId() {
+  if (cachedInactiveStatusId && cachedInactiveStatusId > 0) {
+    return cachedInactiveStatusId;
+  }
+
+  await ensureBaseAuthStatuses();
+
+  const [rows] = await pool.query<StatusCatalogRow[]>(
+    `
+      SELECT id, name
+      FROM status_catalog
+      WHERE LOWER(TRIM(name)) IN (?, ?)
+      ORDER BY id ASC
+    `,
+    ["inactive", "inactivo"],
+  );
+
+  const inactiveStatusId = Number(rows[0]?.id ?? 0);
+
+  if (inactiveStatusId > 0) {
+    cachedInactiveStatusId = inactiveStatusId;
+    return inactiveStatusId;
+  }
+
+  throw new Error(
+    "No se encontró ni se pudo crear un estado inactivo en status_catalog para administrar usuarios.",
+  );
+}
+
+export async function isAuthUserActive(userId: number) {
+  const activeStatusId = await getActiveAuthStatusId();
+  const [rows] = await pool.query<RowDataPacket[]>(
+    `
+      SELECT id
+      FROM users
+      WHERE id = ? AND status_id = ?
+      LIMIT 1
+    `,
+    [userId, activeStatusId],
+  );
+
+  return rows.length > 0;
 }
 
 export async function createAuthUser(params: {

@@ -51,10 +51,9 @@ export default function NewProductClient({
   const [saleFormat, setSaleFormat] = useState("pieza");
   const [pricePerUnit, setPricePerUnit] = useState<number | null>(null);
 
-  // Impuestos
-  const [taxIncluded, setTaxIncluded] = useState(true);
-  const [taxRate, setTaxRate] = useState<number>(16);
-  const [commissionRate, setCommissionRate] = useState<number | null>(null);
+  const defaultTaxIncluded = true;
+  const defaultTaxRate = 0;
+  const defaultCommissionRate = null;
 
   // Stock
   const [isStockAvailable, setIsStockAvailable] = useState(true);
@@ -280,9 +279,9 @@ export default function NewProductClient({
           currency: currency || "MXN",
           sale_format: saleFormat || "UNIDAD",
           price_per_unit: pricePerUnit || null,
-          tax_included: taxIncluded ? 1 : 0,
-          tax_rate: taxRate || 0,
-          commission_rate: commissionRate || 0,
+          tax_included: defaultTaxIncluded ? 1 : 0,
+          tax_rate: defaultTaxRate,
+          commission_rate: defaultCommissionRate,
           is_stock_available: isStockAvailable ? 1 : 0,
           max_per_order: maxPerOrder || null,
           min_per_order: minPerOrder || null,
@@ -635,72 +634,7 @@ export default function NewProductClient({
             </div>
 
             {/* Grupo 2: Detalles adicionales */}
-            <div className="grid gap-5 lg:grid-cols-2">
-              {/* Columna izquierda: Impuestos y comisiones */}
-              <section className={cardClass}>
-                <header className="space-y-0.5 pb-2 sm:pb-3">
-                  <h2 className={sectionTitleClass}>Impuestos</h2>
-                  <p className={sectionDescriptionClass}>
-                    Configuración fiscal
-                  </p>
-                </header>
-
-                <div className="grid gap-3">
-                  <div className="flex items-center gap-2">
-                    <input
-                      id="taxIncluded"
-                      type="checkbox"
-                      checked={taxIncluded}
-                      onChange={(e) => setTaxIncluded(e.target.checked)}
-                      className="size-4 rounded border-white/20 bg-white/10 text-orange-400 focus:ring-2 focus:ring-orange-500/20"
-                    />
-                    <label
-                      htmlFor="taxIncluded"
-                      className="text-sm font-medium text-neutral-100"
-                    >
-                      Precio incluye impuestos
-                    </label>
-                  </div>
-
-                  <FieldCompact label="Tasa de impuesto (%)" htmlFor="taxRate">
-                    <input
-                      id="taxRate"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={taxRate}
-                      onChange={(event) =>
-                        setTaxRate(Number(event.target.value))
-                      }
-                      className={inputClass}
-                    />
-                  </FieldCompact>
-
-                  <FieldCompact
-                    label="Comisión interna (%)"
-                    htmlFor="commissionRate"
-                  >
-                    <input
-                      id="commissionRate"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={commissionRate ?? ""}
-                      onChange={(event) =>
-                        setCommissionRate(
-                          event.target.value
-                            ? Number(event.target.value)
-                            : null,
-                        )
-                      }
-                      placeholder="Opcional"
-                      className={inputClass}
-                    />
-                  </FieldCompact>
-                </div>
-              </section>
-
-              {/* Columna derecha: Inventario */}
+            <div className="grid gap-5">
               <section className={cardClass}>
                 <header className="space-y-0.5 pb-2 sm:pb-3">
                   <h2 className={sectionTitleClass}>Inventario</h2>
@@ -996,15 +930,6 @@ export default function NewProductClient({
                         (auto-generado)
                       </span>
                     )}
-                  </span>
-                </li>
-
-                <li className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-3">
-                  <span className="font-medium text-neutral-100">
-                    IVA incluido
-                  </span>
-                  <span className="text-white">
-                    {taxIncluded ? "Sí" : "No"}
                   </span>
                 </li>
 

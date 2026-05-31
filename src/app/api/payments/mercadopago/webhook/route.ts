@@ -1,4 +1,4 @@
-import type { RowDataPacket } from "mysql2/promise";
+import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import pool from "@/lib/db";
@@ -89,6 +89,11 @@ function roundMoney(value: unknown) {
   return Number.isFinite(parsed) ? Number(parsed.toFixed(2)) : 0;
 }
 
+function parseMercadoPagoDate(value: unknown) {
+  const date = value ? new Date(String(value)) : new Date();
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+}
+
 function mapWebhookPaymentStatusToOrderStatus(
   paymentStatus: string,
 ): MercadoPagoWebhookOrderStatus | null {
@@ -146,6 +151,29 @@ function shouldSkipOrderStatusUpdate(params: {
   }
 
   return false;
+}
+
+async function clearActiveCartForUser(conn: PoolConnection, userId: number) {
+  await conn.query(
+    `
+      DELETE pc
+      FROM products_cart pc
+      INNER JOIN cart c ON c.id = pc.cart_id
+      WHERE c.user_id = ?
+        AND COALESCE(c.status, 'activo') = 'activo'
+    `,
+    [userId],
+  );
+
+  await conn.query(
+    `
+      UPDATE cart
+      SET total = 0, updated_at = NOW()
+      WHERE user_id = ?
+        AND COALESCE(status, 'activo') = 'activo'
+    `,
+    [userId],
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -271,6 +299,10 @@ export async function POST(req: NextRequest) {
 
     const payment = await getMercadoPagoPayment(paymentId);
     const paymentStatus = normalizePaymentStatus(payment.status);
+    const paidAt =
+      paymentStatus === "approved"
+        ? parseMercadoPagoDate(payment.date_approved)
+        : null;
     const externalReference = String(payment.external_reference ?? "").trim();
     const metadataOrderId = parsePositiveNumber(payment.metadata?.orderId);
     const metadataUserId = parsePositiveNumber(payment.metadata?.userId);
@@ -463,6 +495,7 @@ export async function POST(req: NextRequest) {
         reason: `Mercado Pago webhook: ${paymentStatus}`,
         metadata: {
           endpoint: "/api/payments/mercadopago/webhook",
+          public_endpoint: "/api/webhooks/mercadopago",
           payment_id: paymentId,
           webhook_event_id: webhookEventId || null,
           notification_id: notificationId,
@@ -493,6 +526,10 @@ export async function POST(req: NextRequest) {
       [paymentId, paymentStatus, paymentStatus, paymentStatus, amount, orderId],
     );
 
+    if (paymentStatus === "approved") {
+      await clearActiveCartForUser(conn, Number(order.user_id));
+    }
+
     await upsertPaymentRecord(conn, {
       orderId,
       provider: "MERCADOPAGO",
@@ -501,6 +538,7 @@ export async function POST(req: NextRequest) {
       status: paymentStatus || "unknown",
       amount,
       currency,
+      paidAt,
       rawEvent: {
         headers: {
           x_request_id: webhookEventId || null,

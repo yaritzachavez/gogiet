@@ -3,6 +3,10 @@ import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
 import {
+  ensureBusinessHoursSchema,
+  isBusinessOpenByHours,
+} from "@/lib/business-hours";
+import {
   ensureBusinessLogoColumn,
   getBusinessLogoSelect,
 } from "@/lib/business-logo";
@@ -35,6 +39,7 @@ type HourRow = RowDataPacket & {
   open_time: string | null;
   close_time: string | null;
   is_closed: number | boolean | null;
+  is_24_hours: number | boolean | null;
 };
 
 type CountRow = RowDataPacket & {
@@ -479,11 +484,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    await ensureBusinessHoursSchema(pool);
+
     let hoursRows: HourRow[] = [];
     try {
       const [resolvedHoursRows] = await pool.query<HourRow[]>(
         `
-          SELECT day_of_week, open_time, close_time, is_closed
+          SELECT day_of_week, open_time, close_time, is_closed, is_24_hours
           FROM business_hours
           WHERE business_id = ?
           ORDER BY day_of_week ASC
@@ -556,7 +563,11 @@ export async function GET(req: NextRequest) {
         updated_at: business.updated_at,
         status: business.status_id,
         status_id: business.status_id,
-        is_open_now: Boolean(business.is_open_now),
+        is_open_now: isBusinessOpenByHours({
+          statusId: Number(business.status_id ?? 1),
+          fallbackOpen: Boolean(business.is_open_now),
+          hours: hoursRows,
+        }),
         business_owner: { user_id: business.owner_id ?? null },
       },
       businesses: assignedBusinesses.map((assignedBusiness) => ({
@@ -584,6 +595,7 @@ export async function GET(req: NextRequest) {
         open_time: hour.open_time,
         close_time: hour.close_time,
         is_closed: Boolean(hour.is_closed),
+        is_24_hours: Boolean(hour.is_24_hours),
       })),
     });
   } catch (error) {

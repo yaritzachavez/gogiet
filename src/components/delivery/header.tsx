@@ -91,7 +91,7 @@ export function DeliveryHeader({
   };
 
   return (
-    <header className="relative isolate overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6">
+    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6">
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,251,245,0.98)_0%,rgba(247,239,228,0.98)_45%,rgba(243,232,218,1)_100%)]" />
       <button
         type="button"

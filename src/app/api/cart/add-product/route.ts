@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { isAuthUserActive } from "@/lib/auth-users";
+import { getBusinessOpenStatus } from "@/lib/business-hours";
 import pool from "@/lib/db";
 
 type CartRow = RowDataPacket & {
@@ -15,6 +17,11 @@ type ProductRow = RowDataPacket & {
   price: number | string | null;
   discount_price: number | string | null;
   business_id: number | null;
+};
+
+type BusinessRow = RowDataPacket & {
+  status_id: number | null;
+  is_open: number | boolean | null;
 };
 
 type ProductExistsRow = RowDataPacket & {
@@ -35,6 +42,16 @@ export async function POST(req: NextRequest) {
     const quantity = Number(payload?.quantity);
     const discountValue = Number(payload?.discount ?? 0);
     const authUserId = Number(authUser?.user?.id ?? 0);
+
+    if (authUserId > 0 && !(await isAuthUserActive(authUserId))) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Tu cuenta está inactiva. Contacta a soporte.",
+        },
+        { status: 403 },
+      );
+    }
 
     if (!cartId || !productId || !quantity) {
       return NextResponse.json(
@@ -99,6 +116,34 @@ export async function POST(req: NextRequest) {
           success: false,
           error:
             "Este producto no tiene un negocio válido asociado. Vuelve a cargar la tienda.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const [businessRows] = await pool.query<BusinessRow[]>(
+      `
+        SELECT status_id, is_open
+        FROM business
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [productBusinessId],
+    );
+    const business = businessRows[0];
+    const isBusinessOpen = business
+      ? await getBusinessOpenStatus(pool, productBusinessId, {
+          statusId: Number(business.status_id ?? 1),
+          fallbackOpen: Boolean(business.is_open),
+        })
+      : false;
+
+    if (!business || !isBusinessOpen) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Este negocio está cerrado por el momento. Puedes volver dentro de su horario de atención.",
         },
         { status: 400 },
       );

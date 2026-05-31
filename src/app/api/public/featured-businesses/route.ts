@@ -1,6 +1,7 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
+import { getBusinessOpenStatuses } from "@/lib/business-hours";
 import pool, { logDbUsage } from "@/lib/db";
 
 type FeaturedBusinessRow = RowDataPacket & {
@@ -13,6 +14,7 @@ type FeaturedBusinessRow = RowDataPacket & {
   image_url: string | null;
   rating_average: number | string | null;
   is_open: number | boolean;
+  status_id: number | null;
   categories: string | null;
   product_count: number | string | null;
 };
@@ -39,6 +41,7 @@ export async function GET() {
           ) AS image_url,
           b.rating_average,
           b.is_open,
+          b.status_id,
           GROUP_CONCAT(DISTINCT bc.name ORDER BY bc.name SEPARATOR ', ') AS categories,
           COUNT(DISTINCT p.id) AS product_count
         FROM business b
@@ -62,6 +65,20 @@ export async function GET() {
       `,
     );
 
+    const openStatuses = await getBusinessOpenStatuses(
+      pool,
+      rows.map((row) => Number(row.id)),
+      new Map(
+        rows.map((row) => [
+          Number(row.id),
+          {
+            statusId: Number(row.status_id ?? 1),
+            fallbackOpen: Boolean(row.is_open),
+          },
+        ]),
+      ),
+    );
+
     const businesses = rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -78,7 +95,7 @@ export async function GET() {
       imageUrl: row.image_url ?? row.cover_image_url ?? row.logo_url,
       ratingAverage: Number(row.rating_average ?? 0),
       productCount: Number(row.product_count ?? 0),
-      isOpen: Boolean(row.is_open),
+      isOpen: openStatuses.get(Number(row.id)) ?? Boolean(row.is_open),
     }));
 
     return NextResponse.json(

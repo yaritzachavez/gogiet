@@ -61,8 +61,8 @@ export function LocationCard({ order }: LocationCardProps) {
   )}`;
 
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-5 text-[#3B2D25]">
+    <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5 text-[#3B2D25]">
         <div className="flex items-start gap-3">
           <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F3E6D7] text-[#c56f2d]">
             <MapPin className="h-5 w-5" />
@@ -78,7 +78,7 @@ export function LocationCard({ order }: LocationCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 p-5 text-[#5a4a3a]">
+      <CardContent className="space-y-4 bg-[#F7F1E8] p-5 text-[#5a4a3a]">
         <div className="grid gap-3 md:grid-cols-2">
           <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">

@@ -17,8 +17,8 @@ interface ScheduleCardProps {
 
 export function ScheduleCard({ schedule }: ScheduleCardProps) {
   return (
-    <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-6 text-[#3B2D25]">
+    <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-6 text-[#3B2D25]">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <CalendarClock className="h-5 w-5" />
           Horario
@@ -27,7 +27,7 @@ export function ScheduleCard({ schedule }: ScheduleCardProps) {
           Mantén el control de tu turno y de los puntos de check-in programados.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5 pt-6">
+      <CardContent className="space-y-5 bg-[#F7F1E8] pt-6">
         <div className="space-y-1">
           <p className="text-xs uppercase tracking-[0.3em] text-orange-900/60">
             Turno

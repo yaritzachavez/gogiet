@@ -1,16 +1,18 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
-
-import pool from "@/lib/db";
 import {
   consumeRateLimit,
   ensureAuthSecuritySchema,
   getRequestIp,
   getRequestUserAgent,
+  getUserColumns,
   isValidEmail,
+  maskEmailForLogs,
   normalizeEmail,
   recordAuthAuditLog,
 } from "@/lib/auth-security";
+import { getActiveAuthStatusId } from "@/lib/auth-users";
+import pool from "@/lib/db";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type VerificationRow = RowDataPacket & {
@@ -18,6 +20,7 @@ type VerificationRow = RowDataPacket & {
   verification_code?: string | null;
   verification_expires_at?: Date | string | null;
   email_verified?: number | boolean | null;
+  status_id?: number | null;
 };
 
 type SqlLikeError = {
@@ -48,7 +51,10 @@ export async function POST(req: Request) {
     const userAgent = getRequestUserAgent(req);
 
     if (!email || !isValidEmail(email)) {
-      return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
+      return json(
+        { success: false, error: "Ingresa un correo válido." },
+        { status: 400 },
+      );
     }
 
     if (!/^\d{6}$/.test(code)) {
@@ -70,17 +76,20 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "Has realizado demasiados intentos. Intenta nuevamente en unos minutos.",
+          error:
+            "Has realizado demasiados intentos. Intenta nuevamente en unos minutos.",
         },
         { status: 429 },
       );
     }
 
     await ensureAuthSecuritySchema();
+    const userColumns = await getUserColumns();
+    const activeStatusId = await getActiveAuthStatusId();
 
     const [rows] = await pool.query<VerificationRow[]>(
       `
-        SELECT id, verification_code, verification_expires_at, email_verified
+        SELECT id, verification_code, verification_expires_at, email_verified, status_id
         FROM users
         WHERE LOWER(TRIM(email)) = ?
         LIMIT 1
@@ -97,6 +106,13 @@ export async function POST(req: Request) {
       );
     }
 
+    console.info("[verify-email] usuario encontrado", {
+      userId: user.id,
+      email: maskEmailForLogs(email),
+      statusId: user.status_id ?? null,
+      emailVerified: Boolean(user.email_verified),
+    });
+
     if (user.email_verified === true || user.email_verified === 1) {
       return json({
         success: true,
@@ -111,6 +127,11 @@ export async function POST(req: Request) {
       );
     }
 
+    console.info("[verify-email] código válido", {
+      userId: user.id,
+      email: maskEmailForLogs(email),
+    });
+
     if (user.verification_expires_at) {
       const expiresAt = new Date(user.verification_expires_at).getTime();
       if (!Number.isFinite(expiresAt) || expiresAt < Date.now()) {
@@ -121,18 +142,41 @@ export async function POST(req: Request) {
       }
     }
 
+    const updateFields = [
+      "email_verified = 1",
+      userColumns.has("email_verified_at")
+        ? "email_verified_at = COALESCE(email_verified_at, NOW())"
+        : null,
+      "status_id = ?",
+      userColumns.has("status") ? "status = 'ACTIVE'" : null,
+      "verification_code = NULL",
+      "verification_expires_at = NULL",
+      "verification_sent_at = NULL",
+      "updated_at = NOW()",
+    ].filter(Boolean);
+
     await pool.query<ResultSetHeader>(
       `
         UPDATE users
-        SET
-          email_verified = 1,
-          verification_code = NULL,
-          verification_expires_at = NULL,
-          updated_at = NOW()
+        SET ${updateFields.join(", ")}
         WHERE id = ?
       `,
-      [user.id],
+      [activeStatusId, user.id],
     );
+
+    console.info("[verify-email] emailVerified actualizado", {
+      userId: user.id,
+      email: maskEmailForLogs(email),
+      emailVerified: true,
+      emailVerifiedAtUpdated: userColumns.has("email_verified_at"),
+    });
+
+    console.info("[verify-email] isActive/status actualizado", {
+      userId: user.id,
+      email: maskEmailForLogs(email),
+      statusId: activeStatusId,
+      status: "ACTIVE",
+    });
 
     await recordAuthAuditLog({
       userId: user.id,
@@ -148,7 +192,9 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+      typeof error === "object" && error !== null
+        ? (error as SqlLikeError)
+        : null;
 
     console.error("VERIFY EMAIL ERROR:", {
       code: sqlError?.code ?? null,

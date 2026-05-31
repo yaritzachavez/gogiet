@@ -3,6 +3,7 @@ export const revalidate = 0;
 
 import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
+import { getBusinessOpenStatus } from "@/lib/business-hours";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import pool from "@/lib/db";
 
@@ -134,6 +135,10 @@ export async function GET(
     }
 
     const business = businessRows[0];
+    const isOpenNow = await getBusinessOpenStatus(pool, Number(business.id), {
+      statusId: Number(business.status_id ?? 1),
+      fallbackOpen: Boolean(business.is_open_now),
+    });
 
     const [tableRows] = await pool.query<RowDataPacket[]>(
       `
@@ -274,7 +279,7 @@ export async function GET(
         message: "OK",
         business: {
           ...business,
-          is_open_now: Boolean(business.is_open_now),
+          is_open_now: isOpenNow,
           accepts_pickup: Boolean(business.accepts_pickup),
           accepts_delivery: Boolean(business.accepts_delivery),
         },

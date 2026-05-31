@@ -225,8 +225,8 @@ export function NotificationsCard({
 
   return (
     <>
-      <Card className="overflow-hidden rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-        <CardHeader className="border-b border-[#E8DCCB] bg-[#F8F1E7] pb-6 text-[#3B2D25]">
+      <Card className="overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+        <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-6 text-[#3B2D25]">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Bell className="h-5 w-5" />
             Notificaciones
@@ -235,7 +235,7 @@ export function NotificationsCard({
             Actualizaciones reales de tus pedidos y mensajes de soporte.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 pt-6">
+        <CardContent className="space-y-4 bg-[#F7F1E8] pt-6">
           {isLoading ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               <CheckCircle2 className="h-5 w-5" />
@@ -332,7 +332,7 @@ export function NotificationsCard({
           }
         }}
       >
-        <DialogContent className="max-w-lg border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_18px_42px_rgba(0,0,0,0.08)]">
+        <DialogContent className="max-w-lg border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
           <DialogHeader>
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>

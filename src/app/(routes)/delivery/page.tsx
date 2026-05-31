@@ -1263,7 +1263,7 @@ export default function DeliveryDashboardPage() {
   if (user && !canAccessDelivery) {
     return (
       <main className="min-h-screen bg-[#f3ede3] px-4 py-12 text-[#2b221a]">
-        <div className="mx-auto max-w-3xl rounded-[28px] border border-[#e4d5c5] bg-[#fffaf3] p-8 shadow-xl shadow-[#c9ab88]/20">
+        <div className="mx-auto max-w-3xl rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-8 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
           <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]">
             Acceso restringido
           </p>
@@ -1325,19 +1325,19 @@ export default function DeliveryDashboardPage() {
               {activeOrder ? (
                 <LocationCard order={activeOrder} />
               ) : activeOrderLoading ? (
-                <div className="rounded-[26px] border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-sm text-[#6c5a49] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                <div className="rounded-[24px] border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-sm text-[#6c5a49] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   Cargando entrega activa...
                 </div>
               ) : activeOrderError ? (
-                <div className="rounded-[26px] border border-dashed border-[#EDCDB4] bg-[#FFF3E9] p-6 text-sm text-[#975731] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                <div className="rounded-[24px] border border-dashed border-[#EDCDB4] bg-[#FFF3E9] p-6 text-sm text-[#975731] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   {activeOrderError}
                 </div>
               ) : (
-                <div className="rounded-[26px] border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-sm text-[#6c5a49] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+                <div className="rounded-[24px] border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-sm text-[#6c5a49] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
                   No tienes entregas asignadas por ahora.
                 </div>
               )}
-              <div className="rounded-[26px] border border-[#E8DCCB] bg-[#FFF9F2] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+              <div className="rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
                 <p className="text-xs font-extrabold uppercase tracking-[0.26em] text-[#b36a2b]">
                   Perfil operativo
                 </p>
@@ -1388,8 +1388,8 @@ export default function DeliveryDashboardPage() {
 
       {historyOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(247,241,232,0.82)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <div className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] shadow-[0_18px_42px_rgba(0,0,0,0.08)] sm:rounded-[30px]">
-            <div className="flex items-start justify-between gap-4 border-b border-[#E8DCCB] bg-[#F8F1E7] px-6 py-5">
+          <div className="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E8DCCB] bg-[#FFF9F2] px-6 py-5">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-orange-700/70">
                   Historial real
@@ -1411,7 +1411,7 @@ export default function DeliveryDashboardPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+            <div className="overflow-y-auto bg-[#F7F1E8] px-4 py-4 sm:px-6 sm:py-6">
               {historyLoading ? (
                 <div className="rounded-3xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] px-6 py-10 text-center text-sm font-medium text-[#6F5D4C]">
                   Cargando historial de entregas...
@@ -1429,7 +1429,7 @@ export default function DeliveryDashboardPage() {
                   {deliveryHistory.map((entry) => (
                     <article
                       key={entry.id}
-                      className="rounded-[26px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.035)]"
+                      className="rounded-[24px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]"
                     >
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
@@ -1542,7 +1542,7 @@ export default function DeliveryDashboardPage() {
 
       {deliveryEvidenceOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(247,241,232,0.82)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <div className="w-full max-w-xl rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 shadow-[0_18px_42px_rgba(0,0,0,0.08)] sm:rounded-[28px] sm:p-6">
+          <div className="w-full max-w-xl rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6">
             <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]">
               Confirmar entrega
             </p>
@@ -1639,8 +1639,8 @@ export default function DeliveryDashboardPage() {
 
       {profileOpen ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(247,241,232,0.82)] px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
-          <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] shadow-[0_18px_42px_rgba(0,0,0,0.08)] sm:rounded-[30px]">
-            <div className="flex items-start justify-between gap-4 border-b border-[#E8DCCB] bg-[#F8F1E7] px-6 py-5">
+          <div className="flex max-h-[92dvh] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E8DCCB] bg-[#FFF9F2] px-6 py-5">
               <div>
                 <p className="text-xs font-extrabold uppercase tracking-[0.28em] text-[#b36a2b]/80">
                   Configuración
@@ -1662,9 +1662,9 @@ export default function DeliveryDashboardPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto px-6 py-6">
+            <div className="overflow-y-auto bg-[#F7F1E8] px-6 py-6">
               <div className="grid gap-6 lg:grid-cols-[0.8fr,1.2fr]">
-                <section className="rounded-3xl border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.03)]">
+                <section className="rounded-[24px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
                   <p className="text-sm font-bold text-[#3B2D25]">
                     Foto de perfil
                   </p>
@@ -1694,7 +1694,7 @@ export default function DeliveryDashboardPage() {
                   </div>
                 </section>
 
-                <section className="rounded-3xl border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_24px_rgba(0,0,0,0.03)]">
+                <section className="rounded-[24px] border border-[#E8DCCB] bg-[#FFFDF9] p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
                   <div className="grid gap-4 md:grid-cols-2">
                     <label className="grid gap-2 md:col-span-2">
                       <span className="text-sm font-bold text-[#3B2D25]">

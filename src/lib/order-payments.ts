@@ -88,6 +88,7 @@ export async function ensurePaymentsTable(conn: Queryable) {
     "status",
     "amount",
     "currency",
+    "paid_at",
     "raw_event",
     "raw_response",
     "signature_validated_at",
@@ -108,6 +109,7 @@ type UpsertPaymentRecordInput = {
   currency?: string | null;
   rawEvent?: unknown;
   rawResponse?: unknown;
+  paidAt?: string | Date | null;
   signatureValidatedAt?: string | Date | null;
   processedAt?: string | Date | null;
 };
@@ -167,6 +169,7 @@ export async function upsertPaymentRecord(
     input.rawEvent == null ? null : JSON.stringify(input.rawEvent);
   const serializedRawResponse =
     input.rawResponse == null ? null : JSON.stringify(input.rawResponse);
+  const paidAt = normalizeDatetimeInput(input.paidAt);
   const signatureValidatedAt = normalizeDatetimeInput(
     input.signatureValidatedAt,
   );
@@ -204,6 +207,7 @@ export async function upsertPaymentRecord(
             status = ?,
             amount = ?,
             currency = ?,
+            paid_at = COALESCE(?, paid_at),
             raw_event = COALESCE(?, raw_event),
             raw_response = ?,
             signature_validated_at = COALESCE(?, signature_validated_at),
@@ -218,6 +222,7 @@ export async function upsertPaymentRecord(
           input.status,
           input.amount,
           input.currency ?? "MXN",
+          paidAt,
           serializedRawEvent,
           serializedRawResponse,
           signatureValidatedAt,
@@ -251,6 +256,7 @@ export async function upsertPaymentRecord(
           status = ?,
           amount = ?,
           currency = ?,
+          paid_at = COALESCE(?, paid_at),
           raw_event = COALESCE(?, raw_event),
           raw_response = ?,
           signature_validated_at = COALESCE(?, signature_validated_at),
@@ -264,6 +270,7 @@ export async function upsertPaymentRecord(
         input.status,
         input.amount,
         input.currency ?? "MXN",
+        paidAt,
         serializedRawEvent,
         serializedRawResponse,
         signatureValidatedAt,
@@ -285,6 +292,7 @@ export async function upsertPaymentRecord(
         status,
         amount,
         currency,
+        paid_at,
         raw_event,
         raw_response,
         signature_validated_at,
@@ -292,7 +300,7 @@ export async function upsertPaymentRecord(
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `,
     [
       input.orderId,
@@ -302,6 +310,7 @@ export async function upsertPaymentRecord(
       input.status,
       input.amount,
       input.currency ?? "MXN",
+      paidAt,
       serializedRawEvent,
       serializedRawResponse,
       signatureValidatedAt,

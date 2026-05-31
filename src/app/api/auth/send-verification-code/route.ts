@@ -1,8 +1,11 @@
-import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type {
+  PoolConnection,
+  ResultSetHeader,
+  RowDataPacket,
+} from "mysql2/promise";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
-import pool from "@/lib/db";
 import {
   consumeRateLimit,
   ensureAuthSecuritySchema,
@@ -16,16 +19,14 @@ import {
   recordAuthAuditLog,
   sanitizeName,
 } from "@/lib/auth-security";
-import { handleCorsPreflight, withCors } from "@/lib/server/cors";
+import { getInactiveAuthStatusId } from "@/lib/auth-users";
+import pool from "@/lib/db";
+import { handleCorsPreflight } from "@/lib/server/cors";
 
 type ExistingUserRow = RowDataPacket & {
   id: number;
   email_verified?: number | boolean | null;
   verification_sent_at?: Date | string | null;
-};
-
-type StatusRow = RowDataPacket & {
-  id: number;
 };
 
 type SqlLikeError = {
@@ -41,25 +42,12 @@ type UserColumnRow = RowDataPacket & {
 };
 
 async function getUserColumns(connection: PoolConnection) {
-  const [rows] = await connection.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
-  return new Set(rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean));
-}
-
-async function getActiveStatusId(connection: PoolConnection) {
-  const [rows] = await connection.query<StatusRow[]>(
-    `
-      SELECT id
-      FROM status_catalog
-      WHERE LOWER(TRIM(name)) IN ('active', 'activo', 'pending', 'pendiente')
-      ORDER BY CASE
-        WHEN LOWER(TRIM(name)) IN ('pending', 'pendiente') THEN 0
-        ELSE 1
-      END, id ASC
-      LIMIT 1
-    `,
+  const [rows] = await connection.query<UserColumnRow[]>(
+    "SHOW COLUMNS FROM users",
   );
-
-  return Number(rows[0]?.id ?? 1) || 1;
+  return new Set(
+    rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean),
+  );
 }
 
 export const runtime = "nodejs";
@@ -80,7 +68,10 @@ export async function POST(req: Request) {
     const cleanEmail = normalizeEmail(body.email ?? "");
     const firstName = sanitizeName(body.firstName ?? "");
     const lastName = sanitizeName(body.lastName ?? "");
-    const phone = String(body.phone ?? "").replace(/[^\d]/g, "").slice(0, 15) || null;
+    const phone =
+      String(body.phone ?? "")
+        .replace(/[^\d]/g, "")
+        .slice(0, 15) || null;
     const ip = getRequestIp(req);
     const userAgent = getRequestUserAgent(req);
 
@@ -103,7 +94,8 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           success: false,
-          error: "Has solicitado demasiados códigos. Intenta nuevamente en unos minutos.",
+          error:
+            "Has solicitado demasiados códigos. Intenta nuevamente en unos minutos.",
         },
         { status: 429 },
       );
@@ -137,7 +129,10 @@ export async function POST(req: Request) {
       });
 
       return NextResponse.json(
-        { success: false, error: "No se pudo enviar el código de verificación." },
+        {
+          success: false,
+          error: "No se pudo enviar el código de verificación.",
+        },
         { status: 500 },
       );
     }
@@ -156,7 +151,10 @@ export async function POST(req: Request) {
 
       if (!passwordColumn) {
         return NextResponse.json(
-          { success: false, error: "La base no soporta verificación por correo." },
+          {
+            success: false,
+            error: "La base no soporta verificación por correo.",
+          },
           { status: 500 },
         );
       }
@@ -173,9 +171,16 @@ export async function POST(req: Request) {
 
       const existingUser = existingUsers[0] ?? null;
 
-      if (existingUser && (existingUser.email_verified === true || existingUser.email_verified === 1)) {
+      if (
+        existingUser &&
+        (existingUser.email_verified === true ||
+          existingUser.email_verified === 1)
+      ) {
         return NextResponse.json(
-          { success: false, error: "Este correo ya está registrado." },
+          {
+            success: false,
+            error: "Este correo ya está verificado. Inicia sesión.",
+          },
           { status: 409 },
         );
       }
@@ -216,10 +221,15 @@ export async function POST(req: Request) {
           `${cleanEmail}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
         );
         const statusId = userColumns.has("status_id")
-          ? await getActiveStatusId(connection)
+          ? await getInactiveAuthStatusId()
           : null;
 
-        const insertColumns = ["email", passwordColumn, "verification_code", "email_verified"];
+        const insertColumns = [
+          "email",
+          passwordColumn,
+          "verification_code",
+          "email_verified",
+        ];
         const placeholders = ["?", "?", "?", "?"];
         const values: Array<string | number | boolean | null> = [
           cleanEmail,
@@ -298,7 +308,10 @@ export async function POST(req: Request) {
         });
 
         return NextResponse.json(
-          { success: false, error: "No se pudo enviar el código de verificación." },
+          {
+            success: false,
+            error: "No se pudo enviar el código de verificación.",
+          },
           { status: 500 },
         );
       }
@@ -325,7 +338,9 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+      typeof error === "object" && error !== null
+        ? (error as SqlLikeError)
+        : null;
 
     console.error("SEND VERIFICATION CODE ERROR:", {
       code: sqlError?.code ?? null,

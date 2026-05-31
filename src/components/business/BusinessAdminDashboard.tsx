@@ -197,6 +197,15 @@ type BusinessCategory = {
   name: string;
 };
 
+type BusinessHourForm = {
+  dayOfWeek: number;
+  dayName: string;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+  is24Hours: boolean;
+};
+
 type ProductForm = {
   id: number;
   name: string;
@@ -309,6 +318,112 @@ const MXN = new Intl.NumberFormat("es-MX", {
   style: "currency",
   currency: "MXN",
 });
+
+const BUSINESS_WEEK_DAYS = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+  "Domingo",
+];
+
+function createDefaultBusinessHours(): BusinessHourForm[] {
+  return BUSINESS_WEEK_DAYS.map((dayName, dayOfWeek) => ({
+    dayOfWeek,
+    dayName,
+    isOpen: dayOfWeek < 6,
+    openTime: "09:00",
+    closeTime: "20:00",
+    is24Hours: false,
+  }));
+}
+
+function normalizeTimeInput(value: unknown, fallback: string) {
+  if (typeof value !== "string") return fallback;
+
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})/);
+  if (!match) return fallback;
+
+  return `${match[1].padStart(2, "0")}:${match[2]}`;
+}
+
+function normalizeBusinessHours(rawHours: unknown): BusinessHourForm[] {
+  const defaults = createDefaultBusinessHours();
+
+  if (!Array.isArray(rawHours)) {
+    return defaults;
+  }
+
+  return defaults.map((defaultHour) => {
+    const rawHour = rawHours.find((candidate) => {
+      const record = candidate as Record<string, unknown>;
+      return (
+        Number(record.dayOfWeek ?? record.day_of_week) === defaultHour.dayOfWeek
+      );
+    }) as Record<string, unknown> | undefined;
+
+    if (!rawHour) return defaultHour;
+
+    const is24Hours = Boolean(rawHour.is24Hours ?? rawHour.is_24_hours);
+    const isOpen =
+      rawHour.isOpen !== undefined || rawHour.is_open !== undefined
+        ? Boolean(rawHour.isOpen ?? rawHour.is_open)
+        : !rawHour.is_closed;
+
+    return {
+      ...defaultHour,
+      isOpen,
+      is24Hours,
+      openTime: is24Hours
+        ? "00:00"
+        : normalizeTimeInput(rawHour.openTime ?? rawHour.open_time, "09:00"),
+      closeTime: is24Hours
+        ? "23:59"
+        : normalizeTimeInput(rawHour.closeTime ?? rawHour.close_time, "20:00"),
+    };
+  });
+}
+
+function getMinutesFromTime(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function formatHourLabel(value: string) {
+  const [hour, minute] = value.split(":").map(Number);
+  const date = new Date();
+  date.setHours(hour, minute, 0, 0);
+
+  return date.toLocaleTimeString("es-MX", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function getBusinessHourSummary(hour: BusinessHourForm) {
+  if (!hour.isOpen) return `${hour.dayName}: Cerrado`;
+  if (hour.is24Hours) return `${hour.dayName}: Abierto 24 horas`;
+
+  return `${hour.dayName}: ${formatHourLabel(hour.openTime)} - ${formatHourLabel(
+    hour.closeTime,
+  )}`;
+}
+
+function getBusinessHoursError(hours: BusinessHourForm[]) {
+  for (const hour of hours) {
+    if (!hour.isOpen || hour.is24Hours) continue;
+
+    if (
+      getMinutesFromTime(hour.closeTime) <= getMinutesFromTime(hour.openTime)
+    ) {
+      return `La hora de cierre debe ser mayor a la apertura en ${hour.dayName}.`;
+    }
+  }
+
+  return "";
+}
 
 function getStoredToken() {
   return getClientAuthToken();
@@ -539,6 +654,9 @@ export function BusinessAdminDashboard() {
     email: "",
     status_id: "1",
   });
+  const [settingsHours, setSettingsHours] = useState<BusinessHourForm[]>(() =>
+    createDefaultBusinessHours(),
+  );
   const [loading, setLoading] = useState(true);
   const [accessView, setAccessView] = useState<AccessView>("ready");
   const [error, setError] = useState("");
@@ -948,6 +1066,7 @@ export function BusinessAdminDashboard() {
         email: String(businessPayload.email ?? ""),
         status_id: String(businessPayload.status_id ?? 1),
       });
+      setSettingsHours(normalizeBusinessHours(businessData.hours));
 
       setOrders(
         Array.isArray(ordersData.orders)
@@ -2046,6 +2165,15 @@ export function BusinessAdminDashboard() {
     event.preventDefault();
     if (!business || !business.ownerId) return;
 
+    const hoursError = getBusinessHoursError(settingsHours);
+    if (hoursError) {
+      setFeedback({
+        type: "error",
+        message: hoursError,
+      });
+      return;
+    }
+
     const token = getStoredToken();
     if (!token) return;
 
@@ -2076,6 +2204,33 @@ export function BusinessAdminDashboard() {
         throw new Error(
           (typeof data.error === "string" && data.error) ||
             "No se pudo guardar la configuración.",
+        );
+      }
+
+      const hoursResponse = await fetchWithSession(
+        `/api/business/${business.id}/hours`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            hours: settingsHours.map((hour) => ({
+              dayOfWeek: hour.dayOfWeek,
+              isOpen: hour.isOpen,
+              openTime: hour.is24Hours ? "00:00" : hour.openTime,
+              closeTime: hour.is24Hours ? "23:59" : hour.closeTime,
+              is24Hours: hour.is24Hours,
+            })),
+          }),
+        },
+      );
+      const hoursData = await parseJsonResponse(hoursResponse);
+
+      if (!hoursResponse.ok || hoursData.success === false) {
+        throw new Error(
+          (typeof hoursData.error === "string" && hoursData.error) ||
+            "No se pudieron guardar los horarios.",
         );
       }
 
@@ -3523,6 +3678,155 @@ export function BusinessAdminDashboard() {
                     }
                     className="md:col-span-2"
                   />
+                  <section className="grid gap-4 rounded-[24px] border border-orange-100 bg-orange-50/45 p-4 md:col-span-2">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h3 className="text-base font-black text-slate-950">
+                          Horarios de atención
+                        </h3>
+                        <p className="mt-1 text-sm font-semibold text-slate-500">
+                          Estos horarios controlan si el negocio aparece como
+                          abierto o cerrado para los clientes.
+                        </p>
+                      </div>
+                      <span
+                        className={`w-fit rounded-full px-3 py-1 text-xs font-black ${
+                          business?.isOpen
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-slate-200 text-slate-600"
+                        }`}
+                      >
+                        Visible ahora:{" "}
+                        {business?.isOpen ? "Abierto" : "Cerrado"}
+                      </span>
+                    </div>
+
+                    <div className="grid gap-3">
+                      {settingsHours.map((hour) => (
+                        <div
+                          key={hour.dayOfWeek}
+                          className="grid gap-3 rounded-2xl border border-orange-100 bg-white p-3 shadow-sm lg:grid-cols-[8rem,1fr]"
+                        >
+                          <div>
+                            <p className="text-sm font-black text-slate-900">
+                              {hour.dayName}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-slate-500">
+                              {getBusinessHourSummary(hour)}
+                            </p>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[1fr,1fr,1fr,1fr]">
+                            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={hour.isOpen}
+                                onChange={(event) =>
+                                  setSettingsHours((current) =>
+                                    current.map((item) =>
+                                      item.dayOfWeek === hour.dayOfWeek
+                                        ? {
+                                            ...item,
+                                            isOpen: event.target.checked,
+                                            is24Hours: event.target.checked
+                                              ? item.is24Hours
+                                              : false,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                                className="size-4 rounded border-slate-300 text-orange-500 focus:ring-orange-200"
+                              />
+                              <span className="text-sm font-bold text-slate-700">
+                                Abierto
+                              </span>
+                            </label>
+
+                            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                              <input
+                                type="checkbox"
+                                checked={hour.is24Hours}
+                                disabled={!hour.isOpen}
+                                onChange={(event) =>
+                                  setSettingsHours((current) =>
+                                    current.map((item) =>
+                                      item.dayOfWeek === hour.dayOfWeek
+                                        ? {
+                                            ...item,
+                                            is24Hours: event.target.checked,
+                                            openTime: event.target.checked
+                                              ? "00:00"
+                                              : item.openTime,
+                                            closeTime: event.target.checked
+                                              ? "23:59"
+                                              : item.closeTime,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                                className="size-4 rounded border-slate-300 text-orange-500 focus:ring-orange-200 disabled:opacity-50"
+                              />
+                              <span className="text-sm font-bold text-slate-700">
+                                Abierto 24 horas
+                              </span>
+                            </label>
+
+                            <label className="grid gap-1">
+                              <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                                Apertura
+                              </span>
+                              <input
+                                type="time"
+                                value={hour.is24Hours ? "00:00" : hour.openTime}
+                                disabled={!hour.isOpen || hour.is24Hours}
+                                onChange={(event) =>
+                                  setSettingsHours((current) =>
+                                    current.map((item) =>
+                                      item.dayOfWeek === hour.dayOfWeek
+                                        ? {
+                                            ...item,
+                                            openTime: event.target.value,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-orange-300 disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                            </label>
+
+                            <label className="grid gap-1">
+                              <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
+                                Cierre
+                              </span>
+                              <input
+                                type="time"
+                                value={
+                                  hour.is24Hours ? "23:59" : hour.closeTime
+                                }
+                                disabled={!hour.isOpen || hour.is24Hours}
+                                onChange={(event) =>
+                                  setSettingsHours((current) =>
+                                    current.map((item) =>
+                                      item.dayOfWeek === hour.dayOfWeek
+                                        ? {
+                                            ...item,
+                                            closeTime: event.target.value,
+                                          }
+                                        : item,
+                                    ),
+                                  )
+                                }
+                                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 outline-none focus:border-orange-300 disabled:bg-slate-100 disabled:text-slate-400"
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                   <label className="grid gap-1">
                     <span className="text-sm font-bold text-slate-600">
                       Estado
@@ -3537,8 +3841,8 @@ export function BusinessAdminDashboard() {
                       }
                       className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-300"
                     >
-                      <option value="1">Abierto / activo</option>
-                      <option value="2">Cerrado / inactivo</option>
+                      <option value="1">Activo en plataforma</option>
+                      <option value="2">Inactivo en plataforma</option>
                     </select>
                   </label>
                   <div className="flex items-end justify-end md:col-span-2">

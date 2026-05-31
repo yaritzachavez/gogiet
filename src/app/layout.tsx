@@ -40,7 +40,7 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body
-        className={`${manrope.variable} ${spaceGrotesk.variable} ${manrope.className} min-h-screen bg-black text-foreground`}
+        className={`${manrope.variable} ${spaceGrotesk.variable} ${manrope.className} min-h-screen bg-[#F7F1E8] text-foreground`}
       >
         <Providers>
           <div className="flex min-h-screen flex-col">

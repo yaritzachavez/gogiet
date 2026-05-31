@@ -1,5 +1,9 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
+import {
+  ensureBusinessHoursSchema,
+  isBusinessOpenByHours,
+} from "@/lib/business-hours";
 import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
@@ -10,6 +14,7 @@ type BusinessRow = RowDataPacket & {
   owner_id: number | null;
   logo_url: string | null;
   updated_at: string;
+  status_id: number | null;
   is_open_now: number | boolean;
 };
 
@@ -18,6 +23,7 @@ type BusinessHourRow = RowDataPacket & {
   open_time: string | null;
   close_time: string | null;
   is_closed: number | boolean;
+  is_24_hours: number | boolean;
 };
 
 export async function GET(
@@ -98,9 +104,11 @@ export async function GET(
       );
     }
 
+    await ensureBusinessHoursSchema(pool);
+
     const [hours] = await pool.query<BusinessHourRow[]>(
       `
-        SELECT day_of_week, open_time, close_time, is_closed
+        SELECT day_of_week, open_time, close_time, is_closed, is_24_hours
         FROM business_hours
         WHERE business_id = ?
       `,
@@ -126,6 +134,7 @@ export async function GET(
         open_time: found?.open_time ?? null,
         close_time: found?.close_time ?? null,
         is_closed: found ? Boolean(found.is_closed) : true,
+        is_24_hours: found ? Boolean(found.is_24_hours) : false,
       };
     });
 
@@ -133,7 +142,11 @@ export async function GET(
       {
         business: {
           ...rows[0],
-          is_open_now: Boolean(rows[0].is_open_now),
+          is_open_now: isBusinessOpenByHours({
+            statusId: Number(rows[0].status_id ?? 1),
+            fallbackOpen: Boolean(rows[0].is_open_now),
+            hours,
+          }),
           business_owner: { user_id: rows[0].owner_id ?? null },
         },
         hours: formattedHours,

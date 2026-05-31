@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
 import { isSessionTokenActive, touchSessionToken } from "@/lib/auth-security";
+import { getActiveAuthStatusId } from "@/lib/auth-users";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
@@ -41,6 +42,7 @@ export type PermissionAccessContext = {
 
 type UserRoleRow = RowDataPacket & {
   email: string | null;
+  status_id: number | null;
   role_name: string | null;
 };
 
@@ -122,7 +124,7 @@ export async function getPermissionAccessContext(
 
   const [rows] = await pool.query<UserRoleRow[]>(
     `
-      SELECT u.email, r.name AS role_name
+      SELECT u.email, u.status_id, r.name AS role_name
       FROM users u
       LEFT JOIN user_roles ur ON ur.user_id = u.id
       LEFT JOIN roles r ON r.id = ur.role_id
@@ -130,6 +132,12 @@ export async function getPermissionAccessContext(
     `,
     [auth.user.id],
   );
+
+  const activeStatusId = await getActiveAuthStatusId();
+  const statusId = Number(rows[0]?.status_id ?? 0);
+  if (!rows.length || statusId !== activeStatusId) {
+    return null;
+  }
 
   const dbRoles = Array.from(
     new Set(
