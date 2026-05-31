@@ -35,6 +35,8 @@ type DeliveryOrderRow = RowDataPacket & {
   delivery_notes: string | null;
   order_status: string | null;
   delivery_status: string | null;
+  order_delivered_at: string | null;
+  delivery_delivered_at: string | null;
   estimated_duration_min: number | null;
 };
 
@@ -49,10 +51,22 @@ type OrderItemRow = RowDataPacket & {
 };
 
 const EXCLUDED_ORDER_STATUSES = new Set([
+  "delivered",
   "entregado",
   "pedido_entregado",
+  "cancelled",
   "cancelado",
+  "payment_failed",
   "pago_rechazado",
+]);
+
+const EXCLUDED_DELIVERY_STATUSES = new Set([
+  "completado",
+  "completed",
+  "entregado",
+  "delivered",
+  "rechazado",
+  "cancelado",
 ]);
 
 function normalizeStatus(value: unknown) {
@@ -168,6 +182,8 @@ export async function GET(req: NextRequest) {
           d.delivery_notes,
           osc.name AS order_status,
           dsc.name AS delivery_status,
+          o.delivered_at AS order_delivered_at,
+          d.delivered_at AS delivery_delivered_at,
           d.estimated_duration_min
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
@@ -185,7 +201,11 @@ export async function GET(req: NextRequest) {
     );
 
     const activeOrdersRows = ordersRows.filter(
-      (row) => !EXCLUDED_ORDER_STATUSES.has(normalizeStatus(row.order_status)),
+      (row) =>
+        !row.order_delivered_at &&
+        !row.delivery_delivered_at &&
+        !EXCLUDED_ORDER_STATUSES.has(normalizeStatus(row.order_status)) &&
+        !EXCLUDED_DELIVERY_STATUSES.has(normalizeStatus(row.delivery_status)),
     );
 
     if (!activeOrdersRows.length) {

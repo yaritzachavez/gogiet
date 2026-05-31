@@ -384,6 +384,20 @@ export async function requireDriverAccess(
     };
   }
 
+  if (permission === "ACCEPT_DELIVERY" && !deliveryAccess.canOperate) {
+    logSecurityEvent({
+      req,
+      reason: `driver_not_operational:${deliveryAccess.operationalStatus}`,
+      userId: auth.access.userId,
+    });
+    return {
+      ok: false as const,
+      response: permissionDenied(
+        "Tu estado operativo no permite aceptar o actualizar entregas.",
+      ),
+    };
+  }
+
   const allowed = canUserPerformAction(auth.access, permission, {
     driverUserId: driverUserId ?? auth.access.userId,
   });

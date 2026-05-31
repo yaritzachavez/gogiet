@@ -39,6 +39,8 @@ type ActiveOrderRow = RowDataPacket & {
   delivery_notes: string | null;
   order_delivery_notes: string | null;
   delivery_status: string | null;
+  order_delivered_at: string | null;
+  delivery_delivered_at: string | null;
 };
 
 const ACTIVE_STATUS_PRIORITY = [
@@ -52,10 +54,22 @@ const ACTIVE_STATUS_PRIORITY = [
 ];
 
 const EXCLUDED_ORDER_STATUSES = new Set([
+  "delivered",
   "entregado",
   "pedido_entregado",
+  "cancelled",
   "cancelado",
+  "payment_failed",
   "pago_rechazado",
+]);
+
+const EXCLUDED_DELIVERY_STATUSES = new Set([
+  "completado",
+  "completed",
+  "entregado",
+  "delivered",
+  "rechazado",
+  "cancelado",
 ]);
 
 function normalizeStatus(value: unknown) {
@@ -199,7 +213,9 @@ export async function GET(req: NextRequest) {
           d.estimated_duration_min,
           d.delivery_notes,
           o.customer_notes AS order_delivery_notes,
-          dsc.name AS delivery_status
+          dsc.name AS delivery_status,
+          o.delivered_at AS order_delivered_at,
+          d.delivered_at AS delivery_delivered_at
         FROM delivery d
         INNER JOIN orders o ON o.id = d.order_id
         INNER JOIN business b ON b.id = o.business_id
@@ -219,7 +235,10 @@ export async function GET(req: NextRequest) {
       .filter(
         (row) =>
           normalizeStatus(row.delivery_status) !== "pendiente_aceptacion" &&
-          !EXCLUDED_ORDER_STATUSES.has(normalizeStatus(row.order_status)),
+          !row.order_delivered_at &&
+          !row.delivery_delivered_at &&
+          !EXCLUDED_ORDER_STATUSES.has(normalizeStatus(row.order_status)) &&
+          !EXCLUDED_DELIVERY_STATUSES.has(normalizeStatus(row.delivery_status)),
       )
       .sort(sortByActivePriority);
 

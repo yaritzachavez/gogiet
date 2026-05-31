@@ -32,13 +32,23 @@ const ACTIVE_DELIVERY_STATUSES = new Set([
   "aceptado",
   "en_camino",
   "repartidor_asignado",
+  "driver_assigned",
+  "asignado",
   "listo_para_recoger",
+  "recogido",
+  "llegue_al_negocio",
+  "en_camino_negocio",
 ]);
 
 const COMPLETED_DELIVERY_STATUSES = new Set([
   "completado",
+  "completed",
   "entregado",
+  "delivered",
   "pedido_entregado",
+  "cancelado",
+  "cancelled",
+  "rechazado",
 ]);
 
 function normalizeStatus(value: unknown) {

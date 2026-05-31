@@ -40,8 +40,20 @@ export function LocationCard({ order }: LocationCardProps) {
 
   const handleCopy = useCallback(
     async (value: string, key: "address" | "references") => {
+      const textToCopy = value.trim();
+
+      if (!textToCopy) {
+        console.warn("No hay texto disponible para copiar.", { field: key });
+        return;
+      }
+
+      if (!navigator.clipboard?.writeText) {
+        console.warn("Clipboard API no disponible en este navegador.");
+        return;
+      }
+
       try {
-        await navigator.clipboard.writeText(value);
+        await navigator.clipboard.writeText(textToCopy);
         setCopiedField(key);
         setTimeout(() => setCopiedField(null), 2000);
       } catch (error) {

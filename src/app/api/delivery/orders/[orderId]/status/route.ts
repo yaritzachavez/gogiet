@@ -9,6 +9,7 @@ import { getAuthUser } from "@/lib/admin-security";
 import { recordAuditLog } from "@/lib/audit-log";
 import { ensureDeliveryStatus } from "@/lib/business-panel";
 import pool from "@/lib/db";
+import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
   COURIER_EARNING_RATE,
   DEFAULT_DELIVERY_FEE_RATE,
@@ -133,6 +134,29 @@ export async function PATCH(
       return NextResponse.json(
         { success: false, error: "Estado de entrega inválido" },
         { status: 400 },
+      );
+    }
+
+    const deliveryAccess = await resolveDeliveryAccess(authUser.user.id);
+    if (!deliveryAccess.allowed) {
+      return NextResponse.json(
+        { success: false, error: "No autorizado para operar entregas." },
+        { status: 403 },
+      );
+    }
+
+    if (
+      deliveryAccess.operationalStatus === "SUSPENDED" ||
+      deliveryAccess.operationalStatus === "DISABLED"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Tu estado operativo requiere revisión del administrador general.",
+          operationalStatus: deliveryAccess.operationalStatus,
+        },
+        { status: 403 },
       );
     }
 
@@ -312,6 +336,8 @@ export async function PATCH(
       const currentStatus = resolveCanonicalOrderStatus(order.current_status);
       const allowedDirectDeliveryStatuses = new Set([
         "pending",
+        "accepted",
+        "preparing",
         "ready_for_pickup",
         "delivery_requested",
         "driver_assigned",
@@ -403,7 +429,11 @@ export async function PATCH(
 
       console.log("[delivery-status] pedido entregado:", {
         orderId,
+        deliveryId: Number(order.delivery_id),
         driverUserId: authUser.user.id,
+        previousOrderStatus: order.current_status,
+        nextOrderStatus: "delivered",
+        deliveredAt: new Date().toISOString(),
         shippingFeeAmount,
         driverEarning: Number(driverEarning.toFixed(2)),
         platformFee: Number(platformFee.toFixed(2)),

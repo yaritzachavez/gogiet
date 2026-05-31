@@ -33,7 +33,8 @@ interface CurrentDeliveriesCardProps {
   onMarkPickedUp?: (orderId: string) => void;
   onMarkOnTheWay?: (orderId: string) => void;
   onReportIncident?: (orderId: string) => void;
-  onMarkDelivered?: (orderId: string) => void;
+  onMarkDelivered?: (orderId: string) => void | Promise<void>;
+  onViewSummary?: (order: DeliveryOrder) => void;
 }
 
 const amountFormatter = new Intl.NumberFormat("es-MX", {
@@ -120,6 +121,7 @@ export function CurrentDeliveriesCard({
   onMarkOnTheWay,
   onReportIncident,
   onMarkDelivered,
+  onViewSummary,
 }: CurrentDeliveriesCardProps) {
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
 
@@ -430,7 +432,9 @@ export function CurrentDeliveriesCard({
                         <Button
                           type="button"
                           className="h-10 rounded-lg bg-[#22c55e] px-4 text-xs font-bold text-[#FFFDF8] shadow-[0_8px_24px_rgba(34,197,94,0.22)] hover:bg-[#16a34a]"
-                          onClick={() => onMarkDelivered?.(order.id)}
+                          onClick={() => {
+                            void onMarkDelivered?.(order.id);
+                          }}
                           disabled={actionLoadingOrderId === order.id}
                         >
                           {actionLoadingOrderId === order.id ? (
@@ -445,6 +449,7 @@ export function CurrentDeliveriesCard({
                         type="button"
                         variant="secondary"
                         className="ml-auto h-10 rounded-lg border border-[#E8DCCB] bg-[#FFFDF9] px-4 text-xs font-bold text-[#5d4b3a] hover:bg-white"
+                        onClick={() => onViewSummary?.(order)}
                       >
                         Ver resumen
                       </Button>

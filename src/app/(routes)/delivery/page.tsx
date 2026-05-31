@@ -1121,6 +1121,13 @@ export default function DeliveryDashboardPage() {
     };
   }, [activeOrder, profile.driver_status_label]);
 
+  const showDeliveryToast = useCallback((message: string) => {
+    setDeliveryToast(message);
+    window.setTimeout(() => {
+      setDeliveryToast("");
+    }, 3500);
+  }, []);
+
   const handleAssignmentResponse = useCallback(
     async (orderId: string, action: "accept" | "reject") => {
       if (typeof window === "undefined") return;
@@ -1174,19 +1181,13 @@ export default function DeliveryDashboardPage() {
       } catch (error) {
         console.error("Error respondiendo asignación del repartidor:", error);
         setOrdersError("No se pudo responder la asignación.");
+        showDeliveryToast("No se pudo responder la asignación.");
       } finally {
         setAssignmentActionOrderId(null);
       }
     },
-    [refreshDeliveryPanel],
+    [refreshDeliveryPanel, showDeliveryToast],
   );
-
-  const showDeliveryToast = useCallback((message: string) => {
-    setDeliveryToast(message);
-    window.setTimeout(() => {
-      setDeliveryToast("");
-    }, 3500);
-  }, []);
 
   const handleConfirmDelivered = useCallback(async () => {
     if (typeof window === "undefined") return;
@@ -1299,6 +1300,9 @@ export default function DeliveryDashboardPage() {
 
       try {
         setAssignmentActionOrderId(orderId);
+        if (status === "delivered") {
+          console.log("Marcando entregado", orderId);
+        }
 
         const response = await fetchWithSession(
           `/api/delivery/orders/${orderId}/status`,
@@ -1318,6 +1322,9 @@ export default function DeliveryDashboardPage() {
         } catch {
           payload = { raw: responseText };
         }
+        if (status === "delivered") {
+          console.log("Respuesta API", response.status, payload);
+        }
 
         if (isAuthErrorStatus(response.status)) {
           setOrdersError(
@@ -1327,10 +1334,11 @@ export default function DeliveryDashboardPage() {
         }
 
         if (!response.ok || payload.success === false) {
-          setOrdersError(
+          const message =
             (typeof payload.error === "string" && payload.error) ||
-              "No se pudo actualizar la entrega.",
-          );
+            "No se pudo actualizar la entrega.";
+          setOrdersError(message);
+          showDeliveryToast(message);
           return;
         }
 
@@ -1357,6 +1365,7 @@ export default function DeliveryDashboardPage() {
       } catch (error) {
         console.error("Error actualizando estado de entrega:", error);
         setOrdersError("No se pudo actualizar la entrega.");
+        showDeliveryToast("No se pudo actualizar la entrega.");
       } finally {
         setAssignmentActionOrderId(null);
       }
@@ -1365,14 +1374,14 @@ export default function DeliveryDashboardPage() {
   );
 
   const handleMarkDelivered = useCallback(
-    (orderId: string) => {
+    async (orderId: string) => {
       const confirmed = window.confirm(
         "¿Confirmas que ya entregaste este pedido?",
       );
 
       if (!confirmed) return;
 
-      void handleDeliveryStatusUpdate(orderId, "delivered");
+      await handleDeliveryStatusUpdate(orderId, "delivered");
     },
     [handleDeliveryStatusUpdate],
   );
@@ -1730,6 +1739,7 @@ export default function DeliveryDashboardPage() {
                 handleDeliveryStatusUpdate(orderId, "incident")
               }
               onMarkDelivered={handleMarkDelivered}
+              onViewSummary={(order) => setActiveOrder(order)}
             />
 
             <div className="space-y-6">

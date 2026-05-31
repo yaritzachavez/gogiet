@@ -10,6 +10,7 @@ import {
   resolveBusinessAccess,
 } from "@/lib/business-panel";
 import pool from "@/lib/db";
+import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import { ensureDriverStatusColumns } from "@/lib/driver-status";
 import { logger } from "@/lib/logger";
 import {
@@ -879,6 +880,18 @@ export async function respondToCourierAssignment(params: {
     }
 
     if (params.action === "accept") {
+      const deliveryAccess = await resolveDeliveryAccess(params.userId);
+
+      if (!deliveryAccess.canOperate) {
+        throw new DeliveryAssignmentError(
+          "Tu estado operativo no permite aceptar entregas.",
+          403,
+          {
+            operationalStatus: deliveryAccess.operationalStatus,
+          },
+        );
+      }
+
       if (isOpenAvailableDelivery) {
         const activeAssignmentsCount = await getCourierActiveAssignmentsCount(
           connection,
