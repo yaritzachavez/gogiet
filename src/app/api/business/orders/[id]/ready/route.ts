@@ -11,7 +11,10 @@ import {
 } from "@/lib/delivery-assignments";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { createNotificationSafely } from "@/lib/notifications";
-import { resolveCanonicalOrderStatus } from "@/lib/order-status";
+import {
+  type CanonicalOrderStatus,
+  resolveCanonicalOrderStatus,
+} from "@/lib/order-status";
 import {
   applyValidatedOrderStatusTransition,
   OrderStatusTransitionError,
@@ -34,6 +37,9 @@ function canDispatchPaidOrAuthorizedOrder(order: OrderRow) {
   const currentStatus = resolveCanonicalOrderStatus(order.current_status);
 
   if (
+    currentStatus === "pending" ||
+    currentStatus === "paid" ||
+    currentStatus === "accepted" ||
     currentStatus === "preparing" ||
     currentStatus === "ready_for_pickup" ||
     currentStatus === "driver_assigned" ||
@@ -54,17 +60,22 @@ function canDispatchPaidOrAuthorizedOrder(order: OrderRow) {
     );
   }
 
-  if (currentStatus === "paid" || currentStatus === "accepted") {
-    throw new OrderStatusTransitionError(
-      "Primero deja el pedido en preparación antes de marcarlo como listo.",
-      409,
-    );
-  }
-
   throw new OrderStatusTransitionError(
     "Primero debes aceptar el pedido o validar el pago antes de marcarlo como listo.",
     409,
   );
+}
+
+function getReadyTransitionPath(
+  currentStatus: CanonicalOrderStatus,
+): CanonicalOrderStatus[] {
+  if (currentStatus === "ready_for_pickup") return [];
+  if (currentStatus === "preparing") return ["ready_for_pickup"];
+  if (currentStatus === "accepted") return ["preparing", "ready_for_pickup"];
+  if (currentStatus === "paid" || currentStatus === "pending") {
+    return ["accepted", "preparing", "ready_for_pickup"];
+  }
+  return ["ready_for_pickup"];
 }
 
 export async function PATCH(
@@ -194,37 +205,43 @@ export async function PATCH(
     }
 
     await ensureCoreOrderStatuses(pool);
-    const { currentStatus: validatedCurrentStatus } =
-      validateOrderStatusTransition({
-        currentStatus: orderRows[0].current_status,
-        nextStatus: "ready_for_pickup",
-        role: "business",
-        order: {
-          id: orderId,
-          businessId: Number(orderRows[0].business_id),
-          customerUserId: Number(orderRows[0].customer_user_id),
-          driverUserId: Number(orderRows[0].driver_user_id ?? 0) || null,
-          paymentMethod: String(orderRows[0].payment_method ?? ""),
-          currentStatus: String(orderRows[0].current_status ?? ""),
-        },
-        actorUserId: authUser.user.id,
-      });
-
     const connection = await pool.getConnection();
 
     try {
       await connection.beginTransaction();
 
-      await applyValidatedOrderStatusTransition(connection, {
-        orderId,
-        nextStatus: "ready_for_pickup",
-        actorUserId: authUser.user.id,
-        actorRole: "business",
-        currentStatus: validatedCurrentStatus,
-        metadata: {
-          endpoint: "/api/business/orders/[id]/ready",
-        },
-      });
+      let transitionCurrentStatus: CanonicalOrderStatus = currentStatus;
+      for (const nextStatus of getReadyTransitionPath(currentStatus)) {
+        const { currentStatus: validatedCurrentStatus } =
+          validateOrderStatusTransition({
+            currentStatus: transitionCurrentStatus,
+            nextStatus,
+            role: "business",
+            order: {
+              id: orderId,
+              businessId: Number(orderRows[0].business_id),
+              customerUserId: Number(orderRows[0].customer_user_id),
+              driverUserId: Number(orderRows[0].driver_user_id ?? 0) || null,
+              paymentMethod: String(orderRows[0].payment_method ?? ""),
+              currentStatus: transitionCurrentStatus,
+            },
+            actorUserId: authUser.user.id,
+          });
+
+        await applyValidatedOrderStatusTransition(connection, {
+          orderId,
+          nextStatus,
+          actorUserId: authUser.user.id,
+          actorRole: "business",
+          currentStatus: validatedCurrentStatus,
+          metadata: {
+            endpoint: "/api/business/orders/[id]/ready",
+            autoAdvancedByReadyAction: nextStatus !== "ready_for_pickup",
+          },
+        });
+
+        transitionCurrentStatus = nextStatus;
+      }
 
       await createNotificationSafely(
         {
@@ -249,7 +266,7 @@ export async function PATCH(
           resourceType: "order",
           resourceId: orderId,
           oldValue: {
-            status: validatedCurrentStatus,
+            status: currentStatus,
             payment_method: orderRows[0].payment_method,
             payment_status: orderRows[0].payment_status,
           },
@@ -315,4 +332,11 @@ export async function PATCH(
       { status: 500 },
     );
   }
+}
+
+export async function POST(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  return PATCH(req, context);
 }

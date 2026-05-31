@@ -171,6 +171,53 @@
     @apply rounded-2xl border-white/8 bg-white/5 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] focus:border-orange-500/70 focus:ring-4 focus:ring-orange-500/12;
   }
 
+  .payment-modal input,
+  .payment-modal select,
+  .payment-modal textarea {
+    background-color: #fffaf3 !important;
+    color: #2b1f18 !important;
+    -webkit-text-fill-color: #2b1f18 !important;
+    border: 1px solid #ead7c2;
+    caret-color: #2b1f18;
+  }
+
+  .payment-modal input::placeholder,
+  .payment-modal textarea::placeholder {
+    color: #9a8472 !important;
+    opacity: 1;
+    -webkit-text-fill-color: #9a8472 !important;
+  }
+
+  .payment-modal select {
+    color-scheme: light;
+  }
+
+  .payment-modal select option {
+    background-color: #fffaf3;
+    color: #2b1f18;
+  }
+
+  .payment-modal input:focus,
+  .payment-modal select:focus,
+  .payment-modal textarea:focus,
+  .payment-modal .mp-field:focus-within {
+    outline: none;
+    border-color: #ff6a00 !important;
+    box-shadow: 0 0 0 3px rgba(255, 106, 0, 0.18);
+  }
+
+  .payment-modal input:-webkit-autofill,
+  .payment-modal input:-webkit-autofill:hover,
+  .payment-modal input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #2b1f18 !important;
+    box-shadow: 0 0 0 1000px #fffaf3 inset !important;
+    caret-color: #2b1f18 !important;
+  }
+
+  .payment-modal iframe {
+    color-scheme: light;
+  }
+
   img {
     max-width: 100%;
     height: auto;

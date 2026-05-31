@@ -229,7 +229,9 @@ function canStartOrderPreparation(
 }
 
 function canMarkOrderReady(order: Pick<OrderTicket, "estado" | "statusCode">) {
-  return getOrderStatusKey(order) === "preparing";
+  return ["pending", "paid", "accepted", "preparing"].includes(
+    getOrderStatusKey(order),
+  );
 }
 
 export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
@@ -823,6 +825,14 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       return;
     }
 
+    if (
+      !window.confirm(
+        "¿Confirmas que este pedido ya está listo para recolección?",
+      )
+    ) {
+      return;
+    }
+
     try {
       setActionLoading({ orderId, type: "ready" });
       setActionFeedback(null);
@@ -831,7 +841,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
       const response = await fetchWithSession(
         `/api/business/orders/${orderId}/ready`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
@@ -863,7 +873,7 @@ export function BusinessManagerDashboard({ mode }: { mode: DashboardMode }) {
             : "success",
         message:
           (typeof data.message === "string" && data.message) ||
-          "Pedido listo y solicitud de repartidor procesada.",
+          "Pedido listo. Buscando repartidor…",
       });
       await loadOrders();
     } catch (error) {

@@ -1719,7 +1719,7 @@ export default function CarritoPage() {
           {selectedPaymentMethod === "mercadopago" ? (
             <form
               id="gogi-mp-card-form"
-              className="space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
+              className="payment-modal space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
             >
               <div>
                 <p className="text-sm font-black">Paga dentro de Gogi Eats</p>
@@ -1733,28 +1733,28 @@ export default function CarritoPage() {
                   <span>Número de tarjeta</span>
                   <div
                     id="gogi-mp-card-number"
-                    className="min-h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 py-3"
+                    className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
                   />
                 </div>
                 <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                   <span>Vencimiento</span>
                   <div
                     id="gogi-mp-expiration-date"
-                    className="min-h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 py-3"
+                    className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
                   />
                 </div>
                 <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                   <span>CVV</span>
                   <div
                     id="gogi-mp-security-code"
-                    className="min-h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 py-3"
+                    className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
                   />
                 </div>
                 <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
                   Nombre del titular
                   <input
                     id="gogi-mp-cardholder-name"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                     placeholder="Como aparece en la tarjeta"
                   />
                 </label>
@@ -1762,28 +1762,28 @@ export default function CarritoPage() {
                   Banco emisor
                   <select
                     id="gogi-mp-issuer"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                   />
                 </label>
                 <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                   Cuotas
                   <select
                     id="gogi-mp-installments"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                   />
                 </label>
                 <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                   Tipo de documento
                   <select
                     id="gogi-mp-identification-type"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                   />
                 </label>
                 <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                   Número de documento
                   <input
                     id="gogi-mp-identification-number"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                     placeholder="Si aplica"
                   />
                 </label>
@@ -1792,7 +1792,7 @@ export default function CarritoPage() {
                   <input
                     id="gogi-mp-cardholder-email"
                     type="email"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-white px-3 text-sm font-semibold outline-none transition focus:border-[#e98a4a]"
+                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                     placeholder="correo@ejemplo.com"
                   />
                 </label>

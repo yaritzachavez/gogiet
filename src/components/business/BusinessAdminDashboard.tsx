@@ -39,7 +39,9 @@ import { compressImageFile } from "@/lib/client-image";
 import { uploadImageAsset } from "@/lib/client-upload";
 
 function canMarkAdminOrderReady(status: string) {
-  return normalizeStatus(status) === "preparing";
+  return ["pending", "paid", "accepted", "preparing"].includes(
+    normalizeStatus(status),
+  );
 }
 
 function canAcceptAdminOrder(status: string) {
@@ -1495,11 +1497,19 @@ export function BusinessAdminDashboard() {
     const token = getStoredToken();
     if (!token) return;
 
+    if (
+      !window.confirm(
+        "¿Confirmas que este pedido ya está listo para recolección?",
+      )
+    ) {
+      return;
+    }
+
     await runAction(`order-ready-${orderId}`, async () => {
       const response = await fetchWithSession(
         `/api/business/orders/${orderId}/ready`,
         {
-          method: "PATCH",
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
@@ -1521,7 +1531,7 @@ export function BusinessAdminDashboard() {
             : "success",
         message:
           (typeof data.message === "string" && data.message) ||
-          "Pedido listo y solicitud de repartidor procesada.",
+          "Pedido listo. Buscando repartidor…",
       });
       await refreshData();
     });
@@ -2943,7 +2953,7 @@ export function BusinessAdminDashboard() {
                               disabled={busyKey === `order-ready-${order.id}`}
                               className="rounded-xl bg-orange-500 px-3 py-2 text-xs font-extrabold uppercase tracking-wide text-white disabled:opacity-60"
                             >
-                              Marcar listo
+                              Pedido listo
                             </button>
                           ) : null}
                           <button

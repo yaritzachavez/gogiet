@@ -25,6 +25,8 @@ export const ORDER_STATUS_DEFINITIONS = [
     aliases: [
       "accepted",
       "aceptado",
+      "confirmed",
+      "confirmado",
       "pago_validado",
       "accepted_by_business",
       "aceptado_por_negocio",
