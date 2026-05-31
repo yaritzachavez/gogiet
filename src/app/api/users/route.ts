@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
           u.email,
           u.phone,
           u.email_verified AS is_verified,
-          u.email_verified_at,
+          NULL AS email_verified_at,
           u.created_at,
           u.updated_at,
           u.status_id,
