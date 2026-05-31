@@ -53,16 +53,14 @@ export default function Home() {
               <HeroActions />
             </div>
 
-            <div className="relative">
-              <div className="absolute -inset-4 rounded-[1.75rem] bg-[radial-gradient(circle_at_50%_50%,rgba(255,115,0,0.14),transparent_58%)] blur-2xl sm:-inset-5 sm:rounded-[2rem]" />
-              <div className="absolute inset-x-[14%] -top-4 h-20 rounded-full bg-white/10 blur-3xl" />
-              <div className="relative aspect-[1.2/1] overflow-hidden rounded-[1.75rem] border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(255,255,255,0.03)_100%)] shadow-[0_28px_70px_rgba(0,0,0,0.46)] ring-1 ring-white/8 backdrop-blur-sm sm:aspect-[1.55/1] sm:rounded-[2rem] sm:shadow-[0_34px_90px_rgba(0,0,0,0.52)]">
-                <div className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06)_0%,transparent_18%,rgba(0,0,0,0.16)_100%)]" />
+            <div className="relative flex items-center justify-center overflow-visible">
+              <div className="relative flex w-full max-w-[360px] items-center justify-center overflow-visible sm:max-w-[520px] lg:max-w-[720px]">
                 <Image
-                  src="/repartidor.png"
-                  alt="Repartidor de Gogi Eats en bicicleta"
-                  fill
-                  className="object-cover object-center saturate-[0.96]"
+                  src="/3.png"
+                  alt="Gogi Eats Hero"
+                  width={900}
+                  height={900}
+                  className="h-auto w-full object-contain drop-shadow-[0_35px_70px_rgba(233,138,74,0.25)] sm:scale-110 lg:scale-125"
                   priority
                 />
               </div>

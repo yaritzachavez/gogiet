@@ -91,12 +91,12 @@ export function DeliveryHeader({
   };
 
   return (
-    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] p-4 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6">
+    <header className="relative isolate overflow-hidden rounded-[24px] border border-[#E7D8C7] bg-[#FFF9F2] p-4 text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)] sm:p-6">
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_left,rgba(255,251,245,0.98)_0%,rgba(247,239,228,0.98)_45%,rgba(243,232,218,1)_100%)]" />
       <button
         type="button"
         onClick={onOpenSettings}
-        className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] text-[#7c5b3c] shadow-[0_8px_20px_rgba(0,0,0,0.03)] transition hover:bg-white sm:h-11 sm:w-11"
+        className="absolute right-4 top-4 z-20 inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] text-[#7c5b3c] shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition hover:bg-white sm:h-11 sm:w-11"
         aria-label="Abrir configuración del repartidor"
       >
         <Settings className="h-5 w-5" />
@@ -117,7 +117,7 @@ export function DeliveryHeader({
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+            <div className="rounded-2xl border border-[#E7D8C7] bg-[#F6F0E7] p-4">
               <p className="text-xs font-semibold text-[#8d755b]">
                 Entregas actuales
               </p>
@@ -128,20 +128,20 @@ export function DeliveryHeader({
                 Completadas hoy: {completedToday}
               </p>
             </div>
-            <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+            <div className="rounded-2xl border border-[#E7D8C7] bg-[#F6F0E7] p-4">
               <p className="text-xs font-semibold text-[#8d755b]">Zona</p>
               <p className="mt-2 text-base font-extrabold text-[#2f2419]">
                 {serviceArea}
               </p>
               <p className="text-xs text-[#8d755b]">{lastSync}</p>
             </div>
-            <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+            <div className="rounded-2xl border border-[#E7D8C7] bg-[#F6F0E7] p-4">
               <p className="text-xs font-semibold text-[#8d755b]">Estado</p>
               <p className="mt-2 flex items-center gap-2 text-base font-extrabold text-[#2f2419]">
                 <span
                   className={cn(
                     "h-2.5 w-2.5 rounded-full",
-                    isActive ? "bg-emerald-300" : "bg-rose-300",
+                    isActive ? "bg-[#6e7f52]" : "bg-[#e98a4a]",
                   )}
                 />
                 {availabilityLabel}
@@ -156,10 +156,10 @@ export function DeliveryHeader({
             variant="outline"
             onClick={() => setIsActive((prev) => !prev)}
             className={cn(
-              "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-5 text-sm font-extrabold shadow-lg transition",
+              "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-5 text-sm font-extrabold shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
               isActive
-                ? "bg-[#2f7a48] text-[#FFFDF8] hover:bg-[#28673c]"
-                : "bg-rose-500 text-[#FFFDF8] hover:bg-rose-600",
+                ? "!bg-[#6e7f52] text-[#fffffd] hover:!bg-[#5d6d44]"
+                : "!bg-[#e98a4a] text-[#fffffd] hover:!bg-[#d97836]",
             )}
           >
             <CirclePower className="h-4 w-4" />
@@ -170,10 +170,10 @@ export function DeliveryHeader({
             <Button
               type="button"
               className={cn(
-                "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-lg transition",
+                "flex h-12 items-center justify-center gap-2 rounded-2xl border-0 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
                 isPaused
-                  ? "bg-[#d6904c] hover:bg-[#c27a36]"
-                  : "bg-[#d6904c] hover:bg-[#c27a36]",
+                  ? "!bg-[#6e7f52] hover:!bg-[#5d6d44]"
+                  : "!bg-[#e98a4a] hover:!bg-[#d97836]",
               )}
               onClick={handlePauseToggle}
             >
@@ -182,7 +182,7 @@ export function DeliveryHeader({
             </Button>
             <Button
               type="button"
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-blue-500 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-lg transition hover:bg-[#EA580C]"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border border-[#e98a4a] !bg-[#f6ebdd] px-4 text-sm font-extrabold text-[#222222] shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition hover:!bg-[#fff5ec]"
               onClick={() => {
                 setChatOpen((prev) => !prev);
                 setReportOpen(false);
@@ -193,7 +193,7 @@ export function DeliveryHeader({
             </Button>
             <Button
               type="button"
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-pink-500 px-4 text-sm font-extrabold text-[#FFFDF8] shadow-lg transition hover:bg-[#F97316]"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 !bg-[#e98a4a] px-4 text-sm font-extrabold text-[#fffffd] shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition hover:!bg-[#d97836]"
               onClick={() => {
                 setReportOpen((prev) => !prev);
                 setChatOpen(false);
@@ -204,7 +204,7 @@ export function DeliveryHeader({
             </Button>
             <Button
               variant="destructive"
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 bg-[#B45309] px-5 text-sm font-extrabold text-[#FFFDF8] shadow-lg hover:bg-[#92400E]"
+              className="flex h-12 items-center justify-center gap-2 rounded-2xl border-0 !bg-[#222222] px-5 text-sm font-extrabold text-[#fffffd] shadow-[0_8px_30px_rgba(180,140,90,0.08)] hover:!bg-[#3a3a3a]"
               onClick={onLogout}
             >
               <LogOut className="h-4 w-4" />
@@ -215,18 +215,18 @@ export function DeliveryHeader({
       </div>
 
       {actionMessage ? (
-        <p className="relative z-20 mt-4 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-xs text-[#6F5D4C] shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
+        <p className="relative z-20 mt-4 rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] px-4 py-3 text-xs text-[#6F5D4C] shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
           {actionMessage}
         </p>
       ) : null}
 
       {chatOpen ? (
-        <div className="relative z-20 mt-4 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 text-sm text-[#3B2D25] shadow-[0_10px_28px_rgba(0,0,0,0.04)]">
+        <div className="relative z-20 mt-4 rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 text-sm text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
           <p className="font-semibold">Chat con soporte</p>
           <p className="text-xs text-[#8d755b]">
             Soporte Gogi Eats responde en menos de 3 minutos.
           </p>
-          <div className="mt-3 space-y-2 rounded-xl border border-[#E8DCCB] bg-[#F8F1E7] p-3 text-xs text-[#3B2D25]">
+          <div className="mt-3 space-y-2 rounded-xl border border-[#E7D8C7] bg-[#F6F0E7] p-3 text-xs text-[#4B3425]">
             <p className="font-semibold">Equipo Gogi Eats</p>
             <p>Hola {driverName}, ¿todo bien en tu ruta?</p>
           </div>
@@ -250,7 +250,7 @@ export function DeliveryHeader({
       {reportOpen ? (
         <form
           onSubmit={handleReportSubmit}
-          className="relative z-20 mt-4 space-y-3 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 text-sm text-[#3B2D25] shadow-[0_10px_28px_rgba(0,0,0,0.04)]"
+          className="relative z-20 mt-4 space-y-3 rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 text-sm text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]"
         >
           <p className="font-semibold">Reportar incidencia</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -284,14 +284,14 @@ export function DeliveryHeader({
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"
-              className="rounded-full bg-[#B45309] text-[#FFFDF8] hover:bg-[#92400E]"
+              className="rounded-full !bg-[#e98a4a] text-[#fffffd] hover:!bg-[#d97836]"
             >
               Enviar reporte
             </Button>
             <Button
               type="button"
               variant="ghost"
-              className="rounded-full text-rose-600 hover:bg-rose-100"
+              className="rounded-full text-[#222222] hover:bg-[#fff5ec]"
               onClick={() => setReportOpen(false)}
             >
               Cancelar

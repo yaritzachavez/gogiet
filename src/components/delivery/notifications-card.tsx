@@ -225,8 +225,11 @@ export function NotificationsCard({
 
   return (
     <>
-      <Card className="gap-0 overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] py-0 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-        <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-6 text-[#3B2D25]">
+      <Card
+        className="gap-0 overflow-hidden rounded-[24px] border border-[#E7D8C7] !bg-[#FFF9F2] py-0 text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]"
+        style={{ background: "#FFF9F2", gap: 0, paddingBlock: 0 }}
+      >
+        <CardHeader className="border-b border-[#D8C2AA]/70 bg-[#FFF9F2] pb-6 text-[#4B3425]">
           <CardTitle className="flex items-center gap-2 text-lg font-semibold">
             <Bell className="h-5 w-5" />
             Notificaciones
@@ -235,9 +238,9 @@ export function NotificationsCard({
             Actualizaciones reales de tus pedidos y mensajes de soporte.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 bg-[#F7F1E8] pt-6">
+        <CardContent className="space-y-4 bg-[#F6F0E7] pt-6">
           {isLoading ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E7D8C7] bg-[#FFF9F2] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               <CheckCircle2 className="h-5 w-5" />
               Cargando notificaciones...
             </div>
@@ -247,7 +250,7 @@ export function NotificationsCard({
               {error}
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+            <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-[#E7D8C7] bg-[#FFF9F2] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
               <CheckCircle2 className="h-5 w-5" />
               No tienes notificaciones nuevas.
             </div>
@@ -256,7 +259,7 @@ export function NotificationsCard({
               {notifications.map((notification) => (
                 <li
                   key={notification.id}
-                  className="flex items-start gap-3 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_8px_24px_rgba(0,0,0,0.03)]"
+                  className="flex items-start gap-3 rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]"
                 >
                   <span
                     className={`mt-1 h-2 w-2 rounded-full ${
@@ -292,14 +295,14 @@ export function NotificationsCard({
               ))}
             </ul>
           )}
-          <div className="grid gap-3 border-t border-dashed border-[#E8DCCB] pt-4 text-sm text-[#6F5D4C]">
+          <div className="grid gap-3 border-t border-dashed border-[#D8C2AA]/70 pt-4 text-sm text-[#6F5D4C]">
             <button
               type="button"
               onClick={() => {
                 setDraftMessage("");
                 setDialogMode("support");
               }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-2 font-semibold text-orange-700 shadow-[0_6px_18px_rgba(0,0,0,0.03)] hover:bg-white"
+              className="flex items-center justify-center gap-2 rounded-xl border border-[#E7D8C7] bg-[#FFF9F2] px-4 py-2 font-semibold text-orange-700 shadow-[0_8px_30px_rgba(180,140,90,0.08)] hover:bg-white"
             >
               <MessageCircle className="h-4 w-4" />
               Abrir chat con soporte
@@ -310,7 +313,7 @@ export function NotificationsCard({
                 setDraftMessage("Incidencia en entrega: ");
                 setDialogMode("incident");
               }}
-              className="flex items-center justify-center gap-2 rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-2 font-semibold text-[#b36a2b] shadow-[0_6px_18px_rgba(0,0,0,0.03)] hover:bg-white"
+              className="flex items-center justify-center gap-2 rounded-xl border border-[#E7D8C7] bg-[#FFF9F2] px-4 py-2 font-semibold text-[#b36a2b] shadow-[0_8px_30px_rgba(180,140,90,0.08)] hover:bg-white"
             >
               <AlertTriangle className="h-4 w-4" />
               Incidencia en entrega
@@ -332,7 +335,7 @@ export function NotificationsCard({
           }
         }}
       >
-        <DialogContent className="max-w-lg border-[#E8DCCB] bg-[#FFF9F2] text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
+        <DialogContent className="max-w-lg border-[#E7D8C7] bg-[#FFF9F2] text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
           <DialogHeader>
             <DialogTitle>{dialogTitle}</DialogTitle>
             <DialogDescription>{dialogDescription}</DialogDescription>
@@ -352,7 +355,7 @@ export function NotificationsCard({
                 threadMessages.map((message) => (
                   <div
                     key={message.id}
-                    className={`rounded-2xl px-4 py-3 text-sm shadow-sm ${
+                    className={`rounded-2xl px-4 py-3 text-sm shadow-[0_8px_30px_rgba(180,140,90,0.08)] ${
                       message.senderType === "user"
                         ? "ml-8 border border-[#EDCDB4] bg-[#FFF3E9] text-[#9a5b36]"
                         : "mr-8 border border-[#E8DCCB] bg-[#FFFDF9] text-[#6F5D4C]"

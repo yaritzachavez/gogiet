@@ -361,9 +361,9 @@ export function SupportChatWidget({
   });
 
   const triggerClasses = floating
-    ? `fixed bottom-5 right-5 z-40 rounded-full bg-[#FF6A00] px-5 py-3 text-[#FFFDF8] shadow-xl hover:bg-orange-600 ${buttonClassName}`
+    ? `fixed bottom-5 right-5 z-40 rounded-full bg-[#FF6A00] px-5 py-3 text-[#FFFDF8] shadow-[0_8px_30px_rgba(180,140,90,0.08)] hover:bg-orange-600 ${buttonClassName}`
     : buttonClassName ||
-      "inline-flex items-center justify-center gap-2 rounded-xl border border-orange-300 bg-white px-4 py-2 font-semibold text-orange-700 shadow-sm hover:bg-orange-50";
+      "inline-flex items-center justify-center gap-2 rounded-xl border border-orange-300 bg-white px-4 py-2 font-semibold text-orange-700 shadow-[0_8px_30px_rgba(180,140,90,0.08)] hover:bg-orange-50";
 
   return (
     <>
@@ -434,7 +434,7 @@ export function SupportChatWidget({
                       className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
                     >
                       <div
-                        className={`max-w-[82%] rounded-3xl px-4 py-3 text-sm shadow-sm ${
+                        className={`max-w-[82%] rounded-3xl px-4 py-3 text-sm shadow-[0_8px_30px_rgba(180,140,90,0.08)] ${
                           isOwnMessage
                             ? "bg-[#FF6A00] text-[#FFFDF8]"
                             : "bg-[#FFFDF8] text-[#2B1A12]"

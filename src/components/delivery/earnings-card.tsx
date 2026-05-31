@@ -62,8 +62,11 @@ export function EarningsCard({
       : `${comparisonToYesterday}% vs ayer`;
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] py-0 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5 text-[#3B2D25] sm:pb-6">
+    <Card
+      className="gap-0 overflow-hidden rounded-[24px] border border-[#E7D8C7] !bg-[#FFF9F2] py-0 text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]"
+      style={{ background: "#FFF9F2", gap: 0, paddingBlock: 0 }}
+    >
+      <CardHeader className="border-b border-[#D8C2AA]/70 bg-[#FFF9F2] pb-5 text-[#4B3425] sm:pb-6">
         <CardTitle className="flex items-center gap-2 text-lg font-semibold">
           <Wallet className="h-5 w-5" />
           Ganancias
@@ -72,9 +75,9 @@ export function EarningsCard({
           Seguimiento rápido de tus ingresos diarios, propinas y avance semanal.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5 bg-[#F7F1E8] pt-5 sm:pt-6">
+      <CardContent className="space-y-5 bg-[#F6F0E7] pt-5 sm:pt-6">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Hoy
             </p>
@@ -87,7 +90,7 @@ export function EarningsCard({
             </p>
           </div>
 
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_6px_18px_rgba(0,0,0,0.03)]">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Propinas
             </p>
@@ -110,7 +113,7 @@ export function EarningsCard({
                 : `${formatCurrency(earnings.weekToDate, earnings.currency)} · sin meta configurada`}
             </span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full border border-[#E8DCCB] bg-[#F3E8DA]">
+          <div className="h-2 overflow-hidden rounded-full border border-[#D8C2AA]/70 bg-[#FFF9F2]">
             <div
               className="h-full rounded-full bg-[linear-gradient(90deg,#d36a1f_0%,#f0a35a_100%)] transition-all"
               style={{ width: `${progress}%` }}

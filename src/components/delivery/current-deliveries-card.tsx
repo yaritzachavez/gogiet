@@ -93,8 +93,11 @@ export function CurrentDeliveriesCard({
   const deliveriesCount = activeDeliveriesCount ?? orders.length;
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] py-0 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5">
+    <Card
+      className="gap-0 overflow-hidden rounded-[24px] border border-[#E7D8C7] !bg-[#FFF9F2] py-0 text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]"
+      style={{ background: "#FFF9F2", gap: 0, paddingBlock: 0 }}
+    >
+      <CardHeader className="border-b border-[#D8C2AA]/70 bg-[#FFF9F2] pb-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
             <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F3E6D7] text-[#c56f2d]">
@@ -109,7 +112,7 @@ export function CurrentDeliveriesCard({
               </CardDescription>
             </div>
           </div>
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] px-4 py-3 text-center shadow-[0_8px_24px_rgba(0,0,0,0.03)] sm:px-5">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] px-4 py-3 text-center shadow-[0_8px_30px_rgba(180,140,90,0.08)] sm:px-5">
             <p className="text-3xl font-extrabold text-[#c56f2d]">
               {deliveriesCount}
             </p>
@@ -119,9 +122,9 @@ export function CurrentDeliveriesCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4 bg-[#F7F1E8] p-4 sm:p-5">
+      <CardContent className="space-y-4 bg-[#F6F0E7] p-4 sm:p-5">
         {isLoading ? (
-          <p className="rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+          <p className="rounded-2xl border border-dashed border-[#E7D8C7] bg-[#FFF9F2] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             Cargando entregas...
           </p>
         ) : error ? (
@@ -129,12 +132,12 @@ export function CurrentDeliveriesCard({
             {error}
           </p>
         ) : orders.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-[#E8DCCB] bg-[#FCF6EE] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+          <p className="rounded-2xl border border-dashed border-[#E7D8C7] bg-[#FFF9F2] p-6 text-center text-sm text-[#6d5945] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
             No tienes entregas asignadas por ahora.
           </p>
         ) : (
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] px-4 py-3">
               <p className="text-sm font-bold text-[#3d3025]">
                 Límite operativo del repartidor
               </p>
@@ -184,7 +187,7 @@ export function CurrentDeliveriesCard({
                   <li
                     key={order.id}
                     className={cn(
-                      "rounded-[22px] border p-4 shadow-[0_8px_24px_rgba(0,0,0,0.03)] transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(0,0,0,0.05)] sm:p-5",
+                      "rounded-[22px] border p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_10px_26px_rgba(180,140,90,0.16)] sm:p-5",
                       visualStatus.cardClass,
                     )}
                   >
@@ -212,7 +215,7 @@ export function CurrentDeliveriesCard({
                     </div>
 
                     <div className="grid gap-3 text-sm text-[#6F5D4C] md:grid-cols-2 xl:grid-cols-[1.2fr,0.8fr,0.8fr]">
-                      <div className="rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
+                      <div className="rounded-xl border border-[#E7D8C7] bg-[#FFF9F2] p-3 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Entrega
                         </p>
@@ -227,7 +230,7 @@ export function CurrentDeliveriesCard({
                           </span>
                         </p>
                       </div>
-                      <div className="rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
+                      <div className="rounded-xl border border-[#E7D8C7] bg-[#FFF9F2] p-3 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Cliente
                         </p>
@@ -241,7 +244,7 @@ export function CurrentDeliveriesCard({
                           {order.contact.phone || "Sin telefono"}
                         </p>
                       </div>
-                      <div className="rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
+                      <div className="rounded-xl border border-[#E7D8C7] bg-[#FFF9F2] p-3 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
                         <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#8d755b]">
                           Total
                         </p>
@@ -258,12 +261,12 @@ export function CurrentDeliveriesCard({
                     </div>
 
                     {order.notes ? (
-                      <div className="mt-3 rounded-xl border border-[#E8DCCB] bg-[#FFFDF9] p-3 text-sm text-[#6d5945] shadow-[0_2px_10px_rgba(0,0,0,0.025)]">
+                      <div className="mt-3 rounded-xl border border-[#E7D8C7] bg-[#FFF9F2] p-3 text-sm text-[#6d5945] shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
                         {order.notes}
                       </div>
                     ) : null}
 
-                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#E8DCCB] pt-3">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[#D8C2AA]/70 pt-3">
                       {order.canRespond ? (
                         <>
                           <Button

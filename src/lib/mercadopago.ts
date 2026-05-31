@@ -44,10 +44,31 @@ type MercadoPagoPaymentResponse = {
   status_detail?: string;
   transaction_amount?: number;
   currency_id?: string;
+  payment_method_id?: string;
+  payment_type_id?: string;
   external_reference?: string;
   date_approved?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
+};
+
+type CreatePaymentPayload = {
+  transaction_amount: number;
+  token: string;
+  description: string;
+  installments: number;
+  payment_method_id: string;
+  issuer_id?: string | number | null;
+  payer: {
+    email: string;
+    identification?: {
+      type: string;
+      number: string;
+    };
+  };
+  external_reference: string;
+  notification_url?: string;
+  metadata?: Record<string, unknown>;
 };
 
 type MercadoPagoWebhookSignatureParts = {
@@ -258,4 +279,17 @@ export async function getMercadoPagoPayment(paymentId: string) {
   return mercadoPagoRequest<MercadoPagoPaymentResponse>(
     `/v1/payments/${encodeURIComponent(paymentId)}`,
   );
+}
+
+export async function createMercadoPagoPayment(
+  payload: CreatePaymentPayload,
+  idempotencyKey: string,
+) {
+  return mercadoPagoRequest<MercadoPagoPaymentResponse>("/v1/payments", {
+    method: "POST",
+    headers: {
+      "X-Idempotency-Key": idempotencyKey,
+    },
+    body: JSON.stringify(payload),
+  });
 }

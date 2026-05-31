@@ -2,7 +2,7 @@
 
 import { ArrowRight, ShoppingCart } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import AddressRequiredDialog, {
   type SavedAddress,
@@ -147,7 +147,7 @@ const PAYMENT_METHOD_OPTIONS = [
     id: "mercadopago",
     label: "Pagar con Mercado Pago",
     description:
-      "Serás redirigido a Mercado Pago para completar tu pago de forma segura.",
+      "Completa tu pago con tarjeta de forma segura dentro de Gogi Eats.",
   },
   {
     id: "transferencia",
@@ -157,6 +157,45 @@ const PAYMENT_METHOD_OPTIONS = [
 ] as const;
 
 type PaymentMethodOption = (typeof PAYMENT_METHOD_OPTIONS)[number]["id"];
+
+type MercadoPagoCardFormData = {
+  token?: string;
+  paymentMethodId?: string;
+  issuerId?: string;
+  installments?: number | string;
+  identificationType?: string;
+  identificationNumber?: string;
+};
+
+type MercadoPagoCardForm = {
+  getCardFormData: () => MercadoPagoCardFormData;
+  unmount?: () => void;
+};
+
+type MercadoPagoInstance = {
+  cardForm: (settings: {
+    amount: string;
+    iframe: boolean;
+    form: Record<string, unknown>;
+    callbacks: {
+      onFormMounted?: (error?: unknown) => void;
+      onSubmit?: (event: Event) => void;
+      onFetching?: (resource: string) => () => void;
+    };
+  }) => MercadoPagoCardForm;
+};
+
+declare global {
+  interface Window {
+    MercadoPago?: new (
+      publicKey: string,
+      options?: { locale?: string },
+    ) => MercadoPagoInstance;
+  }
+}
+
+const MERCADOPAGO_PUBLIC_KEY =
+  process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY?.trim() ?? "";
 
 const moneyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",

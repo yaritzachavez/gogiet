@@ -76,6 +76,12 @@ type BusinessRow = RowDataPacket & {
 
 type ExistingOrderRow = RowDataPacket & {
   id: number;
+  status: string | null;
+  created_at: Date | string;
+  payment_status: string | null;
+  payment_provider: string | null;
+  provider_payment_id: string | null;
+  paid_at: Date | string | null;
 };
 
 type AdminMessageRow = RowDataPacket & {
@@ -1070,27 +1076,93 @@ export async function POST(req: NextRequest) {
 
     const [existingOrders] = await conn.query<ExistingOrderRow[]>(
       `
-        SELECT o.id
+        SELECT
+          o.id,
+          osc.name AS status,
+          o.created_at,
+          o.payment_status,
+          o.payment_provider,
+          o.provider_payment_id,
+          o.paid_at
         FROM orders o
         LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
         WHERE o.user_id = ?
           AND o.request_fingerprint = ?
           AND o.created_at >= (NOW() - INTERVAL 10 MINUTE)
-          AND COALESCE(osc.name, '') NOT IN ('cancelled', 'delivered', 'payment_failed')
         ORDER BY o.id DESC
-        LIMIT 1
+        LIMIT 5
       `,
       [userId, requestFingerprint],
     );
 
-    if (existingOrders.length > 0) {
+    const existingOrder = existingOrders.find((order) => {
+      const rawStatus = String(order.status ?? "").trim();
+
+      if (!rawStatus) {
+        return false;
+      }
+
+      const status = resolveCanonicalOrderStatus(rawStatus);
+      const paymentStatus = String(order.payment_status ?? "")
+        .trim()
+        .toLowerCase();
+      const createdAt = new Date(order.created_at);
+      const ageMs = Number.isNaN(createdAt.getTime())
+        ? Number.POSITIVE_INFINITY
+        : Date.now() - createdAt.getTime();
+      const isOlderThanFiveMinutes = ageMs > 5 * 60 * 1000;
+      const hasConfirmedPayment =
+        status === "paid" ||
+        paymentStatus === "approved" ||
+        paymentStatus === "paid" ||
+        Boolean(order.paid_at);
+
+      if (
+        status === "cancelled" ||
+        status === "delivered" ||
+        status === "payment_failed" ||
+        paymentStatus === "failed" ||
+        paymentStatus === "rejected" ||
+        paymentStatus === "cancelled" ||
+        paymentStatus === "refunded" ||
+        paymentStatus === "charged_back"
+      ) {
+        return false;
+      }
+
+      if (status === "pending_payment" && !hasConfirmedPayment) {
+        return !isOlderThanFiveMinutes;
+      }
+
+      return [
+        "pending",
+        "paid",
+        "payment_review",
+        "accepted",
+        "preparing",
+        "ready_for_pickup",
+        "delivery_requested",
+        "driver_assigned",
+        "on_the_way",
+      ].includes(status);
+    });
+
+    console.log("duplicate-check", {
+      userId,
+      cartId: toPositiveNumber(body.cart_id) ?? null,
+      existingOrder: existingOrder ? Number(existingOrder.id) : null,
+      status: existingOrder?.status ?? null,
+      createdAt: existingOrder?.created_at ?? null,
+    });
+
+    if (existingOrder) {
       await conn.rollback();
       return NextResponse.json(
         {
           success: false,
           error:
             "Ya estamos procesando un pedido similar. Revisa tus pedidos activos antes de intentar de nuevo.",
-          orderId: Number(existingOrders[0].id),
+          orderId: Number(existingOrder.id),
         },
         { status: 409 },
       );
@@ -1384,7 +1456,7 @@ export async function POST(req: NextRequest) {
         )
       )[0][0]?.id;
 
-    if (activeCartId) {
+    if (activeCartId && paymentMethodName !== "mercadopago") {
       stage = "clear_cart";
       await conn.query(`DELETE FROM products_cart WHERE cart_id = ?`, [
         activeCartId,

@@ -1,13 +1,15 @@
 "use client";
 
-import { type LucideIcon, ShoppingCart, Store } from "lucide-react";
-import type { StaticImageData } from "next/image";
-import Image from "next/image";
+import {
+  type LucideIcon,
+  ShieldCheck,
+  ShoppingCart,
+  Store,
+  Truck,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import adminImg from "@/../public/admi.jpg";
-import deliveryImg from "@/../public/repartidor-2.jpg";
 import { useAuth } from "@/context/AuthContext";
 import { fetchWithSession } from "@/lib/client-auth";
 
@@ -57,12 +59,16 @@ type RoleCard = {
   title: string;
   description: string;
   href: string;
-  image?: StaticImageData;
   icon?: LucideIcon;
   accent?: string;
-  chip: string;
   chipLabel?: string;
   iconShell?: string;
+  textClass: string;
+  mutedTextClass: string;
+  chipClass: string;
+  lineClass: string;
+  footerClass: string;
+  openBadgeClass: string;
 };
 
 const CARDS: RoleCard[] = [
@@ -71,9 +77,18 @@ const CARDS: RoleCard[] = [
     title: "Zona de Delivery",
     description: "Logística y seguimiento de pedidos",
     href: "/delivery",
-    image: deliveryImg,
-    chip: "text-white",
+    icon: Truck,
+    accent: "bg-[linear-gradient(145deg,#6e7f52_0%,#f6ebdd_100%)]",
     chipLabel: "Repartidores",
+    iconShell:
+      "border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#fffffd] shadow-[0_20px_50px_-20px_rgba(110,127,82,0.75)]",
+    textClass: "text-[#fffffd]",
+    mutedTextClass: "text-[#fffffd]/85",
+    chipClass:
+      "border border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#fffffd]",
+    lineClass: "bg-[#fffffd]/80",
+    footerClass: "text-[#fffffd]/95",
+    openBadgeClass: "border-[rgba(255,255,253,0.55)] text-[#fffffd]",
   },
   {
     role: "OWNER",
@@ -81,11 +96,17 @@ const CARDS: RoleCard[] = [
     description: "Operación integral del negocio",
     href: "/business",
     icon: Store,
-    accent: "from-sky-500/70 via-slate-700/75 to-slate-900/90",
-    chip: "text-sky-100",
+    accent: "bg-[linear-gradient(145deg,#f6ebdd_0%,#6e7f52_100%)]",
     chipLabel: "Administrador del negocio",
     iconShell:
-      "border-sky-200/50 bg-sky-100/15 text-sky-50 shadow-[0_20px_50px_-20px_rgba(56,189,248,0.75)]",
+      "border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#6e7f52] shadow-[0_20px_50px_-20px_rgba(110,127,82,0.65)]",
+    textClass: "text-[#222222]",
+    mutedTextClass: "text-[#222222]/75",
+    chipClass:
+      "border border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#222222]",
+    lineClass: "bg-[#6e7f52]/70",
+    footerClass: "text-[#222222]/90",
+    openBadgeClass: "border-[#222222]/25 text-[#222222]",
   },
   {
     role: "MANAGER",
@@ -93,21 +114,35 @@ const CARDS: RoleCard[] = [
     description: "Gestión de catálogo y promociones",
     href: "/pickdash/seller",
     icon: ShoppingCart,
-    accent: "from-orange-500/70 via-orange-700/75 to-orange-900/85",
-    chip: "text-orange-100",
+    accent: "bg-[linear-gradient(145deg,#e98a4a_0%,#f6ebdd_100%)]",
     chipLabel: "Vendedores",
     iconShell:
-      "border-orange-200/50 bg-orange-100/15 text-orange-50 shadow-[0_20px_50px_-20px_rgba(249,115,22,0.8)]",
+      "border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#e98a4a] shadow-[0_20px_50px_-20px_rgba(233,138,74,0.75)]",
+    textClass: "text-[#222222]",
+    mutedTextClass: "text-[#222222]/75",
+    chipClass:
+      "border border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#222222]",
+    lineClass: "bg-[#e98a4a]/70",
+    footerClass: "text-[#222222]/90",
+    openBadgeClass: "border-[#222222]/25 text-[#222222]",
   },
   {
     role: "ADMIN",
     title: "Panel Admin",
     description: "Supervisión de usuarios y ajustes",
     href: "/admin",
-    image: adminImg,
-    accent: "from-rose-500/70 via-amber-700/80 to-amber-900/90",
-    chip: "text-rose-100",
+    accent: "bg-[linear-gradient(145deg,#e98a4a_0%,#6e7f52_100%)]",
     chipLabel: "Administradores de la web",
+    icon: ShieldCheck,
+    iconShell:
+      "border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#fffffd] shadow-[0_20px_50px_-20px_rgba(233,138,74,0.7)]",
+    textClass: "text-[#fffffd]",
+    mutedTextClass: "text-[#fffffd]/85",
+    chipClass:
+      "border border-[rgba(255,255,253,0.35)] bg-[rgba(255,255,253,0.22)] text-[#fffffd]",
+    lineClass: "bg-[#fffffd]/80",
+    footerClass: "text-[#fffffd]/95",
+    openBadgeClass: "border-[rgba(255,255,253,0.55)] text-[#fffffd]",
   },
 ];
 
@@ -244,58 +279,40 @@ function Card({
   title,
   description,
   href,
-  image,
   icon: Icon,
   accent,
-  chip,
   chipLabel = "Acceso rápido",
   iconShell,
+  textClass,
+  mutedTextClass,
+  chipClass,
+  lineClass,
+  footerClass,
+  openBadgeClass,
 }: RoleCard) {
   return (
     <Link
       href={href}
-      className="group relative block h-[320px] overflow-hidden rounded-[24px] border border-white/30 bg-white/5 shadow-2xl transition-transform duration-300 ease-out hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 sm:h-[360px] lg:h-[420px]"
+      className="group relative block h-[360px] overflow-hidden rounded-[28px] border border-white/30 bg-white/5 shadow-2xl transition-transform duration-300 ease-out hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-300 focus-visible:ring-offset-2 sm:h-[380px] lg:h-[420px]"
     >
-      {image ? (
-        <>
-          <Image
-            src={image}
-            alt={title}
-            fill
-            className="object-cover"
-            sizes="(max-width: 768px) 100vw, 50vw"
-            priority
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/5 via-black/10 to-black/55" />
-        </>
-      ) : (
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.22),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.08)_0%,rgba(10,15,23,0.12)_45%,rgba(10,15,23,0.48)_100%)]" />
-      )}
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,253,0.24),transparent_42%)]" />
       {accent ? (
-        <div
-          className={`pointer-events-none absolute inset-0 bg-gradient-to-b ${accent}`}
-        />
+        <div className={`pointer-events-none absolute inset-0 ${accent}`} />
       ) : null}
-      {!image ? (
-        <>
-          <div className="pointer-events-none absolute inset-x-10 top-10 h-24 rounded-full bg-white/10 blur-3xl" />
-          <div className="pointer-events-none absolute -right-10 top-20 h-40 w-40 rounded-full border border-white/10 bg-white/5" />
-          <div className="pointer-events-none absolute -left-8 bottom-24 h-24 w-24 rounded-full border border-white/10 bg-white/5" />
-        </>
-      ) : null}
+      <div className="pointer-events-none absolute inset-x-10 top-10 h-24 rounded-full bg-[#fffffd]/12 blur-3xl" />
+      <div className="pointer-events-none absolute -right-10 top-20 h-40 w-40 rounded-full border border-[#fffffd]/20 bg-[#fffffd]/10" />
+      <div className="pointer-events-none absolute -left-8 bottom-24 h-24 w-24 rounded-full border border-[#fffffd]/20 bg-[#fffffd]/10" />
       <div
-        className={`relative flex h-full flex-col gap-5 p-5 text-white sm:p-6 ${
-          image ? "justify-end" : "justify-between"
-        }`}
+        className={`relative flex h-full flex-col justify-between gap-5 p-5 sm:p-6 ${textClass}`}
       >
-        <div className="space-y-4">
+        <div className="flex flex-col items-center space-y-4 text-center">
           <span
-            className={`inline-flex max-w-full items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-[9px] font-semibold uppercase leading-5 tracking-[0.16em] backdrop-blur-sm xl:text-[10px] ${chip}`}
+            className={`inline-flex max-w-full items-center justify-center gap-2 rounded-full px-3 py-1 text-center text-[9px] font-semibold uppercase leading-5 tracking-[0.16em] backdrop-blur-sm xl:text-[10px] ${chipClass}`}
           >
             {chipLabel}
           </span>
 
-          {!image && Icon ? (
+          {Icon ? (
             <div className="flex justify-center pt-1">
               <div
                 className={`inline-flex h-20 w-20 items-center justify-center rounded-[26px] border backdrop-blur-sm ${iconShell ?? "border-white/30 bg-white/10 text-white"}`}
@@ -305,26 +322,26 @@ function Card({
             </div>
           ) : null}
 
-          <div className={`space-y-2 ${image ? "" : "text-center"}`}>
+          <div className="space-y-2 text-center">
             <h2 className="text-xl font-black leading-tight sm:text-2xl lg:text-xl xl:text-[1.75rem]">
               {title}
             </h2>
             <p
-              className={`text-sm leading-6 text-white/80 sm:text-base ${
-                image ? "max-w-[15rem]" : "mx-auto max-w-[16rem]"
-              }`}
+              className={`mx-auto max-w-[16rem] text-sm leading-6 sm:text-base ${mutedTextClass}`}
             >
               {description}
             </p>
-            {!image ? (
-              <div className="flex justify-center gap-2 pt-1">
-                <span className="h-1.5 w-10 rounded-full bg-white/75" />
-                <span className="h-1.5 w-3 rounded-full bg-white/30" />
-              </div>
-            ) : null}
+            <div className="flex justify-center gap-2 pt-1">
+              <span className={`h-1.5 w-10 rounded-full ${lineClass}`} />
+              <span
+                className={`h-1.5 w-3 rounded-full ${lineClass} opacity-45`}
+              />
+            </div>
           </div>
         </div>
-        <div className="flex w-full items-center justify-between text-sm font-semibold text-white/90">
+        <div
+          className={`flex w-full items-center justify-between text-sm font-semibold ${footerClass}`}
+        >
           <span className="inline-flex items-center gap-2">
             Entrar
             <span
@@ -334,7 +351,9 @@ function Card({
               →
             </span>
           </span>
-          <span className="rounded-full border border-white/60 px-3 py-1 text-xs uppercase tracking-wide">
+          <span
+            className={`rounded-full border px-3 py-1 text-xs uppercase tracking-wide ${openBadgeClass}`}
+          >
             Abrir
           </span>
         </div>

@@ -61,8 +61,11 @@ export function LocationCard({ order }: LocationCardProps) {
   )}`;
 
   return (
-    <Card className="gap-0 overflow-hidden rounded-[24px] border border-[#E8DCCB] bg-[#FFF9F2] py-0 text-[#3B2D25] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-      <CardHeader className="border-b border-[#E8DCCB] bg-[#FFF9F2] pb-5 text-[#3B2D25]">
+    <Card
+      className="gap-0 overflow-hidden rounded-[24px] border border-[#E7D8C7] !bg-[#FFF9F2] py-0 text-[#4B3425] shadow-[0_8px_30px_rgba(180,140,90,0.08)]"
+      style={{ background: "#FFF9F2", gap: 0, paddingBlock: 0 }}
+    >
+      <CardHeader className="border-b border-[#D8C2AA]/70 bg-[#FFF9F2] pb-5 text-[#4B3425]">
         <div className="flex items-start gap-3">
           <span className="mt-1 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F3E6D7] text-[#c56f2d]">
             <MapPin className="h-5 w-5" />
@@ -78,9 +81,9 @@ export function LocationCard({ order }: LocationCardProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 bg-[#F7F1E8] p-5 text-[#5a4a3a]">
+      <CardContent className="space-y-4 bg-[#F6F0E7] p-5 text-[#5a4a3a]">
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Negocio
             </p>
@@ -91,7 +94,7 @@ export function LocationCard({ order }: LocationCardProps) {
               {order.businessAddress || "Dirección del negocio no disponible."}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4">
             <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
               Cliente
             </p>
@@ -104,7 +107,7 @@ export function LocationCard({ order }: LocationCardProps) {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#E8DCCB] bg-[#F8F1E7] p-4">
+        <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4">
           <p className="text-xs uppercase tracking-[0.3em] text-[#8d755b]">
             Dirección de entrega
           </p>
@@ -119,7 +122,7 @@ export function LocationCard({ order }: LocationCardProps) {
         </div>
 
         <div className="grid gap-3 md:grid-cols-3">
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
             <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
               Zona
             </p>
@@ -127,7 +130,7 @@ export function LocationCard({ order }: LocationCardProps) {
               {order.zoneName || "Sin zona"}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
             <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
               Costo de envío
             </p>
@@ -139,7 +142,7 @@ export function LocationCard({ order }: LocationCardProps) {
               }).format(order.shippingFee ?? 0)}
             </p>
           </div>
-          <div className="rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
+          <div className="rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
             <p className="text-xs uppercase tracking-[0.18em] text-[#8d755b]">
               Total del pedido
             </p>
@@ -153,7 +156,7 @@ export function LocationCard({ order }: LocationCardProps) {
           </div>
         </div>
 
-        <div className="space-y-2 rounded-2xl border border-[#E8DCCB] bg-[#FFFDF9] p-4 shadow-[0_4px_16px_rgba(0,0,0,0.025)]">
+        <div className="space-y-2 rounded-2xl border border-[#E7D8C7] bg-[#FFF9F2] p-4 shadow-[0_8px_30px_rgba(180,140,90,0.08)]">
           <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#b36a2b]">
             <NotebookPen className="h-4 w-4" />
             Referencias
@@ -174,7 +177,7 @@ export function LocationCard({ order }: LocationCardProps) {
               handleCopy(`${locationText}. ${referencesText}`, "address")
             }
             className={cn(
-              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_6px_18px_rgba(0,0,0,0.03)] transition",
+              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
               copiedField === "address"
                 ? "border-[#d7b089] bg-white text-[#b36a2b] hover:bg-white"
                 : "border-[#dfcfbe] bg-[#f7efe3] text-[#5a4a3a] hover:bg-[#f3e6d8]",
@@ -190,7 +193,7 @@ export function LocationCard({ order }: LocationCardProps) {
             variant="outline"
             onClick={() => handleCopy(referencesText, "references")}
             className={cn(
-              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_6px_18px_rgba(0,0,0,0.03)] transition",
+              "flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold shadow-[0_8px_30px_rgba(180,140,90,0.08)] transition",
               copiedField === "references"
                 ? "border-[#d7b089] bg-white text-[#b36a2b] hover:bg-white"
                 : "border-[#dfcfbe] bg-[#f7efe3] text-[#5a4a3a] hover:bg-[#f3e6d8]",
