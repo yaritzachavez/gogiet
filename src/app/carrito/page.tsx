@@ -220,6 +220,14 @@ export default function CarritoPage() {
       ),
     [transferAccount],
   );
+  const mercadoPagoConfigError = useMemo(() => {
+    if (!MERCADOPAGO_PUBLIC_KEY) {
+      return "Mercado Pago no está disponible porque falta configurar NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY.";
+    }
+
+    return "";
+  }, []);
+  const mercadoPagoEnabled = !mercadoPagoConfigError;
 
   const mapToSavedAddress = useCallback(
     (address: RawAddressLike): SavedAddress => {
@@ -745,13 +753,31 @@ export default function CarritoPage() {
 
   const canContinueToPayment = !checkoutBlockReason && !submittingOrder;
   const canSubmitOrder =
-    !checkoutBlockReason && !submittingOrder && Boolean(selectedPaymentMethod);
+    !checkoutBlockReason &&
+    !submittingOrder &&
+    Boolean(selectedPaymentMethod) &&
+    (selectedPaymentMethod !== "mercadopago" || mercadoPagoEnabled);
 
   useEffect(() => {
     if (selectedPaymentMethod === "transferencia" && !transferAccount) {
       setSelectedPaymentMethod("efectivo");
     }
   }, [selectedPaymentMethod, transferAccount]);
+
+  useEffect(() => {
+    if (selectedPaymentMethod === "mercadopago" && !mercadoPagoEnabled) {
+      setSelectedPaymentMethod("efectivo");
+    }
+  }, [mercadoPagoEnabled, selectedPaymentMethod]);
+
+  useEffect(() => {
+    if (cartSyncState !== "error") {
+      return;
+    }
+
+    setPaymentDialogOpen(false);
+    setTransferDialogOpen(false);
+  }, [cartSyncState]);
 
   // --- Handlers ---
   const handleQuantityChange = async (id: string, delta: number) => {
@@ -887,6 +913,16 @@ export default function CarritoPage() {
       notify.warning(message, "Falta confirmar el envío");
       return;
     }
+
+    if (selectedPaymentMethod === "mercadopago" && !mercadoPagoEnabled) {
+      const message =
+        mercadoPagoConfigError ||
+        "Mercado Pago no está disponible en este momento.";
+      setTransferError(message);
+      notify.warning(message, "Configuración pendiente");
+      return;
+    }
+
     setPaymentDialogOpen(true);
   };
 
@@ -921,6 +957,14 @@ export default function CarritoPage() {
     }
 
     if (selectedPaymentMethod === "mercadopago") {
+      if (!mercadoPagoEnabled) {
+        const message =
+          mercadoPagoConfigError ||
+          "Mercado Pago no está disponible en este momento.";
+        setTransferError(message);
+        notify.warning(message, "Configuración pendiente");
+        return;
+      }
       return;
     }
 
@@ -1211,10 +1255,11 @@ export default function CarritoPage() {
       return;
     }
 
-    if (!MERCADOPAGO_PUBLIC_KEY) {
+    if (!mercadoPagoEnabled) {
       setMercadoPagoStatus("error");
       setMercadoPagoMessage(
-        "Falta configurar NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY.",
+        mercadoPagoConfigError ||
+          "Mercado Pago no está disponible en este momento.",
       );
       return;
     }
@@ -1345,7 +1390,13 @@ export default function CarritoPage() {
       cancelled = true;
       cleanup?.();
     };
-  }, [commissionBreakdown.total, paymentDialogOpen, selectedPaymentMethod]);
+  }, [
+    commissionBreakdown.total,
+    mercadoPagoConfigError,
+    mercadoPagoEnabled,
+    paymentDialogOpen,
+    selectedPaymentMethod,
+  ]);
 
   const handleTransferOrder = async () => {
     if (!transferReceiptFile) {
@@ -1714,154 +1765,180 @@ export default function CarritoPage() {
       />
 
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="max-sm:max-w-[calc(100vw-1rem)] rounded-[24px] border-white/10 bg-black max-sm:p-4">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[92vh] max-sm:max-h-[calc(100vh-1rem)] max-sm:max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border-white/10 bg-black p-0">
+          <DialogHeader className="shrink-0 px-4 pb-0 pt-4 sm:px-6 sm:pt-6">
             <DialogTitle>Método de pago</DialogTitle>
           </DialogHeader>
-          <div className="rounded-[22px] bg-black/60 p-3.5 text-sm text-white/70 sm:p-4">
-            <p className="font-semibold text-[#f5f5f5]">
-              Resumen antes de confirmar
-            </p>
-            <p className="mt-2">
-              Productos:{" "}
-              {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
-            </p>
-            <p>Subtotal: {formatMoney(subtotal)}</p>
-            <p>
-              Envío:{" "}
-              {commissionBreakdown.deliveryFee > 0
-                ? formatMoney(commissionBreakdown.deliveryFee)
-                : "Gratis"}
-            </p>
-            <p>Servicio: {formatMoney(commissionBreakdown.serviceFee)}</p>
-            <p className="mt-1 font-black text-[#f5f5f5]">
-              Total: {formatMoney(commissionBreakdown.total)}
-            </p>
-            <p className="mt-2 text-xs">
-              Dirección: {savedAddress?.fullAddress || "Sin dirección"}
-            </p>
-            <p className="mt-1 text-xs">
-              Método:{" "}
-              {selectedPaymentMethod === "transferencia"
-                ? "Transferencia"
-                : selectedPaymentMethod === "mercadopago"
-                  ? "Mercado Pago"
-                  : "Efectivo al recibir"}
-            </p>
-          </div>
-          <div className="grid gap-2.5 sm:gap-3">
-            {paymentMethodOptions.map((opt) => (
-              <button
-                type="button"
-                key={opt.id}
-                onClick={() => setSelectedPaymentMethod(opt.id)}
-                className={`rounded-[20px] border p-3.5 text-left transition sm:rounded-[22px] sm:p-4 ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"}`}
-              >
-                <p className="font-black text-[#f5f5f5]">{opt.label}</p>
-                <p className="mt-1 text-xs text-[#b3b3b3] sm:text-sm">
-                  {opt.description}
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+            <div className="space-y-4">
+              <div className="rounded-[22px] bg-black/60 p-3.5 text-sm text-white/70 sm:p-4">
+                <p className="font-semibold text-[#f5f5f5]">
+                  Resumen antes de confirmar
                 </p>
-              </button>
-            ))}
-          </div>
-          {selectedPaymentMethod === "mercadopago" ? (
-            <form
-              id="gogi-mp-card-form"
-              className="payment-modal space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
-            >
-              <div>
-                <p className="text-sm font-black">Paga dentro de Gogi Eats</p>
-                <p className="mt-1 text-xs font-medium leading-5 text-[#7A5A45]">
-                  Tus datos se tokenizan con Mercado Pago. No guardamos tu
-                  tarjeta.
+                <p className="mt-2">
+                  Productos:{" "}
+                  {cartItems.reduce((sum, item) => sum + item.quantity, 0)}
+                </p>
+                <p>Subtotal: {formatMoney(subtotal)}</p>
+                <p>
+                  Envío:{" "}
+                  {commissionBreakdown.deliveryFee > 0
+                    ? formatMoney(commissionBreakdown.deliveryFee)
+                    : "Gratis"}
+                </p>
+                <p>Servicio: {formatMoney(commissionBreakdown.serviceFee)}</p>
+                <p className="mt-1 font-black text-[#f5f5f5]">
+                  Total: {formatMoney(commissionBreakdown.total)}
+                </p>
+                <p className="mt-2 text-xs">
+                  Dirección: {savedAddress?.fullAddress || "Sin dirección"}
+                </p>
+                <p className="mt-1 text-xs">
+                  Método:{" "}
+                  {selectedPaymentMethod === "transferencia"
+                    ? "Transferencia"
+                    : selectedPaymentMethod === "mercadopago"
+                      ? "Mercado Pago"
+                      : "Efectivo al recibir"}
                 </p>
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
-                  <span>Número de tarjeta</span>
-                  <div
-                    id="gogi-mp-card-number"
-                    className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
-                  />
+              {!mercadoPagoEnabled ? (
+                <div className="rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+                  {mercadoPagoConfigError}
                 </div>
-                <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
-                  <span>Vencimiento</span>
-                  <div
-                    id="gogi-mp-expiration-date"
-                    className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
-                  />
-                </div>
-                <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
-                  <span>CVV</span>
-                  <div
-                    id="gogi-mp-security-code"
-                    className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
-                  />
-                </div>
-                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
-                  Nombre del titular
-                  <input
-                    id="gogi-mp-cardholder-name"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
-                    placeholder="Como aparece en la tarjeta"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
-                  Banco emisor
-                  <select
-                    id="gogi-mp-issuer"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
-                  Cuotas
-                  <select
-                    id="gogi-mp-installments"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
-                  Tipo de documento
-                  <select
-                    id="gogi-mp-identification-type"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
-                  Número de documento
-                  <input
-                    id="gogi-mp-identification-number"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
-                    placeholder="Si aplica"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
-                  Correo para el recibo
-                  <input
-                    id="gogi-mp-cardholder-email"
-                    type="email"
-                    className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
-                    placeholder="correo@ejemplo.com"
-                  />
-                </label>
-              </div>
-              {mercadoPagoMessage ? (
-                <p
-                  className={`rounded-2xl px-3 py-2 text-xs font-bold ${
-                    mercadoPagoStatus === "rejected" ||
-                    mercadoPagoStatus === "error"
-                      ? "bg-red-50 text-red-700"
-                      : mercadoPagoStatus === "approved"
-                        ? "bg-green-50 text-green-700"
-                        : "bg-[#f6ebdd] text-[#7A5A45]"
-                  }`}
-                >
-                  {mercadoPagoMessage}
-                </p>
               ) : null}
-            </form>
-          ) : null}
-          <DialogFooter>
+              <div className="grid gap-2.5 sm:gap-3">
+                {paymentMethodOptions.map((opt) => {
+                  const isDisabled =
+                    opt.id === "mercadopago" && !mercadoPagoEnabled;
+
+                  return (
+                    <button
+                      type="button"
+                      key={opt.id}
+                      onClick={() => {
+                        if (isDisabled) return;
+                        setSelectedPaymentMethod(opt.id);
+                      }}
+                      disabled={isDisabled}
+                      aria-disabled={isDisabled}
+                      className={`rounded-[20px] border p-3.5 text-left transition sm:rounded-[22px] sm:p-4 ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"} ${isDisabled ? "cursor-not-allowed opacity-55 hover:border-white/10" : ""}`}
+                    >
+                      <p className="font-black text-[#f5f5f5]">
+                        {opt.label}
+                        {isDisabled ? " (No disponible)" : ""}
+                      </p>
+                      <p className="mt-1 text-xs text-[#b3b3b3] sm:text-sm">
+                        {isDisabled
+                          ? "Configura la llave pública de Mercado Pago para habilitar este método."
+                          : opt.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedPaymentMethod === "mercadopago" ? (
+                <form
+                  id="gogi-mp-card-form"
+                  className="payment-modal space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
+                >
+                  <div>
+                    <p className="text-sm font-black">
+                      Paga dentro de Gogi Eats
+                    </p>
+                    <p className="mt-1 text-xs font-medium leading-5 text-[#7A5A45]">
+                      Tus datos se tokenizan con Mercado Pago. No guardamos tu
+                      tarjeta.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                      <span>Número de tarjeta</span>
+                      <div
+                        id="gogi-mp-card-number"
+                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                      />
+                    </div>
+                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                      <span>Vencimiento</span>
+                      <div
+                        id="gogi-mp-expiration-date"
+                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                      />
+                    </div>
+                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                      <span>CVV</span>
+                      <div
+                        id="gogi-mp-security-code"
+                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                      />
+                    </div>
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                      Nombre del titular
+                      <input
+                        id="gogi-mp-cardholder-name"
+                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        placeholder="Como aparece en la tarjeta"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                      Banco emisor
+                      <select
+                        id="gogi-mp-issuer"
+                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                      Cuotas
+                      <select
+                        id="gogi-mp-installments"
+                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                      Tipo de documento
+                      <select
+                        id="gogi-mp-identification-type"
+                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                      Número de documento
+                      <input
+                        id="gogi-mp-identification-number"
+                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        placeholder="Si aplica"
+                      />
+                    </label>
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                      Correo para el recibo
+                      <input
+                        id="gogi-mp-cardholder-email"
+                        type="email"
+                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        placeholder="correo@ejemplo.com"
+                      />
+                    </label>
+                  </div>
+                  {mercadoPagoMessage ? (
+                    <p
+                      className={`rounded-2xl px-3 py-2 text-xs font-bold ${
+                        mercadoPagoStatus === "rejected" ||
+                        mercadoPagoStatus === "error"
+                          ? "bg-red-50 text-red-700"
+                          : mercadoPagoStatus === "approved"
+                            ? "bg-green-50 text-green-700"
+                            : "bg-[#f6ebdd] text-[#7A5A45]"
+                      }`}
+                    >
+                      {mercadoPagoMessage}
+                    </p>
+                  ) : null}
+                </form>
+              ) : null}
+            </div>
+          </div>
+          <DialogFooter className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-6">
             {selectedPaymentMethod === "mercadopago" ? (
               <Button
                 type="submit"
