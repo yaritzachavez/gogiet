@@ -136,7 +136,7 @@ type ShippingZonesResult = {
   zones: DeliveryZoneOption[];
 };
 
-const SHIPPING_ZONE_TABLE_CANDIDATES = ["zonas_envio"];
+const SHIPPING_ZONE_TABLE_CANDIDATES = ["zonas_envio", "shipping_zones"];
 
 let cachedShippingZoneTableName: string | null | undefined;
 
@@ -199,6 +199,57 @@ export async function getActiveShippingZones(): Promise<ShippingZonesResult> {
     logger.warn(
       "shipping.zones_lookup_failed",
       "No se pudieron consultar zonas de envío; se usará fallback seguro",
+      {
+        tableName,
+        error,
+      },
+    );
+
+    return {
+      source: "fallback",
+      message:
+        "No pudimos consultar la configuración de zonas. Usando zonas preconfiguradas.",
+      zones: DEFAULT_SHIPPING_ZONES,
+    };
+  }
+}
+
+export async function getAllShippingZones(): Promise<ShippingZonesResult> {
+  const tableName = await getShippingZoneTableName();
+
+  if (!tableName) {
+    return {
+      source: "fallback",
+      message:
+        "No hay tabla de zonas de envío configurada en la base. Usando zonas preconfiguradas.",
+      zones: DEFAULT_SHIPPING_ZONES,
+    };
+  }
+
+  try {
+    const [rows] = await pool.query<ShippingZoneRow[]>(
+      `
+        SELECT id, nombre, tipo, distancia_km, activo
+        FROM \`${tableName}\`
+        ORDER BY activo DESC, nombre ASC
+      `,
+    );
+
+    return {
+      source: "database",
+      message: rows.length === 0 ? "No hay zonas de envío registradas." : null,
+      zones: rows.map((zone, index) => ({
+        id: Number(zone.id ?? index + 1),
+        nombre: String(zone.nombre ?? "").trim(),
+        tipo: String(zone.tipo ?? "zona").trim() || "zona",
+        distanciaKm: Number(zone.distancia_km ?? 0),
+        activo: Boolean(zone.activo),
+      })),
+    };
+  } catch (error) {
+    logger.warn(
+      "shipping.zones_admin_lookup_failed",
+      "No se pudieron consultar todas las zonas de envío; se usará fallback seguro",
       {
         tableName,
         error,
