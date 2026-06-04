@@ -2,12 +2,13 @@ import type { RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { getAuthUser } from "@/lib/admin-security";
+import { isAuthUserActive } from "@/lib/auth-users";
 import {
   getCartRecalculateTotalQuery,
   getCartRuntimeSchema,
 } from "@/lib/cart-schema";
 import pool from "@/lib/db";
+import { requireAuthenticatedUser } from "@/lib/permissions";
 
 type CartRow = RowDataPacket & {
   id: number;
@@ -16,11 +17,25 @@ type CartRow = RowDataPacket & {
 
 export async function POST(req: NextRequest) {
   try {
-    const authUser = getAuthUser(req);
+    const auth = await requireAuthenticatedUser(req);
+    if (!auth.ok) {
+      return auth.response;
+    }
+
     const { cart_id, product_id } = await req.json();
     const cartId = Number(cart_id);
     const productId = Number(product_id);
-    const authUserId = Number(authUser?.user?.id ?? 0);
+    const authUserId = Number(auth.access.userId ?? 0);
+
+    if (!(await isAuthUserActive(authUserId))) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Tu cuenta está inactiva. Contacta a soporte.",
+        },
+        { status: 403 },
+      );
+    }
 
     if (!cartId || !productId) {
       return NextResponse.json(
@@ -41,11 +56,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (
-      Number.isInteger(authUserId) &&
-      authUserId > 0 &&
-      Number(cartRows[0].user_id) !== authUserId
-    ) {
+    if (Number(cartRows[0].user_id) !== authUserId) {
       return NextResponse.json(
         { success: false, error: "No autorizado para modificar este carrito" },
         { status: 403 },
