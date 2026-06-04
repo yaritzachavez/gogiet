@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
@@ -298,10 +299,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron calcular las ganancias del repartidor.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudieron calcular las ganancias del repartidor.",
+        ),
         earnings: null,
       },
       { status: 500 },

@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import pool, { getDbRuntimeConfig } from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
@@ -268,10 +269,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo cargar el perfil del repartidor.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo cargar el perfil del repartidor.",
+        ),
       },
       { status: 500 },
     );
@@ -671,10 +672,10 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo actualizar el perfil del repartidor.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo actualizar el perfil del repartidor.",
+        ),
       },
       { status: 500 },
     );

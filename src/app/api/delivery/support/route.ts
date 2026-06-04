@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getSafeErrorMessage } from "@/lib/api-error";
 import {
   addSupportMessage,
   getOrCreateSupportConversation,
@@ -68,10 +69,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo cargar el chat de soporte.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo cargar el chat de soporte.",
+        ),
         thread: null,
         messages: [],
       },
@@ -134,10 +135,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo enviar el mensaje de soporte.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo enviar el mensaje de soporte.",
+        ),
       },
       { status: 500 },
     );

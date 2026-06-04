@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import {
   requireAuthenticatedUser,
@@ -100,8 +101,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Error subiendo comprobante",
+        error: getSafeErrorMessage(error, "Error subiendo comprobante"),
       },
       { status: 500 },
     );

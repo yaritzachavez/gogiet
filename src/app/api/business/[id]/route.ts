@@ -1,5 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import {
   ensureBusinessHoursSchema,
   isBusinessOpenByHours,
@@ -366,7 +367,7 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Error interno",
+        error: getSafeErrorMessage(error, "No se pudo actualizar el negocio."),
       },
       { status: 500 },
     );

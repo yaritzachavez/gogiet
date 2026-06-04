@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { getSafeErrorMessage } from "@/lib/api-error";
 import { getCloudinaryConfigStatus } from "@/lib/cloudinary";
 import { requireSellerAccess } from "@/lib/permissions";
 import {
@@ -71,7 +72,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: error instanceof Error ? error.message : "Error subiendo imagen",
+        error: getSafeErrorMessage(error, "Error subiendo imagen"),
       },
       { status: 500 },
     );

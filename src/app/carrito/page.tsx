@@ -270,6 +270,9 @@ export default function CarritoPage() {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [cartLoading, setCartLoading] = useState(true);
   const [cartLoadError, setCartLoadError] = useState("");
+  const [cartSyncState, setCartSyncState] = useState<
+    "idle" | "loading" | "guest" | "ready" | "error"
+  >("idle");
   const [mercadoPagoStatus, setMercadoPagoStatus] = useState<
     | "idle"
     | "loading"
@@ -342,12 +345,14 @@ export default function CarritoPage() {
   const loadCart = useCallback(async () => {
     const localSnapshot = readStoredCartSnapshot();
     setCartLoading(true);
+    setCartSyncState("loading");
     setCartLoadError("");
 
     if (!user) {
       const localItems = mapStoredSnapshotToCartItems(localSnapshot);
       setCartId(null);
       setCartItems(localItems);
+      setCartSyncState("guest");
       setCartLoading(false);
       return;
     }
@@ -356,6 +361,7 @@ export default function CarritoPage() {
       const controller = new AbortController();
       const timeoutId = window.setTimeout(() => controller.abort(), 12000);
       const res = await fetchWithSession(`/api/cart?user_id=${user.id}`, {
+        cache: "no-store",
         signal: controller.signal,
       });
       window.clearTimeout(timeoutId);
@@ -365,6 +371,10 @@ export default function CarritoPage() {
         throw new Error(
           formatApiError(res.status, data, "No pudimos actualizar tu carrito."),
         );
+      }
+
+      if (!data?.success || !Array.isArray(data?.products)) {
+        throw new Error("La respuesta del carrito no fue válida.");
       }
 
       if (
@@ -425,15 +435,16 @@ export default function CarritoPage() {
         setCartItems([]);
         syncCartStorage([]);
       }
+      setCartSyncState("ready");
     } catch (err) {
       console.warn("Error cargando carrito:", err);
-      const localItems = mapStoredSnapshotToCartItems(localSnapshot);
       setCartId(null);
-      setCartItems(localItems);
+      setCartItems([]);
+      setCartSyncState("error");
       setCartLoadError(
         getFriendlyErrorMessage(
           err,
-          "No pudimos actualizar tu carrito. Mostramos la última versión guardada.",
+          "No pudimos actualizar tu carrito. Reintenta para cargar la información correcta.",
         ),
       );
     } finally {
@@ -688,6 +699,15 @@ export default function CarritoPage() {
 
   const checkoutBlockReason = useMemo(() => {
     if (!user) return "Necesitas iniciar sesión para continuar.";
+    if (cartSyncState === "error") {
+      return (
+        cartLoadError ||
+        "No pudimos confirmar tu carrito. Reintenta para continuar."
+      );
+    }
+    if (cartSyncState !== "ready") {
+      return "Estamos actualizando tu carrito.";
+    }
     if (cartLoading) return "Estamos actualizando tu carrito.";
     if (cartItems.length === 0) return "Tu carrito está vacío.";
     if (!hasValidItems) return "Hay productos sin precio válido en tu carrito.";
@@ -715,6 +735,8 @@ export default function CarritoPage() {
     commissionBreakdown.total,
     hasValidBusiness,
     hasValidItems,
+    cartLoadError,
+    cartSyncState,
     savedAddress,
     shipping.message,
     shipping.requiresConfirmation,
@@ -1395,6 +1417,31 @@ export default function CarritoPage() {
       </div>
     );
 
+  if (!cartLoading && cartSyncState === "error")
+    return (
+      <div className="min-h-screen bg-black px-4 py-10 text-white sm:px-6">
+        <div className="mx-auto max-w-3xl">
+          <SectionCard className="space-y-4 p-6">
+            <p className="text-lg font-black tracking-tight text-[#f5f5f5]">
+              No pudimos cargar tu carrito
+            </p>
+            <p className="text-sm font-medium leading-6 text-[#b3b3b3]">
+              {cartLoadError ||
+                "Reintenta para obtener el carrito real antes de continuar al pago."}
+            </p>
+            <Button
+              type="button"
+              onClick={() => void loadCart()}
+              disabled={cartLoading}
+              className="w-full sm:w-auto"
+            >
+              {cartLoading ? "Reintentando..." : "Reintentar"}
+            </Button>
+          </SectionCard>
+        </div>
+      </div>
+    );
+
   if (!cartLoading && cartItems.length === 0)
     return (
       <div className="min-h-screen bg-black px-4 py-10 sm:px-6">
@@ -1427,9 +1474,10 @@ export default function CarritoPage() {
                 type="button"
                 variant="outline"
                 onClick={() => void loadCart()}
+                disabled={cartLoading}
                 className="border-amber-300 text-amber-800"
               >
-                Reintentar
+                {cartLoading ? "Reintentando..." : "Reintentar"}
               </Button>
             </div>
           </div>

@@ -1095,7 +1095,7 @@ export default function DeliveryDashboardPage() {
     if (!user || !canAccessDelivery) return;
 
     const shouldTrackLocation =
-      profile.driver_status_label === "Activo" || Boolean(activeOrder);
+      profile.driver_status === "ACTIVE" || Boolean(activeOrder);
 
     if (!shouldTrackLocation) {
       locationDeniedRef.current = false;
@@ -1184,7 +1184,7 @@ export default function DeliveryDashboardPage() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [activeOrder, canAccessDelivery, profile.driver_status_label, user]);
+  }, [activeOrder, canAccessDelivery, profile.driver_status, user]);
 
   const showDeliveryToast = useCallback((message: string) => {
     setDeliveryToast(message);

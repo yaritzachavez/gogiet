@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
 
 type SellerBusinessRow = RowDataPacket & {
@@ -148,10 +149,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudieron cargar los pedidos del vendedor.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudieron cargar los pedidos del vendedor.",
+        ),
         orders: [],
       },
       { status: 500 },

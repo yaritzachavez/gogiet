@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { getSafeErrorMessage } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
 import {
   COURIER_EARNING_RATE,
@@ -238,7 +239,11 @@ export async function GET(req: NextRequest) {
         id: String(row.order_id),
         folio: `FG-${String(row.order_id).padStart(4, "0")}`,
         businessName: row.business_name,
-        businessAddress: [row.business_address, row.business_district, row.business_city]
+        businessAddress: [
+          row.business_address,
+          row.business_district,
+          row.business_city,
+        ]
           .filter(Boolean)
           .join(", "),
         customerName: row.customer_name ?? "Cliente",
@@ -259,10 +264,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo cargar el historial del repartidor.",
+        error: getSafeErrorMessage(
+          error,
+          "No se pudo cargar el historial del repartidor.",
+        ),
         history: [],
       },
       { status: 500 },

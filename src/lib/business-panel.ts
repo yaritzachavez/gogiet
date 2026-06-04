@@ -483,7 +483,7 @@ export async function findAvailableCourier(
   let hasStatus = false;
   let hasIsAvailable = false;
   let hasIsActive = false;
-  let filteredCourierIds = new Set<number>(
+  const filteredCourierIds = new Set<number>(
     courierUserRows
       .filter(
         (row) =>
@@ -535,30 +535,16 @@ export async function findAvailableCourier(
         ...(hasIsActive ? { is_active: row.is_active } : {}),
       }));
 
-      const availableProfileUserIds = profileRows
-        .filter((row) => {
-          const statusOk = hasStatus
-            ? ["activo", "active", "disponible", "available"].includes(
-                String(row.status ?? "")
-                  .trim()
-                  .toLowerCase(),
-              )
-            : false;
-          const availableOk = hasIsAvailable
-            ? Boolean(row.is_available)
-            : false;
-          const activeOk = hasIsActive ? Boolean(row.is_active) : false;
-
-          return statusOk || availableOk || activeOk;
-        })
-        .map((row) => Number(row.user_id))
-        .filter((userId) => Number.isInteger(userId) && userId > 0);
-
-      const operationalActiveIds = filteredCourierIds;
-      filteredCourierIds = new Set(
-        availableProfileUserIds.filter((userId) =>
-          operationalActiveIds.has(userId),
-        ),
+      logger.debug(
+        "delivery.profile_availability_ignored",
+        "El carrusel usa users.driver_status como fuente única del estado operativo",
+        {
+          profileTableName,
+          profileRowCount: profileRows.length,
+          hasStatus,
+          hasIsAvailable,
+          hasIsActive,
+        },
       );
     }
   }

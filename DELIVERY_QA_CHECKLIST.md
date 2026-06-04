@@ -104,11 +104,14 @@ Debe pasar:
 - Panel Delivery muestra estado `Activo`.
 - Panel Admin > Repartos muestra el mismo estado.
 - El orden del carrusel respeta `driver_active_since ASC, id ASC`.
+- El carrusel usa `users.driver_status` como fuente principal del estado operativo.
+- `delivery_profiles` o `driver_profiles` no deben contradecir el estado operativo del usuario.
 
 No debe pasar:
 
 - Admin muestra `En descanso` mientras Delivery muestra `Activo`.
 - Un repartidor suspendido, desactivado u offline entra al carrusel.
+- `is_available = 1` no debe meter al carrusel a un usuario con `driver_status = RESTING/OFFLINE/SUSPENDED/DISABLED`.
 
 ## Flujo 2: vendedor solicita repartidor
 
@@ -274,15 +277,41 @@ No debe pasar:
 - `Esta entrega ya fue tomada por otro repartidor`: doble aceptación bloqueada correctamente.
 - `La entrega ya fue completada`: doble entrega bloqueada correctamente.
 - `El pedido debe estar listo antes de solicitar repartidor`: el pedido no está en `ready_for_pickup/listo_para_recoger`.
+- Si Aiven/MySQL falla, el usuario debe ver un mensaje amigable; el detalle técnico solo debe aparecer en logs del servidor.
+- Si aparece `ENOTFOUND`, validar `DATABASE_URL` en Vercel contra el host actual de Aiven y redeploy.
+
+## Validación de conexión y errores seguros
+
+1. Confirmar que solo existe un `new PrismaClient`:
+
+```bash
+rg -n "new PrismaClient|\\.\\$disconnect\\(" src prisma scripts
+```
+
+Debe pasar:
+
+- Solo aparece `src/lib/prisma.ts`.
+- No hay `prisma.$disconnect()` dentro de requests.
+- `DATABASE_URL` conserva SSL y usa `connection_limit`/`pool_timeout`.
+
+2. Simular falla de base o revisar logs cuando Aiven no responde.
+
+Debe pasar:
+
+- Home, tiendas, productos, negocio y delivery no muestran host, SQL, stack ni errores Prisma.
+- APIs regresan `success: false` con mensaje amigable.
+- El error real queda en `console.error`/logs de Vercel.
 
 ## Validación técnica local
 
 Ejecutar:
 
 ```bash
-npx biome check src/lib/delivery-assignments.ts src/lib/business-panel.ts src/app/api/delivery/orders/[orderId]/status/route.ts src/components/delivery/current-deliveries-card.tsx
+npx biome check src/lib/delivery-assignments.ts src/lib/business-panel.ts src/lib/api-error.ts src/app/api/delivery/orders/[orderId]/status/route.ts src/components/delivery/current-deliveries-card.tsx
 npx tsc --noEmit
 npx prisma validate
+npx prisma generate
+npm run build
 ```
 
 Nota: `npm run lint` puede reportar deuda previa fuera de Delivery; revisar únicamente errores nuevos en archivos modificados.
