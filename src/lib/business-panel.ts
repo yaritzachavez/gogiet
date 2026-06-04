@@ -380,6 +380,9 @@ export async function findAvailableCourier(
   executor: Queryable = pool,
   excludedCourierIds: number[] = [],
 ): Promise<AvailableCourierResult> {
+  const activeDeliveryStatusPlaceholders = ACTIVE_DELIVERY_STATUS_NAMES.map(
+    () => "?",
+  ).join(", ");
   const avatarColumns = await getUserAvatarColumns(executor);
   const avatarSelect = buildUserAvatarSelect("u", avatarColumns);
   const driverStatusColumns = await getDriverStatusColumns(executor);
@@ -438,7 +441,7 @@ export async function findAvailableCourier(
                 ' ',
                 '_'
               )
-            ) IN (?, ?, ?, ?, ?)
+            ) IN (${activeDeliveryStatusPlaceholders})
         ) AS active_assignments,
         ${activeSinceSelect} AS driver_active_since,
         (
