@@ -165,6 +165,8 @@ type MercadoPagoCardFormData = {
   installments?: number | string;
   identificationType?: string;
   identificationNumber?: string;
+  cardholderEmail?: string;
+  amount?: number | string;
 };
 
 type MercadoPagoCardForm = {
@@ -181,8 +183,23 @@ type MercadoPagoInstance = {
       onFormMounted?: (error?: unknown) => void;
       onSubmit?: (event: Event) => void;
       onFetching?: (resource: string) => () => void;
+      onBinChange?: (bin: string) => void;
     };
   }) => MercadoPagoCardForm;
+};
+
+type MercadoPagoDebugState = {
+  enabled: boolean;
+  formMounted: boolean;
+  lastEvent: string;
+  bin: string;
+  paymentMethodId: string;
+  issuerId: string;
+  tokenPresent: boolean;
+  issuerOptions: number;
+  installmentsOptions: number;
+  identificationOptions: number;
+  sdkError: string;
 };
 
 declare global {
@@ -196,6 +213,8 @@ declare global {
 
 const MERCADOPAGO_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY?.trim() ?? "";
+const MERCADOPAGO_DEBUG_ENABLED =
+  process.env.NEXT_PUBLIC_MERCADOPAGO_DEBUG?.trim() === "1";
 
 const moneyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -206,6 +225,45 @@ const moneyFormatter = new Intl.NumberFormat("es-MX", {
 
 function formatMoney(value: number) {
   return `${moneyFormatter.format(Number.isFinite(value) ? value : 0)} MXN`;
+}
+
+function readMercadoPagoDebugSnapshot() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const readSelectMetrics = (selector: string) => {
+    const element = document.querySelector<HTMLSelectElement>(selector);
+    if (!element) {
+      return { options: 0, value: "" };
+    }
+
+    return {
+      options: Array.from(element.options).filter((option) => {
+        return option.value.trim() !== "";
+      }).length,
+      value: element.value ?? "",
+    };
+  };
+
+  const tokenInput = document.querySelector<HTMLInputElement>(
+    'input[name="MPHiddenInputToken"]',
+  );
+  const paymentMethodInput = document.querySelector<HTMLInputElement>(
+    'input[name="MPHiddenInputPaymentMethod"]',
+  );
+  const issuer = readSelectMetrics("#gogi-mp-issuer");
+  const installments = readSelectMetrics("#gogi-mp-installments");
+  const identificationType = readSelectMetrics("#gogi-mp-identification-type");
+
+  return {
+    tokenPresent: Boolean(tokenInput?.value?.trim()),
+    paymentMethodId: paymentMethodInput?.value?.trim() ?? "",
+    issuerId: issuer.value,
+    issuerOptions: issuer.options,
+    installmentsOptions: installments.options,
+    identificationOptions: identificationType.options,
+  };
 }
 
 export default function CarritoPage() {
@@ -293,6 +351,20 @@ export default function CarritoPage() {
     | "error"
   >("idle");
   const [mercadoPagoMessage, setMercadoPagoMessage] = useState("");
+  const [mercadoPagoDebug, setMercadoPagoDebug] =
+    useState<MercadoPagoDebugState>({
+      enabled: MERCADOPAGO_DEBUG_ENABLED,
+      formMounted: false,
+      lastEvent: "idle",
+      bin: "",
+      paymentMethodId: "",
+      issuerId: "",
+      tokenPresent: false,
+      issuerOptions: 0,
+      installmentsOptions: 0,
+      identificationOptions: 0,
+      sdkError: "",
+    });
   const [mercadoPagoOrderId, setMercadoPagoOrderId] = useState<number | null>(
     null,
   );
@@ -1113,6 +1185,23 @@ export default function CarritoPage() {
 
   const submitMercadoPagoPayment = useCallback(
     async (formData: MercadoPagoCardFormData) => {
+      if (MERCADOPAGO_DEBUG_ENABLED) {
+        const snapshot = readMercadoPagoDebugSnapshot();
+        console.info("[mercadopago-debug] submit payload", {
+          tokenPresent: Boolean(formData.token?.trim()),
+          paymentMethodId: formData.paymentMethodId ?? "",
+          issuerId: formData.issuerId ?? "",
+          installments: formData.installments ?? "",
+          identificationType: formData.identificationType ?? "",
+          identificationNumberPresent: Boolean(
+            formData.identificationNumber?.trim(),
+          ),
+          emailPresent: Boolean(formData.cardholderEmail?.trim()),
+          amount: formData.amount ?? "",
+          snapshot,
+        });
+      }
+
       if (!canSubmitOrder) {
         const message =
           checkoutBlockReason ||
@@ -1258,6 +1347,19 @@ export default function CarritoPage() {
       setMercadoPagoStatus("idle");
       setMercadoPagoMessage("");
       setMercadoPagoOrderId(null);
+      setMercadoPagoDebug((current) => ({
+        ...current,
+        formMounted: false,
+        lastEvent: "idle",
+        bin: "",
+        paymentMethodId: "",
+        issuerId: "",
+        tokenPresent: false,
+        issuerOptions: 0,
+        installmentsOptions: 0,
+        identificationOptions: 0,
+        sdkError: "",
+      }));
     }
   }, [selectedPaymentMethod]);
 
@@ -1334,22 +1436,73 @@ export default function CarritoPage() {
           onFormMounted: (error?: unknown) => {
             if (error) {
               console.warn("Mercado Pago card form mount error:", error);
+              setMercadoPagoDebug((current) => ({
+                ...current,
+                formMounted: false,
+                lastEvent: "mount_error",
+                sdkError:
+                  error instanceof Error ? error.message : String(error),
+              }));
               setMercadoPagoStatus("error");
               setMercadoPagoMessage(
                 "No pudimos cargar el formulario de Mercado Pago.",
               );
               return;
             }
+            const snapshot = readMercadoPagoDebugSnapshot();
+            setMercadoPagoDebug((current) => ({
+              ...current,
+              formMounted: true,
+              lastEvent: "mounted",
+              sdkError: "",
+              paymentMethodId: snapshot?.paymentMethodId ?? "",
+              issuerId: snapshot?.issuerId ?? "",
+              tokenPresent: snapshot?.tokenPresent ?? false,
+              issuerOptions: snapshot?.issuerOptions ?? 0,
+              installmentsOptions: snapshot?.installmentsOptions ?? 0,
+              identificationOptions: snapshot?.identificationOptions ?? 0,
+            }));
             setMercadoPagoStatus("ready");
             setMercadoPagoMessage(
               "Ingresa tu tarjeta. Tus datos se tokenizan de forma segura.",
             );
+          },
+          onBinChange: (bin: string) => {
+            const snapshot = readMercadoPagoDebugSnapshot();
+            setMercadoPagoDebug((current) => ({
+              ...current,
+              lastEvent: "bin_change",
+              bin: String(bin ?? "").trim(),
+              paymentMethodId: snapshot?.paymentMethodId ?? "",
+              issuerId: snapshot?.issuerId ?? "",
+              tokenPresent: snapshot?.tokenPresent ?? false,
+              issuerOptions: snapshot?.issuerOptions ?? 0,
+              installmentsOptions: snapshot?.installmentsOptions ?? 0,
+              identificationOptions: snapshot?.identificationOptions ?? 0,
+            }));
+            if (MERCADOPAGO_DEBUG_ENABLED) {
+              console.info("[mercadopago-debug] bin change", {
+                bin,
+                snapshot,
+              });
+            }
           },
           onSubmit: (event: Event) => {
             event.preventDefault();
             void mercadoPagoSubmitRef.current?.(cardForm.getCardFormData());
           },
           onFetching: () => {
+            const snapshot = readMercadoPagoDebugSnapshot();
+            setMercadoPagoDebug((current) => ({
+              ...current,
+              lastEvent: "fetching",
+              paymentMethodId: snapshot?.paymentMethodId ?? "",
+              issuerId: snapshot?.issuerId ?? "",
+              tokenPresent: snapshot?.tokenPresent ?? false,
+              issuerOptions: snapshot?.issuerOptions ?? 0,
+              installmentsOptions: snapshot?.installmentsOptions ?? 0,
+              identificationOptions: snapshot?.identificationOptions ?? 0,
+            }));
             setMercadoPagoStatus("processing");
             setMercadoPagoMessage("Validando datos con Mercado Pago...");
             return () => {
@@ -1408,6 +1561,35 @@ export default function CarritoPage() {
     paymentDialogOpen,
     selectedPaymentMethod,
   ]);
+
+  useEffect(() => {
+    if (
+      !MERCADOPAGO_DEBUG_ENABLED ||
+      !paymentDialogOpen ||
+      selectedPaymentMethod !== "mercadopago"
+    ) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const snapshot = readMercadoPagoDebugSnapshot();
+      if (!snapshot) return;
+
+      setMercadoPagoDebug((current) => ({
+        ...current,
+        paymentMethodId: snapshot.paymentMethodId,
+        issuerId: snapshot.issuerId,
+        tokenPresent: snapshot.tokenPresent,
+        issuerOptions: snapshot.issuerOptions,
+        installmentsOptions: snapshot.installmentsOptions,
+        identificationOptions: snapshot.identificationOptions,
+      }));
+    }, 600);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [paymentDialogOpen, selectedPaymentMethod]);
 
   const handleTransferOrder = async () => {
     if (!transferReceiptFile) {
@@ -1948,6 +2130,40 @@ export default function CarritoPage() {
                     >
                       {mercadoPagoMessage}
                     </p>
+                  ) : null}
+                  {mercadoPagoDebug.enabled ? (
+                    <div className="rounded-2xl border border-dashed border-[#E8DCCB] bg-white/70 px-3 py-2 text-[11px] font-medium text-[#7A5A45]">
+                      <p className="font-black uppercase tracking-[0.08em]">
+                        Debug Mercado Pago
+                      </p>
+                      <p>
+                        Form mounted:{" "}
+                        {mercadoPagoDebug.formMounted ? "si" : "no"}
+                      </p>
+                      <p>Last event: {mercadoPagoDebug.lastEvent || "n/a"}</p>
+                      <p>BIN detectado: {mercadoPagoDebug.bin || "n/a"}</p>
+                      <p>
+                        payment_method_id:{" "}
+                        {mercadoPagoDebug.paymentMethodId || "n/a"}
+                      </p>
+                      <p>issuer_id: {mercadoPagoDebug.issuerId || "n/a"}</p>
+                      <p>
+                        Token generado:{" "}
+                        {mercadoPagoDebug.tokenPresent ? "si" : "no"}
+                      </p>
+                      <p>Issuer options: {mercadoPagoDebug.issuerOptions}</p>
+                      <p>
+                        Installments options:{" "}
+                        {mercadoPagoDebug.installmentsOptions}
+                      </p>
+                      <p>
+                        Identification options:{" "}
+                        {mercadoPagoDebug.identificationOptions}
+                      </p>
+                      {mercadoPagoDebug.sdkError ? (
+                        <p>SDK error: {mercadoPagoDebug.sdkError}</p>
+                      ) : null}
+                    </div>
                   ) : null}
                 </form>
               ) : null}
