@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
+import { getProductImageQueryConfig } from "@/lib/product-images";
 
 type ProductRow = RowDataPacket & {
   id: number;
@@ -30,6 +31,8 @@ export async function GET(
       );
     }
 
+    const productImageQueryConfig = await getProductImageQueryConfig();
+
     const [rows] = await pool.query<ProductRow[]>(
       `
         SELECT
@@ -40,9 +43,10 @@ export async function GET(
           p.description_short,
           p.price,
           p.discount_price,
-          COALESCE(p.image_url, p.thumbnail_url) AS image_url,
-          p.thumbnail_url
+          ${productImageQueryConfig.imageSelectSql},
+          ${productImageQueryConfig.thumbnailSelectSql}
         FROM products p
+        ${productImageQueryConfig.imageJoinSql}
         LEFT JOIN business b ON b.id = p.business_id
         WHERE p.id = ?
         LIMIT 1

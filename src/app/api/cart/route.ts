@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import pool from "@/lib/db";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { requireAuthenticatedUser } from "@/lib/permissions";
+import { getProductImageQueryConfig } from "@/lib/product-images";
 
 type CartRow = RowDataPacket & {
   id: number;
@@ -140,6 +141,8 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const productImageQueryConfig = await getProductImageQueryConfig();
+
     const [productRows] = await pool.query<CartProductRow[]>(
       `
         SELECT
@@ -152,8 +155,8 @@ export async function GET(req: NextRequest) {
           COALESCE(pc.unit_price, p.discount_price, p.price, 0) AS price,
           pc.unit_price,
           p.discount_price,
-          p.thumbnail_url,
-          p.image_url,
+          ${productImageQueryConfig.thumbnailSelectSql},
+          ${productImageQueryConfig.imageSelectSql},
           pc.quantity,
           COALESCE(
             pc.subtotal,
@@ -162,6 +165,7 @@ export async function GET(req: NextRequest) {
           ) AS total
         FROM products_cart pc
         LEFT JOIN products p ON p.id = pc.product_id
+        ${productImageQueryConfig.imageJoinSql}
         LEFT JOIN business b ON b.id = p.business_id
         WHERE pc.cart_id = ?
         ORDER BY pc.added_at DESC, pc.product_id DESC

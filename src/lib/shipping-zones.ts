@@ -1,3 +1,8 @@
+import type { RowDataPacket } from "mysql2/promise";
+
+import pool from "@/lib/db";
+import { getFirstExistingTable } from "@/lib/db-schema";
+import { logger } from "@/lib/logger";
 import type { DeliveryZoneOption } from "@/lib/shipping";
 
 export const DEFAULT_SHIPPING_ZONES: DeliveryZoneOption[] = [
@@ -117,6 +122,24 @@ export const DEFAULT_SHIPPING_ZONES: DeliveryZoneOption[] = [
   },
 ];
 
+type ShippingZoneRow = RowDataPacket & {
+  id: number | string | null;
+  nombre: string;
+  tipo: string | null;
+  distancia_km: number | string | null;
+  activo: number | boolean | null;
+};
+
+type ShippingZonesResult = {
+  source: "database" | "fallback";
+  message: string | null;
+  zones: DeliveryZoneOption[];
+};
+
+const SHIPPING_ZONE_TABLE_CANDIDATES = ["zonas_envio"];
+
+let cachedShippingZoneTableName: string | null | undefined;
+
 export function normalizeShippingZoneName(value: string) {
   return value
     .toLowerCase()
@@ -125,6 +148,70 @@ export function normalizeShippingZoneName(value: string) {
     .replace(/[.,]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+async function getShippingZoneTableName() {
+  if (cachedShippingZoneTableName !== undefined) {
+    return cachedShippingZoneTableName;
+  }
+
+  cachedShippingZoneTableName = await getFirstExistingTable(
+    SHIPPING_ZONE_TABLE_CANDIDATES,
+  );
+
+  return cachedShippingZoneTableName;
+}
+
+export async function getActiveShippingZones(): Promise<ShippingZonesResult> {
+  const tableName = await getShippingZoneTableName();
+
+  if (!tableName) {
+    return {
+      source: "fallback",
+      message:
+        "No hay tabla de zonas de envío configurada en la base. Usando zonas preconfiguradas.",
+      zones: DEFAULT_SHIPPING_ZONES,
+    };
+  }
+
+  try {
+    const [rows] = await pool.query<ShippingZoneRow[]>(
+      `
+        SELECT id, nombre, tipo, distancia_km, activo
+        FROM \`${tableName}\`
+        WHERE activo = TRUE
+        ORDER BY nombre ASC
+      `,
+    );
+
+    return {
+      source: "database",
+      message: rows.length === 0 ? "No hay zonas de envío activas." : null,
+      zones: rows.map((zone, index) => ({
+        id: Number(zone.id ?? index + 1),
+        nombre: String(zone.nombre ?? "").trim(),
+        tipo: String(zone.tipo ?? "zona").trim() || "zona",
+        distanciaKm: Number(zone.distancia_km ?? 0),
+        activo: Boolean(zone.activo),
+      })),
+    };
+  } catch (error) {
+    logger.warn(
+      "shipping.zones_lookup_failed",
+      "No se pudieron consultar zonas de envío; se usará fallback seguro",
+      {
+        tableName,
+        error,
+      },
+    );
+
+    return {
+      source: "fallback",
+      message:
+        "No pudimos consultar la configuración de zonas. Usando zonas preconfiguradas.",
+      zones: DEFAULT_SHIPPING_ZONES,
+    };
+  }
 }
 
 export function getDefaultShippingZoneByName(name: string) {

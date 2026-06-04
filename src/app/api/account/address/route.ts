@@ -5,7 +5,10 @@ import { getAuthUser } from "@/lib/admin-security";
 import { getFirstExistingTable } from "@/lib/db-schema";
 import { prisma } from "@/lib/prisma";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
-import { getDefaultShippingZoneByName } from "@/lib/shipping-zones";
+import {
+  getActiveShippingZones,
+  normalizeShippingZoneName,
+} from "@/lib/shipping-zones";
 
 type StoredAddressMeta = {
   references?: string;
@@ -13,13 +16,6 @@ type StoredAddressMeta = {
   deliveryNotes?: string;
   estimatedDistanceKm?: number | null;
   zone?: string;
-};
-
-type ShippingZoneRow = {
-  id?: number;
-  nombre: string;
-  tipo?: string;
-  distancia_km?: number | string | null;
 };
 
 type AddressRow = {
@@ -141,34 +137,14 @@ async function resolveShippingZone(zoneName: string) {
     return null;
   }
 
-  try {
-    const rows = await prisma.$queryRaw<ShippingZoneRow[]>`
-      SELECT id, nombre, tipo, distancia_km
-      FROM zonas_envio
-      WHERE activo = TRUE
-        AND nombre = ${zoneName}
-      LIMIT 1
-    `;
+  const normalizedZoneName = normalizeShippingZoneName(zoneName);
+  const { zones } = await getActiveShippingZones();
 
-    if (rows.length > 0) {
-      return rows[0];
-    }
-  } catch (error) {
-    console.error("SAVE ADDRESS ERROR:", error);
-  }
-
-  const fallbackZone = getDefaultShippingZoneByName(zoneName);
-
-  if (!fallbackZone) {
-    return null;
-  }
-
-  return {
-    id: fallbackZone.id,
-    nombre: fallbackZone.nombre,
-    tipo: fallbackZone.tipo,
-    distancia_km: fallbackZone.distanciaKm,
-  };
+  return (
+    zones.find(
+      (zone) => normalizeShippingZoneName(zone.nombre) === normalizedZoneName,
+    ) ?? null
+  );
 }
 
 async function findUserAddress(userId: number) {
@@ -266,10 +242,7 @@ export async function GET(req: NextRequest) {
     return json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No pudimos cargar la dirección",
+        error: "No pudimos cargar la dirección",
         address: null,
       },
       { status: 500 },
@@ -380,7 +353,7 @@ export async function POST(req: NextRequest) {
       body?.estimated_distance_km !== null &&
       String(body.estimated_distance_km).trim() !== ""
         ? Number(body.estimated_distance_km)
-        : Number(selectedZone.distancia_km ?? 0);
+        : Number(selectedZone.distanciaKm ?? 0);
 
     const serializedMeta = JSON.stringify({
       references,
@@ -510,10 +483,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "No pudimos guardar la dirección",
+        error: "No pudimos guardar la dirección",
       },
       { status: 500 },
     );

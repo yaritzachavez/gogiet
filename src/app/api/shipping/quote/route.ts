@@ -1,55 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server";
 
-import { prisma } from "@/lib/prisma";
 import {
   calculateShippingCost,
   type ShippingByAddressResult,
 } from "@/lib/shipping";
 import {
-  getDefaultShippingZoneByAddress,
+  getActiveShippingZones,
   normalizeShippingZoneName,
 } from "@/lib/shipping-zones";
-
-type ShippingZoneRow = {
-  nombre: string;
-  distancia_km: number | string;
-  activo: number | boolean;
-};
-
-async function findZoneByAddress(address: string) {
-  try {
-    const rows = await prisma.$queryRaw<ShippingZoneRow[]>`
-      SELECT nombre, distancia_km, activo
-      FROM zonas_envio
-      WHERE activo = TRUE
-    `;
-
-    const normalizedAddress = normalizeShippingZoneName(address);
-
-    if (!normalizedAddress) {
-      return null;
-    }
-
-    return (
-      rows.find((zone) =>
-        normalizedAddress.includes(normalizeShippingZoneName(zone.nombre)),
-      ) ?? null
-    );
-  } catch (error) {
-    console.error(error);
-    const fallbackZone = getDefaultShippingZoneByAddress(address);
-
-    if (!fallbackZone) {
-      return null;
-    }
-
-    return {
-      nombre: fallbackZone.nombre,
-      distancia_km: fallbackZone.distanciaKm,
-      activo: fallbackZone.activo,
-    } satisfies ShippingZoneRow;
-  }
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -73,7 +31,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const zone = await findZoneByAddress(searchableAddress);
+    const normalizedAddress = normalizeShippingZoneName(searchableAddress);
+    const { zones, message } = await getActiveShippingZones();
+    const zone =
+      zones.find((candidate) =>
+        normalizedAddress.includes(normalizeShippingZoneName(candidate.nombre)),
+      ) ?? null;
 
     if (!zone) {
       return NextResponse.json({
@@ -83,13 +46,16 @@ export async function POST(req: NextRequest) {
           shippingCost: null,
           requiresConfirmation: true,
           message:
-            "No pudimos identificar tu zona de entrega. El envío requiere confirmación.",
+            zones.length === 0
+              ? message ||
+                "No hay configuración de envío disponible en este momento."
+              : "No hay cobertura configurada para esta dirección.",
           distanceKm: null,
         } satisfies ShippingByAddressResult,
       });
     }
 
-    const distanceKm = Number(zone.distancia_km);
+    const distanceKm = Number(zone.distanciaKm);
 
     return NextResponse.json({
       success: true,
@@ -101,11 +67,17 @@ export async function POST(req: NextRequest) {
         distanceKm,
       } satisfies ShippingByAddressResult,
     });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json(
-      { success: false, error: "No pudimos calcular el envío" },
-      { status: 500 },
-    );
+  } catch (_error) {
+    return NextResponse.json({
+      success: true,
+      shipping: {
+        zoneName: null,
+        shippingCost: null,
+        requiresConfirmation: true,
+        message:
+          "No pudimos calcular el envío en este momento. Revisa tu dirección o intenta de nuevo.",
+        distanceKm: null,
+      } satisfies ShippingByAddressResult,
+    });
   }
 }

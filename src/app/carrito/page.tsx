@@ -278,6 +278,7 @@ export default function CarritoPage() {
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [cartLoading, setCartLoading] = useState(true);
   const [cartLoadError, setCartLoadError] = useState("");
+  const [shippingLoading, setShippingLoading] = useState(false);
   const [cartSyncState, setCartSyncState] = useState<
     "idle" | "loading" | "guest" | "ready" | "error"
   >("idle");
@@ -460,6 +461,50 @@ export default function CarritoPage() {
     }
   }, [mapStoredSnapshotToCartItems, syncCartStorage, user]);
 
+  const loadShipping = useCallback(async () => {
+    if (!savedAddress?.fullAddress) {
+      setShipping(DEFAULT_SHIPPING_STATE);
+      return;
+    }
+
+    setShippingLoading(true);
+
+    try {
+      const response = await fetch("/api/shipping/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: savedAddress.fullAddress,
+          neighborhood: savedAddress.neighborhood,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.success) {
+        setShipping(data.shipping);
+      } else {
+        setShipping({
+          ...DEFAULT_SHIPPING_STATE,
+          message: formatApiError(
+            response.status,
+            data,
+            "No pudimos calcular el envío. Revisa tu dirección.",
+          ),
+        });
+      }
+    } catch (_error) {
+      setShipping({
+        ...DEFAULT_SHIPPING_STATE,
+        message: "No pudimos calcular el envío. Revisa tu dirección.",
+      });
+    } finally {
+      setShippingLoading(false);
+    }
+  }, [savedAddress]);
+
+  const handleRetryCheckout = useCallback(() => {
+    void Promise.all([loadCart(), loadShipping()]);
+  }, [loadCart, loadShipping]);
+
   useEffect(() => {
     void loadCart();
     setSavedAddress(user?.address ? mapToSavedAddress(user.address) : null);
@@ -597,42 +642,8 @@ export default function CarritoPage() {
 
   // --- Efecto: Calcular Envío ---
   useEffect(() => {
-    const loadShipping = async () => {
-      if (!savedAddress?.fullAddress) {
-        setShipping(DEFAULT_SHIPPING_STATE);
-        return;
-      }
-      try {
-        const response = await fetch("/api/shipping/quote", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            address: savedAddress.fullAddress,
-            neighborhood: savedAddress.neighborhood,
-          }),
-        });
-        const data = await response.json().catch(() => null);
-        if (response.ok && data?.success) {
-          setShipping(data.shipping);
-        } else {
-          setShipping({
-            ...DEFAULT_SHIPPING_STATE,
-            message: formatApiError(
-              response.status,
-              data,
-              "No pudimos calcular el envío. Revisa tu dirección.",
-            ),
-          });
-        }
-      } catch (_error) {
-        setShipping({
-          ...DEFAULT_SHIPPING_STATE,
-          message: "No pudimos calcular el envío. Revisa tu dirección.",
-        });
-      }
-    };
-    loadShipping();
-  }, [savedAddress]);
+    void loadShipping();
+  }, [loadShipping]);
 
   // --- Cálculos ---
   const subtotal = useMemo(
@@ -1482,11 +1493,13 @@ export default function CarritoPage() {
             </p>
             <Button
               type="button"
-              onClick={() => void loadCart()}
-              disabled={cartLoading}
+              onClick={handleRetryCheckout}
+              disabled={cartLoading || shippingLoading}
               className="w-full sm:w-auto"
             >
-              {cartLoading ? "Reintentando..." : "Reintentar"}
+              {cartLoading || shippingLoading
+                ? "Reintentando..."
+                : "Reintentar"}
             </Button>
           </SectionCard>
         </div>
@@ -1524,11 +1537,13 @@ export default function CarritoPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => void loadCart()}
-                disabled={cartLoading}
+                onClick={handleRetryCheckout}
+                disabled={cartLoading || shippingLoading}
                 className="border-amber-300 text-amber-800"
               >
-                {cartLoading ? "Reintentando..." : "Reintentar"}
+                {cartLoading || shippingLoading
+                  ? "Reintentando..."
+                  : "Reintentar"}
               </Button>
             </div>
           </div>
