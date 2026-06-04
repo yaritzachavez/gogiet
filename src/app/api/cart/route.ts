@@ -2,6 +2,13 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
+import {
+  getCartProductsOrderBySql,
+  getCartRecalculateTotalQuery,
+  getCartRuntimeSchema,
+  getProductsCartLineTotalSql,
+  getProductsCartUnitPriceSql,
+} from "@/lib/cart-schema";
 import pool from "@/lib/db";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { requireAuthenticatedUser } from "@/lib/permissions";
@@ -141,7 +148,14 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const cartRuntimeSchema = await getCartRuntimeSchema();
     const productImageQueryConfig = await getProductImageQueryConfig();
+    const lineTotalSql = getProductsCartLineTotalSql(cartRuntimeSchema);
+    const unitPriceSql = getProductsCartUnitPriceSql(
+      cartRuntimeSchema,
+      "pc",
+      "COALESCE(p.discount_price, p.price, 0)",
+    );
 
     const [productRows] = await pool.query<CartProductRow[]>(
       `
@@ -152,23 +166,19 @@ export async function GET(req: NextRequest) {
           b.name AS business_name,
           p.name,
           p.description_short,
-          COALESCE(pc.unit_price, p.discount_price, p.price, 0) AS price,
-          pc.unit_price,
+          ${unitPriceSql} AS price,
+          ${cartRuntimeSchema.productsCartHasUnitPrice ? "pc.unit_price" : "NULL"} AS unit_price,
           p.discount_price,
           ${productImageQueryConfig.thumbnailSelectSql},
           ${productImageQueryConfig.imageSelectSql},
           pc.quantity,
-          COALESCE(
-            pc.subtotal,
-            pc.total,
-            COALESCE(pc.unit_price, p.discount_price, p.price, 0) * pc.quantity
-          ) AS total
+          ${lineTotalSql} AS total
         FROM products_cart pc
         LEFT JOIN products p ON p.id = pc.product_id
         ${productImageQueryConfig.imageJoinSql}
         LEFT JOIN business b ON b.id = p.business_id
         WHERE pc.cart_id = ?
-        ORDER BY pc.added_at DESC, pc.product_id DESC
+        ${getCartProductsOrderBySql(cartRuntimeSchema)}
       `,
       [cart.id],
     );
@@ -233,10 +243,15 @@ export async function GET(req: NextRequest) {
     );
 
     try {
-      await pool.query(
-        `UPDATE cart SET total = ?, updated_at = NOW() WHERE id = ?`,
-        [updatedTotal, cart.id],
-      );
+      const recalculateCartQuery =
+        getCartRecalculateTotalQuery(cartRuntimeSchema);
+
+      if (recalculateCartQuery) {
+        const parameters = cartRuntimeSchema.cartHasTotal
+          ? [cart.id, cart.id]
+          : [cart.id];
+        await pool.query(recalculateCartQuery, parameters);
+      }
     } catch (error) {
       logger.warn(
         "cart.total_update_error",

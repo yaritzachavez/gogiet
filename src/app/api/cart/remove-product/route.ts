@@ -1,8 +1,18 @@
+import type { RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import {
+  getCartRecalculateTotalQuery,
+  getCartRuntimeSchema,
+} from "@/lib/cart-schema";
 import pool from "@/lib/db";
+
+type CartRow = RowDataPacket & {
+  id: number;
+  user_id: number;
+};
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,7 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [cartRows]: any = await pool.query(
+    const [cartRows] = await pool.query<CartRow[]>(
       `SELECT id, user_id FROM cart WHERE id = ? LIMIT 1`,
       [cartId],
     );
@@ -48,19 +58,16 @@ export async function POST(req: NextRequest) {
     );
 
     try {
-      await pool.query(
-        `
-          UPDATE cart
-          SET total = (
-            SELECT COALESCE(SUM(COALESCE(subtotal, total, 0)), 0)
-            FROM products_cart
-            WHERE cart_id = ?
-          ),
-          updated_at = NOW()
-          WHERE id = ?
-        `,
-        [cartId, cartId],
-      );
+      const cartRuntimeSchema = await getCartRuntimeSchema();
+      const recalculateCartQuery =
+        getCartRecalculateTotalQuery(cartRuntimeSchema);
+
+      if (recalculateCartQuery) {
+        const parameters = cartRuntimeSchema.cartHasTotal
+          ? [cartId, cartId]
+          : [cartId];
+        await pool.query(recalculateCartQuery, parameters);
+      }
     } catch (error) {
       console.error("ADD TO CART ERROR:", error);
     }

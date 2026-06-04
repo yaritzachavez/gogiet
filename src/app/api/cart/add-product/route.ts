@@ -5,6 +5,10 @@ import { NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { isAuthUserActive } from "@/lib/auth-users";
 import { getBusinessOpenStatus } from "@/lib/business-hours";
+import {
+  getCartRecalculateTotalQuery,
+  getCartRuntimeSchema,
+} from "@/lib/cart-schema";
 import pool from "@/lib/db";
 
 type CartRow = RowDataPacket & {
@@ -191,6 +195,7 @@ export async function POST(req: NextRequest) {
     );
     const finalPrice = Math.max(basePrice - discountValue, 0);
     const subtotal = finalPrice * quantity;
+    const cartRuntimeSchema = await getCartRuntimeSchema();
 
     const [exists] = await pool.query<ProductExistsRow[]>(
       `SELECT product_id FROM products_cart WHERE cart_id = ? AND product_id = ? LIMIT 1`,
@@ -198,16 +203,26 @@ export async function POST(req: NextRequest) {
     );
 
     if (exists.length > 0) {
-      try {
+      if (
+        cartRuntimeSchema.productsCartHasUnitPrice &&
+        cartRuntimeSchema.productsCartHasSubtotal
+      ) {
         await pool.query(
           `
             UPDATE products_cart
-            SET quantity = ?, unit_price = ?, subtotal = ?, updated_at = NOW()
+            SET quantity = ?, unit_price = ?, subtotal = ?${
+              cartRuntimeSchema.productsCartHasUpdatedAt
+                ? ", updated_at = NOW()"
+                : ""
+            }
             WHERE cart_id = ? AND product_id = ?
           `,
           [quantity, finalPrice, subtotal, cartId, productId],
         );
-      } catch {
+      } else if (
+        cartRuntimeSchema.productsCartHasDiscount &&
+        cartRuntimeSchema.productsCartHasTotal
+      ) {
         await pool.query(
           `
             UPDATE products_cart
@@ -216,17 +231,37 @@ export async function POST(req: NextRequest) {
           `,
           [quantity, discountValue, subtotal, cartId, productId],
         );
+      } else {
+        throw new Error(
+          "products_cart no tiene una combinación compatible de columnas para actualizar.",
+        );
       }
     } else {
-      try {
+      if (
+        cartRuntimeSchema.productsCartHasUnitPrice &&
+        cartRuntimeSchema.productsCartHasSubtotal
+      ) {
         await pool.query(
           `
-            INSERT INTO products_cart (cart_id, product_id, quantity, unit_price, subtotal, added_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+            INSERT INTO products_cart (
+              cart_id,
+              product_id,
+              quantity,
+              unit_price,
+              subtotal${
+                cartRuntimeSchema.productsCartHasAddedAt ? ", added_at" : ""
+              }${cartRuntimeSchema.productsCartHasUpdatedAt ? ", updated_at" : ""}
+            )
+            VALUES (?, ?, ?, ?, ?${
+              cartRuntimeSchema.productsCartHasAddedAt ? ", NOW()" : ""
+            }${cartRuntimeSchema.productsCartHasUpdatedAt ? ", NOW()" : ""})
           `,
           [cartId, productId, quantity, finalPrice, subtotal],
         );
-      } catch {
+      } else if (
+        cartRuntimeSchema.productsCartHasDiscount &&
+        cartRuntimeSchema.productsCartHasTotal
+      ) {
         await pool.query(
           `
             INSERT INTO products_cart (cart_id, product_id, quantity, discount, total)
@@ -234,23 +269,23 @@ export async function POST(req: NextRequest) {
           `,
           [cartId, productId, quantity, discountValue, subtotal],
         );
+      } else {
+        throw new Error(
+          "products_cart no tiene una combinación compatible de columnas para insertar.",
+        );
       }
     }
 
     try {
-      await pool.query(
-        `
-          UPDATE cart
-          SET total = (
-            SELECT COALESCE(SUM(COALESCE(subtotal, total, 0)), 0)
-            FROM products_cart
-            WHERE cart_id = ?
-          ),
-          updated_at = NOW()
-          WHERE id = ?
-        `,
-        [cartId, cartId],
-      );
+      const recalculateCartQuery =
+        getCartRecalculateTotalQuery(cartRuntimeSchema);
+
+      if (recalculateCartQuery) {
+        const parameters = cartRuntimeSchema.cartHasTotal
+          ? [cartId, cartId]
+          : [cartId];
+        await pool.query(recalculateCartQuery, parameters);
+      }
     } catch (error) {
       console.error("ADD TO CART ERROR:", error);
     }
