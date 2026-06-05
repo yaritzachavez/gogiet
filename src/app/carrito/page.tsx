@@ -2054,21 +2054,21 @@ export default function CarritoPage() {
                       <span>Número de tarjeta</span>
                       <div
                         id="gogi-mp-card-number"
-                        className="mp-field h-[52px] min-h-[52px] max-h-[52px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
+                        className="mp-field h-[44px] min-h-[44px] max-h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
                     <div className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       <span>Vencimiento</span>
                       <div
                         id="gogi-mp-expiration-date"
-                        className="mp-field h-[52px] min-h-[52px] max-h-[52px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
+                        className="mp-field h-[44px] min-h-[44px] max-h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
                     <div className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       <span>CVV</span>
                       <div
                         id="gogi-mp-security-code"
-                        className="mp-field h-[52px] min-h-[52px] max-h-[52px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
+                        className="mp-field h-[44px] min-h-[44px] max-h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
                     <label className="grid gap-1 text-xs font-bold text-[#7A5A45] md:col-span-2">
@@ -2288,9 +2288,9 @@ export default function CarritoPage() {
         }
 
         .payment-modal .mp-field iframe {
-          height: 52px !important;
-          min-height: 52px !important;
-          max-height: 52px !important;
+          height: 44px !important;
+          min-height: 44px !important;
+          max-height: 44px !important;
           width: 100% !important;
           border: 0 !important;
           display: block !important;
