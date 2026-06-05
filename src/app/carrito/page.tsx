@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, ShoppingCart } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -2053,28 +2054,28 @@ export default function CarritoPage() {
                       <span>Número de tarjeta</span>
                       <div
                         id="gogi-mp-card-number"
-                        className="mp-field min-h-[3.125rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-1.5 text-[#2b1f18]"
+                        className="mp-field h-[52px] min-h-[52px] max-h-[52px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
                     <div className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       <span>Vencimiento</span>
                       <div
                         id="gogi-mp-expiration-date"
-                        className="mp-field min-h-[3.125rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-1.5 text-[#2b1f18]"
+                        className="mp-field h-[52px] min-h-[52px] max-h-[52px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
                     <div className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       <span>CVV</span>
                       <div
                         id="gogi-mp-security-code"
-                        className="mp-field min-h-[3.125rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-1.5 text-[#2b1f18]"
+                        className="mp-field h-[52px] min-h-[52px] max-h-[52px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
                     <label className="grid gap-1 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       Nombre del titular
                       <input
                         id="gogi-mp-cardholder-name"
-                        className="h-[2.625rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="Como aparece en la tarjeta"
                       />
                     </label>
@@ -2082,28 +2083,28 @@ export default function CarritoPage() {
                       Banco emisor
                       <select
                         id="gogi-mp-issuer"
-                        className="h-[2.625rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
                     <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       Cuotas
                       <select
                         id="gogi-mp-installments"
-                        className="h-[2.625rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
                     <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       Tipo de documento
                       <select
                         id="gogi-mp-identification-type"
-                        className="h-[2.625rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
                     <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       Número de documento
                       <input
                         id="gogi-mp-identification-number"
-                        className="h-[2.625rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="Si aplica"
                       />
                     </label>
@@ -2112,7 +2113,7 @@ export default function CarritoPage() {
                       <input
                         id="gogi-mp-cardholder-email"
                         type="email"
-                        className="h-[2.625rem] rounded-[16px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="correo@ejemplo.com"
                       />
                     </label>
@@ -2165,6 +2166,16 @@ export default function CarritoPage() {
                       ) : null}
                     </div>
                   ) : null}
+                  <div className="flex justify-center pt-2 pb-2">
+                    <Image
+                      src="/mercadopago-logo.png"
+                      alt="Mercado Pago"
+                      width={150}
+                      height={61}
+                      className="h-auto w-[104px] sm:w-[132px]"
+                      priority={false}
+                    />
+                  </div>
                 </form>
               ) : null}
             </div>
@@ -2267,6 +2278,24 @@ export default function CarritoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <style jsx global>{`
+        .payment-modal .mp-field {
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
+        .payment-modal .mp-field iframe {
+          height: 52px !important;
+          min-height: 52px !important;
+          max-height: 52px !important;
+          width: 100% !important;
+          border: 0 !important;
+          display: block !important;
+        }
+      `}</style>
     </div>
   );
 }
