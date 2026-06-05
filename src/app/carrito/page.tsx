@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, ShoppingCart } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -165,6 +166,8 @@ type MercadoPagoCardFormData = {
   installments?: number | string;
   identificationType?: string;
   identificationNumber?: string;
+  cardholderEmail?: string;
+  amount?: number | string;
 };
 
 type MercadoPagoCardForm = {
@@ -181,8 +184,23 @@ type MercadoPagoInstance = {
       onFormMounted?: (error?: unknown) => void;
       onSubmit?: (event: Event) => void;
       onFetching?: (resource: string) => () => void;
+      onBinChange?: (bin: string) => void;
     };
   }) => MercadoPagoCardForm;
+};
+
+type MercadoPagoDebugState = {
+  enabled: boolean;
+  formMounted: boolean;
+  lastEvent: string;
+  bin: string;
+  paymentMethodId: string;
+  issuerId: string;
+  tokenPresent: boolean;
+  issuerOptions: number;
+  installmentsOptions: number;
+  identificationOptions: number;
+  sdkError: string;
 };
 
 declare global {
@@ -196,6 +214,8 @@ declare global {
 
 const MERCADOPAGO_PUBLIC_KEY =
   process.env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY?.trim() ?? "";
+const MERCADOPAGO_DEBUG_ENABLED =
+  process.env.NEXT_PUBLIC_MERCADOPAGO_DEBUG?.trim() === "1";
 
 const moneyFormatter = new Intl.NumberFormat("es-MX", {
   style: "currency",
@@ -206,6 +226,45 @@ const moneyFormatter = new Intl.NumberFormat("es-MX", {
 
 function formatMoney(value: number) {
   return `${moneyFormatter.format(Number.isFinite(value) ? value : 0)} MXN`;
+}
+
+function readMercadoPagoDebugSnapshot() {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  const readSelectMetrics = (selector: string) => {
+    const element = document.querySelector<HTMLSelectElement>(selector);
+    if (!element) {
+      return { options: 0, value: "" };
+    }
+
+    return {
+      options: Array.from(element.options).filter((option) => {
+        return option.value.trim() !== "";
+      }).length,
+      value: element.value ?? "",
+    };
+  };
+
+  const tokenInput = document.querySelector<HTMLInputElement>(
+    'input[name="MPHiddenInputToken"]',
+  );
+  const paymentMethodInput = document.querySelector<HTMLInputElement>(
+    'input[name="MPHiddenInputPaymentMethod"]',
+  );
+  const issuer = readSelectMetrics("#gogi-mp-issuer");
+  const installments = readSelectMetrics("#gogi-mp-installments");
+  const identificationType = readSelectMetrics("#gogi-mp-identification-type");
+
+  return {
+    tokenPresent: Boolean(tokenInput?.value?.trim()),
+    paymentMethodId: paymentMethodInput?.value?.trim() ?? "",
+    issuerId: issuer.value,
+    issuerOptions: issuer.options,
+    installmentsOptions: installments.options,
+    identificationOptions: identificationType.options,
+  };
 }
 
 export default function CarritoPage() {
@@ -293,6 +352,20 @@ export default function CarritoPage() {
     | "error"
   >("idle");
   const [mercadoPagoMessage, setMercadoPagoMessage] = useState("");
+  const [mercadoPagoDebug, setMercadoPagoDebug] =
+    useState<MercadoPagoDebugState>({
+      enabled: MERCADOPAGO_DEBUG_ENABLED,
+      formMounted: false,
+      lastEvent: "idle",
+      bin: "",
+      paymentMethodId: "",
+      issuerId: "",
+      tokenPresent: false,
+      issuerOptions: 0,
+      installmentsOptions: 0,
+      identificationOptions: 0,
+      sdkError: "",
+    });
   const [mercadoPagoOrderId, setMercadoPagoOrderId] = useState<number | null>(
     null,
   );
@@ -1113,6 +1186,23 @@ export default function CarritoPage() {
 
   const submitMercadoPagoPayment = useCallback(
     async (formData: MercadoPagoCardFormData) => {
+      if (MERCADOPAGO_DEBUG_ENABLED) {
+        const snapshot = readMercadoPagoDebugSnapshot();
+        console.info("[mercadopago-debug] submit payload", {
+          tokenPresent: Boolean(formData.token?.trim()),
+          paymentMethodId: formData.paymentMethodId ?? "",
+          issuerId: formData.issuerId ?? "",
+          installments: formData.installments ?? "",
+          identificationType: formData.identificationType ?? "",
+          identificationNumberPresent: Boolean(
+            formData.identificationNumber?.trim(),
+          ),
+          emailPresent: Boolean(formData.cardholderEmail?.trim()),
+          amount: formData.amount ?? "",
+          snapshot,
+        });
+      }
+
       if (!canSubmitOrder) {
         const message =
           checkoutBlockReason ||
@@ -1258,6 +1348,19 @@ export default function CarritoPage() {
       setMercadoPagoStatus("idle");
       setMercadoPagoMessage("");
       setMercadoPagoOrderId(null);
+      setMercadoPagoDebug((current) => ({
+        ...current,
+        formMounted: false,
+        lastEvent: "idle",
+        bin: "",
+        paymentMethodId: "",
+        issuerId: "",
+        tokenPresent: false,
+        issuerOptions: 0,
+        installmentsOptions: 0,
+        identificationOptions: 0,
+        sdkError: "",
+      }));
     }
   }, [selectedPaymentMethod]);
 
@@ -1334,22 +1437,73 @@ export default function CarritoPage() {
           onFormMounted: (error?: unknown) => {
             if (error) {
               console.warn("Mercado Pago card form mount error:", error);
+              setMercadoPagoDebug((current) => ({
+                ...current,
+                formMounted: false,
+                lastEvent: "mount_error",
+                sdkError:
+                  error instanceof Error ? error.message : String(error),
+              }));
               setMercadoPagoStatus("error");
               setMercadoPagoMessage(
                 "No pudimos cargar el formulario de Mercado Pago.",
               );
               return;
             }
+            const snapshot = readMercadoPagoDebugSnapshot();
+            setMercadoPagoDebug((current) => ({
+              ...current,
+              formMounted: true,
+              lastEvent: "mounted",
+              sdkError: "",
+              paymentMethodId: snapshot?.paymentMethodId ?? "",
+              issuerId: snapshot?.issuerId ?? "",
+              tokenPresent: snapshot?.tokenPresent ?? false,
+              issuerOptions: snapshot?.issuerOptions ?? 0,
+              installmentsOptions: snapshot?.installmentsOptions ?? 0,
+              identificationOptions: snapshot?.identificationOptions ?? 0,
+            }));
             setMercadoPagoStatus("ready");
             setMercadoPagoMessage(
               "Ingresa tu tarjeta. Tus datos se tokenizan de forma segura.",
             );
+          },
+          onBinChange: (bin: string) => {
+            const snapshot = readMercadoPagoDebugSnapshot();
+            setMercadoPagoDebug((current) => ({
+              ...current,
+              lastEvent: "bin_change",
+              bin: String(bin ?? "").trim(),
+              paymentMethodId: snapshot?.paymentMethodId ?? "",
+              issuerId: snapshot?.issuerId ?? "",
+              tokenPresent: snapshot?.tokenPresent ?? false,
+              issuerOptions: snapshot?.issuerOptions ?? 0,
+              installmentsOptions: snapshot?.installmentsOptions ?? 0,
+              identificationOptions: snapshot?.identificationOptions ?? 0,
+            }));
+            if (MERCADOPAGO_DEBUG_ENABLED) {
+              console.info("[mercadopago-debug] bin change", {
+                bin,
+                snapshot,
+              });
+            }
           },
           onSubmit: (event: Event) => {
             event.preventDefault();
             void mercadoPagoSubmitRef.current?.(cardForm.getCardFormData());
           },
           onFetching: () => {
+            const snapshot = readMercadoPagoDebugSnapshot();
+            setMercadoPagoDebug((current) => ({
+              ...current,
+              lastEvent: "fetching",
+              paymentMethodId: snapshot?.paymentMethodId ?? "",
+              issuerId: snapshot?.issuerId ?? "",
+              tokenPresent: snapshot?.tokenPresent ?? false,
+              issuerOptions: snapshot?.issuerOptions ?? 0,
+              installmentsOptions: snapshot?.installmentsOptions ?? 0,
+              identificationOptions: snapshot?.identificationOptions ?? 0,
+            }));
             setMercadoPagoStatus("processing");
             setMercadoPagoMessage("Validando datos con Mercado Pago...");
             return () => {
@@ -1408,6 +1562,35 @@ export default function CarritoPage() {
     paymentDialogOpen,
     selectedPaymentMethod,
   ]);
+
+  useEffect(() => {
+    if (
+      !MERCADOPAGO_DEBUG_ENABLED ||
+      !paymentDialogOpen ||
+      selectedPaymentMethod !== "mercadopago"
+    ) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      const snapshot = readMercadoPagoDebugSnapshot();
+      if (!snapshot) return;
+
+      setMercadoPagoDebug((current) => ({
+        ...current,
+        paymentMethodId: snapshot.paymentMethodId,
+        issuerId: snapshot.issuerId,
+        tokenPresent: snapshot.tokenPresent,
+        issuerOptions: snapshot.issuerOptions,
+        installmentsOptions: snapshot.installmentsOptions,
+        identificationOptions: snapshot.identificationOptions,
+      }));
+    }, 600);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [paymentDialogOpen, selectedPaymentMethod]);
 
   const handleTransferOrder = async () => {
     if (!transferReceiptFile) {
@@ -1780,13 +1963,13 @@ export default function CarritoPage() {
       />
 
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="flex max-h-[92vh] max-sm:max-h-[calc(100vh-1rem)] max-sm:max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border-white/10 bg-black p-0">
-          <DialogHeader className="shrink-0 px-4 pb-0 pt-4 sm:px-6 sm:pt-6">
+        <DialogContent className="flex max-h-[85vh] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border-white/10 bg-black p-0 sm:max-w-[min(42rem,calc(100vw-2rem))]">
+          <DialogHeader className="shrink-0 px-4 pb-0 pt-4 sm:px-5 sm:pt-5">
             <DialogTitle>Método de pago</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-            <div className="space-y-4">
-              <div className="rounded-[22px] bg-black/60 p-3.5 text-sm text-white/70 sm:p-4">
+          <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+            <div className="space-y-3.5">
+              <div className="rounded-[22px] bg-black/60 p-3 text-sm text-white/70 sm:p-3.5">
                 <p className="font-semibold text-[#f5f5f5]">
                   Resumen antes de confirmar
                 </p>
@@ -1822,7 +2005,7 @@ export default function CarritoPage() {
                   {mercadoPagoConfigError}
                 </div>
               ) : null}
-              <div className="grid gap-2.5 sm:gap-3">
+              <div className="grid gap-2.5">
                 {paymentMethodOptions.map((opt) => {
                   const isDisabled =
                     opt.id === "mercadopago" && !mercadoPagoEnabled;
@@ -1837,7 +2020,7 @@ export default function CarritoPage() {
                       }}
                       disabled={isDisabled}
                       aria-disabled={isDisabled}
-                      className={`rounded-[20px] border p-3.5 text-left transition sm:rounded-[22px] sm:p-4 ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"} ${isDisabled ? "cursor-not-allowed opacity-55 hover:border-white/10" : ""}`}
+                      className={`rounded-[20px] border px-3.5 py-3 text-left transition sm:rounded-[22px] ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"} ${isDisabled ? "cursor-not-allowed opacity-55 hover:border-white/10" : ""}`}
                     >
                       <p className="font-black text-[#f5f5f5]">
                         {opt.label}
@@ -1855,89 +2038,89 @@ export default function CarritoPage() {
               {selectedPaymentMethod === "mercadopago" ? (
                 <form
                   id="gogi-mp-card-form"
-                  className="payment-modal space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
+                  className="payment-modal space-y-2 rounded-[18px] border border-orange-200/40 bg-[#fff7ed] p-3 text-[#2B1A12] sm:space-y-2.5 sm:p-3.5"
                 >
                   <div>
                     <p className="text-sm font-black">
                       Paga dentro de Gogi Eats
                     </p>
-                    <p className="mt-1 text-xs font-medium leading-5 text-[#7A5A45]">
+                    <p className="mt-1 text-xs font-medium leading-4.5 text-[#7A5A45]">
                       Tus datos se tokenizan con Mercado Pago. No guardamos tu
                       tarjeta.
                     </p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                  <div className="grid gap-2 md:grid-cols-2">
+                    <div className="grid gap-1 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       <span>Número de tarjeta</span>
                       <div
                         id="gogi-mp-card-number"
-                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                        className="mp-field h-[44px] min-h-[44px] max-h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
-                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                    <div className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       <span>Vencimiento</span>
                       <div
                         id="gogi-mp-expiration-date"
-                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                        className="mp-field h-[44px] min-h-[44px] max-h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
-                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                    <div className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       <span>CVV</span>
                       <div
                         id="gogi-mp-security-code"
-                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                        className="mp-field h-[44px] min-h-[44px] max-h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 py-0 text-[#2b1f18]"
                       />
                     </div>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                    <label className="grid gap-1 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       Nombre del titular
                       <input
                         id="gogi-mp-cardholder-name"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="Como aparece en la tarjeta"
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                    <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       Banco emisor
                       <select
                         id="gogi-mp-issuer"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                    <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
                       Cuotas
                       <select
                         id="gogi-mp-installments"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                    <label className="hidden">
                       Tipo de documento
                       <select
                         id="gogi-mp-identification-type"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
+                    <label className="hidden">
                       Número de documento
                       <input
                         id="gogi-mp-identification-number"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="Si aplica"
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                    <label className="grid gap-1 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       Correo para el recibo
                       <input
                         id="gogi-mp-cardholder-email"
                         type="email"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="correo@ejemplo.com"
                       />
                     </label>
                   </div>
                   {mercadoPagoMessage ? (
                     <p
-                      className={`rounded-2xl px-3 py-2 text-xs font-bold ${
+                      className={`rounded-[18px] px-3 py-2 text-xs font-bold ${
                         mercadoPagoStatus === "rejected" ||
                         mercadoPagoStatus === "error"
                           ? "bg-red-50 text-red-700"
@@ -1949,11 +2132,55 @@ export default function CarritoPage() {
                       {mercadoPagoMessage}
                     </p>
                   ) : null}
+                  {mercadoPagoDebug.enabled ? (
+                    <div className="rounded-[18px] border border-dashed border-[#E8DCCB] bg-white/70 px-3 py-2 text-[11px] font-medium text-[#7A5A45]">
+                      <p className="font-black uppercase tracking-[0.08em]">
+                        Debug Mercado Pago
+                      </p>
+                      <p>
+                        Form mounted:{" "}
+                        {mercadoPagoDebug.formMounted ? "si" : "no"}
+                      </p>
+                      <p>Last event: {mercadoPagoDebug.lastEvent || "n/a"}</p>
+                      <p>BIN detectado: {mercadoPagoDebug.bin || "n/a"}</p>
+                      <p>
+                        payment_method_id:{" "}
+                        {mercadoPagoDebug.paymentMethodId || "n/a"}
+                      </p>
+                      <p>issuer_id: {mercadoPagoDebug.issuerId || "n/a"}</p>
+                      <p>
+                        Token generado:{" "}
+                        {mercadoPagoDebug.tokenPresent ? "si" : "no"}
+                      </p>
+                      <p>Issuer options: {mercadoPagoDebug.issuerOptions}</p>
+                      <p>
+                        Installments options:{" "}
+                        {mercadoPagoDebug.installmentsOptions}
+                      </p>
+                      <p>
+                        Identification options:{" "}
+                        {mercadoPagoDebug.identificationOptions}
+                      </p>
+                      {mercadoPagoDebug.sdkError ? (
+                        <p>SDK error: {mercadoPagoDebug.sdkError}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <div className="flex justify-center pt-2 pb-2">
+                    <Image
+                      src="/mercadopago-logo.png"
+                      alt="Mercado Pago"
+                      width={150}
+                      height={61}
+                      className="h-auto w-[104px] sm:w-[132px]"
+                      priority={false}
+                    />
+                  </div>
                 </form>
               ) : null}
             </div>
           </div>
-          <DialogFooter className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-6">
+          <DialogFooter className="shrink-0 border-t border-white/10 px-4 py-3 sm:px-5 sm:py-4">
             {selectedPaymentMethod === "mercadopago" ? (
               <Button
                 type="submit"
@@ -1965,7 +2192,7 @@ export default function CarritoPage() {
                   mercadoPagoStatus === "processing"
                 }
                 size="lg"
-                className="w-full bg-[#e98a4a] text-white hover:bg-[#d97836]"
+                className="h-12 w-full bg-[#e98a4a] text-white hover:bg-[#d97836]"
               >
                 {submittingOrder || mercadoPagoStatus === "processing"
                   ? "Procesando pago..."
@@ -1976,7 +2203,7 @@ export default function CarritoPage() {
                 onClick={handleConfirmOrder}
                 disabled={!canSubmitOrder}
                 size="lg"
-                className="w-full"
+                className="h-12 w-full"
               >
                 {submittingOrder ? "Procesando..." : "Finalizar Pedido"}
               </Button>
@@ -2051,6 +2278,24 @@ export default function CarritoPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <style jsx global>{`
+        .payment-modal .mp-field {
+          display: flex;
+          align-items: center;
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
+        .payment-modal .mp-field iframe {
+          height: 44px !important;
+          min-height: 44px !important;
+          max-height: 44px !important;
+          width: 100% !important;
+          border: 0 !important;
+          display: block !important;
+        }
+      `}</style>
     </div>
   );
 }
