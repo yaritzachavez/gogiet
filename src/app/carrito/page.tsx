@@ -2093,14 +2093,14 @@ export default function CarritoPage() {
                         className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
+                    <label className="hidden">
                       Tipo de documento
                       <select
                         id="gogi-mp-identification-type"
                         className="h-[44px] rounded-[12px] border border-[#E8DCCB] bg-[#fffaf3] px-2.5 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
-                    <label className="grid gap-1 text-xs font-bold text-[#7A5A45]">
+                    <label className="hidden">
                       Número de documento
                       <input
                         id="gogi-mp-identification-number"
