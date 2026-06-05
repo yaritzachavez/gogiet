@@ -1962,13 +1962,13 @@ export default function CarritoPage() {
       />
 
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="flex max-h-[92vh] max-sm:max-h-[calc(100vh-1rem)] max-sm:max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border-white/10 bg-black p-0">
-          <DialogHeader className="shrink-0 px-4 pb-0 pt-4 sm:px-6 sm:pt-6">
+        <DialogContent className="flex max-h-[85vh] w-full max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-[24px] border-white/10 bg-black p-0 sm:max-w-[min(42rem,calc(100vw-2rem))]">
+          <DialogHeader className="shrink-0 px-4 pb-0 pt-4 sm:px-5 sm:pt-5">
             <DialogTitle>Método de pago</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
-            <div className="space-y-4">
-              <div className="rounded-[22px] bg-black/60 p-3.5 text-sm text-white/70 sm:p-4">
+          <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+            <div className="space-y-3.5">
+              <div className="rounded-[22px] bg-black/60 p-3 text-sm text-white/70 sm:p-3.5">
                 <p className="font-semibold text-[#f5f5f5]">
                   Resumen antes de confirmar
                 </p>
@@ -2004,7 +2004,7 @@ export default function CarritoPage() {
                   {mercadoPagoConfigError}
                 </div>
               ) : null}
-              <div className="grid gap-2.5 sm:gap-3">
+              <div className="grid gap-2.5">
                 {paymentMethodOptions.map((opt) => {
                   const isDisabled =
                     opt.id === "mercadopago" && !mercadoPagoEnabled;
@@ -2019,7 +2019,7 @@ export default function CarritoPage() {
                       }}
                       disabled={isDisabled}
                       aria-disabled={isDisabled}
-                      className={`rounded-[20px] border p-3.5 text-left transition sm:rounded-[22px] sm:p-4 ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"} ${isDisabled ? "cursor-not-allowed opacity-55 hover:border-white/10" : ""}`}
+                      className={`rounded-[20px] border px-3.5 py-3 text-left transition sm:rounded-[22px] ${selectedPaymentMethod === opt.id ? "border-orange-500 bg-orange-500/10 shadow-sm" : "border-white/10 bg-black/70 hover:border-orange-300/40"} ${isDisabled ? "cursor-not-allowed opacity-55 hover:border-white/10" : ""}`}
                     >
                       <p className="font-black text-[#f5f5f5]">
                         {opt.label}
@@ -2037,7 +2037,7 @@ export default function CarritoPage() {
               {selectedPaymentMethod === "mercadopago" ? (
                 <form
                   id="gogi-mp-card-form"
-                  className="payment-modal space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-3.5 text-[#2B1A12] sm:p-4"
+                  className="payment-modal space-y-3 rounded-[24px] border border-orange-200/40 bg-[#fff7ed] p-4 text-[#2B1A12] sm:space-y-3.5 sm:p-5"
                 >
                   <div>
                     <p className="text-sm font-black">
@@ -2048,33 +2048,33 @@ export default function CarritoPage() {
                       tarjeta.
                     </p>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       <span>Número de tarjeta</span>
                       <div
                         id="gogi-mp-card-number"
-                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                        className="mp-field min-h-[3.1rem] rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-2.5 text-[#2b1f18]"
                       />
                     </div>
                     <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                       <span>Vencimiento</span>
                       <div
                         id="gogi-mp-expiration-date"
-                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                        className="mp-field min-h-[3rem] rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-2.5 text-[#2b1f18]"
                       />
                     </div>
                     <div className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                       <span>CVV</span>
                       <div
                         id="gogi-mp-security-code"
-                        className="mp-field min-h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-3 text-[#2b1f18]"
+                        className="mp-field min-h-[3rem] rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 py-2.5 text-[#2b1f18]"
                       />
                     </div>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       Nombre del titular
                       <input
                         id="gogi-mp-cardholder-name"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-11 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="Como aparece en la tarjeta"
                       />
                     </label>
@@ -2082,37 +2082,37 @@ export default function CarritoPage() {
                       Banco emisor
                       <select
                         id="gogi-mp-issuer"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-11 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
                     <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                       Cuotas
                       <select
                         id="gogi-mp-installments"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-11 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
                     <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                       Tipo de documento
                       <select
                         id="gogi-mp-identification-type"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
+                        className="h-11 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition focus:border-[#e98a4a]"
                       />
                     </label>
                     <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45]">
                       Número de documento
                       <input
                         id="gogi-mp-identification-number"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-11 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="Si aplica"
                       />
                     </label>
-                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] sm:col-span-2">
+                    <label className="grid gap-1.5 text-xs font-bold text-[#7A5A45] md:col-span-2">
                       Correo para el recibo
                       <input
                         id="gogi-mp-cardholder-email"
                         type="email"
-                        className="h-12 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
+                        className="h-11 rounded-2xl border border-[#E8DCCB] bg-[#fffaf3] px-3 text-sm font-semibold text-[#2b1f18] outline-none transition placeholder:text-[#9a8472] focus:border-[#e98a4a]"
                         placeholder="correo@ejemplo.com"
                       />
                     </label>
@@ -2169,7 +2169,7 @@ export default function CarritoPage() {
               ) : null}
             </div>
           </div>
-          <DialogFooter className="shrink-0 border-t border-white/10 px-4 py-4 sm:px-6">
+          <DialogFooter className="shrink-0 border-t border-white/10 px-4 py-3 sm:px-5 sm:py-4">
             {selectedPaymentMethod === "mercadopago" ? (
               <Button
                 type="submit"
@@ -2181,7 +2181,7 @@ export default function CarritoPage() {
                   mercadoPagoStatus === "processing"
                 }
                 size="lg"
-                className="w-full bg-[#e98a4a] text-white hover:bg-[#d97836]"
+                className="h-12 w-full bg-[#e98a4a] text-white hover:bg-[#d97836]"
               >
                 {submittingOrder || mercadoPagoStatus === "processing"
                   ? "Procesando pago..."
@@ -2192,7 +2192,7 @@ export default function CarritoPage() {
                 onClick={handleConfirmOrder}
                 disabled={!canSubmitOrder}
                 size="lg"
-                className="w-full"
+                className="h-12 w-full"
               >
                 {submittingOrder ? "Procesando..." : "Finalizar Pedido"}
               </Button>
