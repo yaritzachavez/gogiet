@@ -1,8 +1,38 @@
+import type { RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
 import { requireAdminGeneral } from "@/lib/permissions";
+
+type EditableUserField =
+  | "first_name"
+  | "last_name"
+  | "email"
+  | "phone"
+  | "status_id";
+
+type UpdateUserBody = Partial<
+  Record<EditableUserField, string | number | null>
+> & {
+  roles?: unknown;
+};
+
+type RoleRow = RowDataPacket & {
+  id: number;
+};
+
+type UpdatedUserRow = RowDataPacket & {
+  id: number;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  phone: string | null;
+  status_id: number | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  roles: unknown;
+};
 
 const roleAliases: Record<string, string> = {
   ADMIN: "admin_general",
@@ -36,12 +66,12 @@ export async function PUT(
       return admin.response;
     }
 
-    const body = await req.json();
+    const body: UpdateUserBody = await req.json();
     const { roles, ...fields } = body;
 
     await connection.beginTransaction();
 
-    const allowedFields = [
+    const allowedFields: EditableUserField[] = [
       "first_name",
       "last_name",
       "email",
@@ -49,7 +79,7 @@ export async function PUT(
       "status_id",
     ];
     const updates: string[] = [];
-    const values: any[] = [];
+    const values: Array<string | number | null> = [];
 
     for (const key of allowedFields) {
       if (fields[key] !== undefined) {
@@ -75,7 +105,7 @@ export async function PUT(
 
       if (roleNames.length > 0) {
         const placeholders = roleNames.map(() => "?").join(",");
-        const [roleRows] = await connection.query<any[]>(
+        const [roleRows] = await connection.query<RoleRow[]>(
           `SELECT id FROM roles WHERE name IN (${placeholders})`,
           roleNames,
         );
@@ -92,7 +122,7 @@ export async function PUT(
 
     await connection.commit();
 
-    const [updatedUser] = await pool.query(
+    const [updatedUser] = await pool.query<UpdatedUserRow[]>(
       `
         SELECT
           u.id,
@@ -116,7 +146,7 @@ export async function PUT(
     return NextResponse.json({
       success: true,
       message: "Usuario actualizado correctamente",
-      user: (updatedUser as any[])[0] ?? null,
+      user: updatedUser[0] ?? null,
     });
   } catch (error) {
     await connection.rollback();

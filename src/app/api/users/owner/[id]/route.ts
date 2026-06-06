@@ -1,8 +1,18 @@
+import type { RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import pool from "@/lib/db";
 import { requireSelfOrAdmin } from "@/lib/permissions";
+
+type OwnedBusinessRow = RowDataPacket & {
+  id: number;
+  name: string;
+  city: string | null;
+  district: string | null;
+  address: string | null;
+  status_id: number | null;
+};
 
 export async function GET(
   req: NextRequest,
@@ -21,7 +31,7 @@ export async function GET(
       return access.response;
     }
 
-    const [businesses] = await pool.query<any[]>(
+    const [businesses] = await pool.query<OwnedBusinessRow[]>(
       `
       SELECT 
         b.id,
