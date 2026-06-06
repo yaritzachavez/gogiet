@@ -1,23 +1,14 @@
 import jwt from "jsonwebtoken";
 import { Building2, LockKeyhole, ShieldAlert } from "lucide-react";
-import type { RowDataPacket } from "mysql2/promise";
 import { cookies } from "next/headers";
 import Link from "next/link";
 
 import { isSessionTokenActive } from "@/lib/auth-security";
-import pool from "@/lib/db";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import { JWT_SECRET } from "@/lib/env";
 
 type BusinessLayoutProps = {
   children: React.ReactNode;
-};
-
-type RoleRow = RowDataPacket & {
-  role_name: string;
-};
-
-type CountRow = RowDataPacket & {
-  total: number;
 };
 
 type BusinessAccessState =
@@ -103,40 +94,9 @@ async function getBusinessPanelAccessState(): Promise<BusinessAccessState> {
     return { kind: "guest" };
   }
 
-  const [roleRows] = await pool.query<RoleRow[]>(
-    `
-      SELECT r.name AS role_name
-      FROM user_roles ur
-      INNER JOIN roles r ON r.id = ur.role_id
-      WHERE ur.user_id = ?
-    `,
-    [userId],
-  );
+  const access = await resolveBusinessAccess(userId);
 
-  const roleNames = new Set(
-    roleRows.map((row) => String(row.role_name ?? "").trim()),
-  );
-
-  const hasBusinessAdminRole = roleNames.has("business_admin");
-
-  if (!hasBusinessAdminRole) {
-    return { kind: "forbidden" };
-  }
-
-  const [ownerRows] = hasBusinessAdminRole
-    ? await pool.query<CountRow[]>(
-        `
-          SELECT COUNT(*) AS total
-          FROM business_owners
-          WHERE user_id = ?
-        `,
-        [userId],
-      )
-    : [[{ total: 0 }] as CountRow[]];
-
-  const ownerAssignments = Number(ownerRows[0]?.total ?? 0);
-
-  if (hasBusinessAdminRole && ownerAssignments > 0) {
+  if (access.businessIds.length > 0) {
     return { kind: "allowed" };
   }
 

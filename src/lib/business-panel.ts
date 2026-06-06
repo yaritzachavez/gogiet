@@ -6,6 +6,7 @@ import type {
 } from "mysql2/promise";
 
 import { isAdminGeneral } from "@/lib/admin-security";
+import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 import { getExistingTables } from "@/lib/db-schema";
 import {
@@ -23,11 +24,25 @@ type UserInfoRow = RowDataPacket & {
   role_name: string | null;
 };
 
-type AssignedBusinessRow = RowDataPacket & {
+export type BusinessAccessSource =
+  | "owner"
+  | "owner_repaired"
+  | "manager"
+  | "admin_general";
+
+type AssignedBusiness = {
   id: number;
   name: string;
   city: string | null;
-  source: string;
+  source: BusinessAccessSource;
+};
+
+type AssignedBusinessRow = RowDataPacket & AssignedBusiness;
+
+type RepairCandidateRow = RowDataPacket & {
+  id: number;
+  name: string;
+  city: string | null;
 };
 
 type CourierAvailabilityRow = RowDataPacket & {
@@ -93,6 +108,15 @@ export type BusinessAccessContext = {
   roles: string[];
   businessId: number | null;
   businessIds: number[];
+  businesses: Array<{
+    id: number;
+    name: string;
+    city: string | null;
+    source: BusinessAccessSource;
+  }>;
+  selectedBusinessSource: BusinessAccessSource | null;
+  requestedBusinessId: number | null;
+  denialReason: "not_assigned" | "requested_business_forbidden" | null;
   isAdmin: boolean;
 };
 
@@ -134,6 +158,102 @@ const ACTIVE_DELIVERY_STATUS_NAMES = [
   "recogido",
   "on_the_way",
 ] as const;
+
+async function tryRepairBusinessOwnerRelation(params: {
+  userId: number;
+  email: string | null;
+}): Promise<AssignedBusiness[]> {
+  const [businessColumns] = await pool.query<ColumnExistsRow[]>(
+    `
+      SELECT COLUMN_NAME AS column_name
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE()
+        AND TABLE_NAME = 'business'
+        AND COLUMN_NAME IN ('owner_id', 'owner_user_id', 'email')
+    `,
+  );
+
+  const availableColumns = new Set(
+    businessColumns.map((row) => String(row.column_name).toLowerCase()),
+  );
+  const candidates = new Map<number, AssignedBusiness>();
+
+  async function collectCandidates(
+    query: string,
+    values: Array<number | string>,
+  ) {
+    const [rows] = await pool.query<RepairCandidateRow[]>(query, values);
+    for (const row of rows) {
+      const businessId = Number(row.id);
+      if (!Number.isFinite(businessId) || businessId <= 0) {
+        continue;
+      }
+
+      candidates.set(businessId, {
+        id: businessId,
+        name: String(row.name),
+        city: row.city ?? null,
+        source: "owner_repaired",
+      });
+    }
+  }
+
+  if (availableColumns.has("owner_id")) {
+    await collectCandidates(
+      `
+        SELECT b.id, b.name, b.city
+        FROM business b
+        WHERE b.owner_id = ?
+        ORDER BY b.name ASC
+      `,
+      [params.userId],
+    );
+  }
+
+  if (availableColumns.has("owner_user_id")) {
+    await collectCandidates(
+      `
+        SELECT b.id, b.name, b.city
+        FROM business b
+        WHERE b.owner_user_id = ?
+        ORDER BY b.name ASC
+      `,
+      [params.userId],
+    );
+  }
+
+  if (params.email && availableColumns.has("email")) {
+    await collectCandidates(
+      `
+        SELECT b.id, b.name, b.city
+        FROM business b
+        WHERE LOWER(TRIM(b.email)) = LOWER(TRIM(?))
+        ORDER BY b.name ASC
+      `,
+      [params.email],
+    );
+  }
+
+  const repairedBusinesses = Array.from(candidates.values());
+
+  for (const business of repairedBusinesses) {
+    try {
+      await syncBusinessOwnerSafely(pool, Number(business.id), params.userId);
+    } catch (error) {
+      logger.warn(
+        "business.owner_relation_repair_failed",
+        "No se pudo sincronizar la relacion de owner detectada en runtime",
+        {
+          userId: params.userId,
+          businessId: Number(business.id),
+          message: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+  }
+
+  return repairedBusinesses;
+}
 
 export async function resolveBusinessAccess(
   userId: number,
@@ -183,7 +303,7 @@ export async function resolveBusinessAccess(
     .map((row) => row.role_name)
     .filter(Boolean) as string[];
 
-  const ownerBusinesses =
+  let ownerBusinesses: AssignedBusiness[] =
     existingTables.has("business_owners") && hasBusinessTable
       ? (
           await pool.query<AssignedBusinessRow[]>(
@@ -199,7 +319,11 @@ export async function resolveBusinessAccess(
         )[0]
       : [];
 
-  const managerBusinesses =
+  if (!ownerBusinesses.length && hasBusinessTable) {
+    ownerBusinesses = await tryRepairBusinessOwnerRelation({ userId, email });
+  }
+
+  const managerBusinesses: AssignedBusiness[] =
     existingTables.has("business_managers") && hasBusinessTable
       ? (
           await pool.query<AssignedBusinessRow[]>(
@@ -218,7 +342,7 @@ export async function resolveBusinessAccess(
   const userIsAdminGeneral = hasRolesTables
     ? await isAdminGeneral(userId)
     : false;
-  const assignedBusinessesMap = new Map<number, AssignedBusinessRow>();
+  const assignedBusinessesMap = new Map<number, AssignedBusiness>();
 
   for (const business of [...ownerBusinesses, ...managerBusinesses]) {
     assignedBusinessesMap.set(Number(business.id), business);
@@ -271,10 +395,27 @@ export async function resolveBusinessAccess(
   }
 
   const businessIds = assignedBusinesses.map((business) => Number(business.id));
-  const businessId =
-    requestedBusinessId && businessIds.includes(requestedBusinessId)
+  let denialReason: "not_assigned" | "requested_business_forbidden" | null =
+    null;
+  let businessId: number | null = null;
+
+  if (requestedBusinessId) {
+    businessId = businessIds.includes(requestedBusinessId)
       ? requestedBusinessId
-      : (businessIds[0] ?? null);
+      : null;
+    denialReason = businessId
+      ? null
+      : assignedBusinesses.length
+        ? "requested_business_forbidden"
+        : "not_assigned";
+  } else {
+    businessId = businessIds[0] ?? null;
+    denialReason = businessId ? null : "not_assigned";
+  }
+
+  const selectedBusinessSource =
+    assignedBusinesses.find((business) => Number(business.id) === businessId)
+      ?.source ?? null;
 
   return {
     userId,
@@ -282,6 +423,15 @@ export async function resolveBusinessAccess(
     roles,
     businessId,
     businessIds,
+    businesses: assignedBusinesses.map((business) => ({
+      id: Number(business.id),
+      name: String(business.name),
+      city: business.city ?? null,
+      source: business.source,
+    })),
+    selectedBusinessSource,
+    requestedBusinessId: requestedBusinessId ?? null,
+    denialReason,
     isAdmin: userIsAdminGeneral,
   };
 }
