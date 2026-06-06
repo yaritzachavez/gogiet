@@ -5,6 +5,11 @@ import { getSafeErrorMessage } from "@/lib/api-error";
 import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import { createNotificationForBusinessSafely } from "@/lib/notifications";
+import {
+  ensureOrderPaymentColumns,
+  ensurePaymentsTable,
+  upsertPaymentRecord,
+} from "@/lib/order-payments";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
 import {
   applyValidatedOrderStatusTransition,
@@ -64,6 +69,8 @@ export async function PATCH(
           o.id,
           o.user_id,
           o.business_id,
+          o.payment_method_id,
+          o.total_amount,
           COALESCE(o.payment_method, pm.name) AS payment_method,
           osc.name AS status_name
         FROM orders o
@@ -104,6 +111,8 @@ export async function PATCH(
 
     try {
       await connection.beginTransaction();
+      await ensureOrderPaymentColumns(connection);
+      await ensurePaymentsTable(connection);
 
       const { currentStatus } = validateOrderStatusTransition({
         currentStatus: order.status_name,
@@ -132,6 +141,50 @@ export async function PATCH(
           endpoint: "/api/admin/orders/[id]/payment",
           action,
           payment_method: "transferencia",
+        },
+      });
+
+      await connection.query(
+        `
+          UPDATE orders
+          SET
+            payment_provider = 'TRANSFER',
+            payment_status = ?,
+            amount_paid = CASE
+              WHEN ? = 'approved' THEN total_amount
+              ELSE amount_paid
+            END,
+            paid_at = CASE
+              WHEN ? = 'approved' THEN COALESCE(paid_at, NOW())
+              ELSE paid_at
+            END,
+            updated_at = NOW()
+          WHERE id = ?
+        `,
+        [
+          action === "approve" ? "approved" : "rejected",
+          action === "approve" ? "approved" : "rejected",
+          action === "approve" ? "approved" : "rejected",
+          orderId,
+        ],
+      );
+
+      await upsertPaymentRecord(connection, {
+        orderId,
+        paymentMethodId: Number(order.payment_method_id ?? 0) || null,
+        paymentStatus: action === "approve" ? "approved" : "rejected",
+        transactionReference: `transfer-order-${orderId}`,
+        providerName: "Transferencia",
+        provider: "TRANSFER",
+        status: action === "approve" ? "approved" : "rejected",
+        amount: Number(order.total_amount ?? 0),
+        currency: "MXN",
+        paidAt: action === "approve" ? new Date() : null,
+        processedAt: new Date(),
+        rawResponse: {
+          action,
+          reason: reason || null,
+          validatedByUserId: access.access.userId,
         },
       });
 

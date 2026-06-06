@@ -82,6 +82,10 @@ export async function ensurePaymentsTable(conn: Queryable) {
   await assertColumnsExist(conn, "payments", [
     "id",
     "order_id",
+    "payment_method_id",
+    "payment_status",
+    "transaction_reference",
+    "provider_name",
     "provider",
     "provider_payment_id",
     "webhook_event_id",
@@ -100,7 +104,12 @@ export async function ensurePaymentsTable(conn: Queryable) {
 }
 
 type UpsertPaymentRecordInput = {
+  id?: number;
   orderId: number;
+  paymentMethodId?: number | null;
+  paymentStatus?: string | null;
+  transactionReference?: string | null;
+  providerName?: string | null;
   provider: string;
   providerPaymentId?: string | null;
   webhookEventId?: string | null;
@@ -127,6 +136,19 @@ function normalizeDatetimeInput(value: string | Date | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeOptionalString(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function serializeOptionalJson(value: unknown) {
+  return value == null ? null : JSON.stringify(value);
+}
+
 export async function findPaymentByWebhookEventId(
   conn: Queryable,
   provider: string,
@@ -148,32 +170,180 @@ export async function findPaymentByWebhookEventId(
   return rows[0] ?? null;
 }
 
+export async function findPaymentByTransactionReference(
+  conn: Queryable,
+  transactionReference: string,
+) {
+  await ensurePaymentsTable(conn);
+
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `
+      SELECT
+        id,
+        order_id,
+        provider,
+        provider_payment_id,
+        payment_status,
+        status,
+        processed_at
+      FROM payments
+      WHERE transaction_reference = ?
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [transactionReference],
+  );
+
+  return rows[0] ?? null;
+}
+
+export async function findLatestPaymentForOrder(
+  conn: Queryable,
+  orderId: number,
+  provider?: string | null,
+) {
+  await ensurePaymentsTable(conn);
+
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `
+      SELECT
+        id,
+        order_id,
+        payment_method_id,
+        payment_status,
+        transaction_reference,
+        provider_name,
+        provider,
+        provider_payment_id,
+        webhook_event_id,
+        status,
+        amount,
+        currency,
+        paid_at,
+        processed_at,
+        created_at,
+        updated_at
+      FROM payments
+      WHERE order_id = ?
+        AND (? IS NULL OR provider = ?)
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [orderId, provider ?? null, provider ?? null],
+  );
+
+  return rows[0] ?? null;
+}
+
+export async function findApprovedPaymentForOrder(
+  conn: Queryable,
+  orderId: number,
+  provider?: string | null,
+) {
+  await ensurePaymentsTable(conn);
+
+  const [rows] = await conn.query<RowDataPacket[]>(
+    `
+      SELECT
+        id,
+        order_id,
+        provider,
+        provider_payment_id,
+        payment_status,
+        status,
+        paid_at,
+        processed_at
+      FROM payments
+      WHERE order_id = ?
+        AND (? IS NULL OR provider = ?)
+        AND (
+          LOWER(COALESCE(payment_status, '')) IN ('approved', 'paid')
+          OR LOWER(COALESCE(status, '')) IN ('approved', 'paid')
+        )
+      ORDER BY id DESC
+      LIMIT 1
+    `,
+    [orderId, provider ?? null, provider ?? null],
+  );
+
+  return rows[0] ?? null;
+}
+
 export async function upsertPaymentRecord(
   conn: Queryable,
   input: UpsertPaymentRecordInput,
 ) {
   await ensurePaymentsTable(conn);
 
-  const providerPaymentId =
-    typeof input.providerPaymentId === "string" &&
-    input.providerPaymentId.trim().length > 0
-      ? input.providerPaymentId.trim()
-      : null;
-  const webhookEventId =
-    typeof input.webhookEventId === "string" &&
-    input.webhookEventId.trim().length > 0
-      ? input.webhookEventId.trim()
-      : null;
-
-  const serializedRawEvent =
-    input.rawEvent == null ? null : JSON.stringify(input.rawEvent);
-  const serializedRawResponse =
-    input.rawResponse == null ? null : JSON.stringify(input.rawResponse);
+  const providerPaymentId = normalizeOptionalString(input.providerPaymentId);
+  const webhookEventId = normalizeOptionalString(input.webhookEventId);
+  const transactionReference = normalizeOptionalString(
+    input.transactionReference,
+  );
+  const providerName = normalizeOptionalString(input.providerName);
+  const paymentStatus =
+    normalizeOptionalString(input.paymentStatus) ??
+    normalizeOptionalString(input.status) ??
+    "unknown";
+  const provider =
+    normalizeOptionalString(input.provider) ??
+    normalizeOptionalString(input.providerName) ??
+    "MANUAL";
+  const serializedRawEvent = serializeOptionalJson(input.rawEvent);
+  const serializedRawResponse = serializeOptionalJson(input.rawResponse);
   const paidAt = normalizeDatetimeInput(input.paidAt);
   const signatureValidatedAt = normalizeDatetimeInput(
     input.signatureValidatedAt,
   );
   const processedAt = normalizeDatetimeInput(input.processedAt);
+
+  if (input.id) {
+    await conn.query(
+      `
+        UPDATE payments
+        SET
+          order_id = ?,
+          payment_method_id = COALESCE(?, payment_method_id),
+          payment_status = ?,
+          transaction_reference = COALESCE(?, transaction_reference),
+          provider_name = COALESCE(?, provider_name),
+          provider = COALESCE(?, provider),
+          provider_payment_id = COALESCE(?, provider_payment_id),
+          webhook_event_id = COALESCE(?, webhook_event_id),
+          status = ?,
+          amount = ?,
+          currency = ?,
+          paid_at = COALESCE(?, paid_at),
+          raw_event = COALESCE(?, raw_event),
+          raw_response = ?,
+          signature_validated_at = COALESCE(?, signature_validated_at),
+          processed_at = COALESCE(?, processed_at),
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [
+        input.orderId,
+        input.paymentMethodId ?? null,
+        paymentStatus,
+        transactionReference,
+        providerName,
+        provider,
+        providerPaymentId,
+        webhookEventId,
+        input.status,
+        input.amount,
+        input.currency ?? "MXN",
+        paidAt,
+        serializedRawEvent,
+        serializedRawResponse,
+        signatureValidatedAt,
+        processedAt,
+        input.id,
+      ],
+    );
+
+    return input.id;
+  }
 
   if (providerPaymentId || webhookEventId) {
     const [existingRows] = await conn.query<RowDataPacket[]>(
@@ -188,7 +358,7 @@ export async function upsertPaymentRecord(
         LIMIT 1
       `,
       [
-        input.provider,
+        provider,
         providerPaymentId,
         providerPaymentId,
         webhookEventId,
@@ -202,6 +372,11 @@ export async function upsertPaymentRecord(
           UPDATE payments
           SET
             order_id = ?,
+            payment_method_id = COALESCE(?, payment_method_id),
+            payment_status = ?,
+            transaction_reference = COALESCE(?, transaction_reference),
+            provider_name = COALESCE(?, provider_name),
+            provider = COALESCE(?, provider),
             provider_payment_id = COALESCE(?, provider_payment_id),
             webhook_event_id = COALESCE(?, webhook_event_id),
             status = ?,
@@ -217,6 +392,11 @@ export async function upsertPaymentRecord(
         `,
         [
           input.orderId,
+          input.paymentMethodId ?? null,
+          paymentStatus,
+          transactionReference,
+          providerName,
+          provider,
           providerPaymentId,
           webhookEventId,
           input.status,
@@ -235,57 +415,72 @@ export async function upsertPaymentRecord(
     }
   }
 
-  const [latestRows] = await conn.query<RowDataPacket[]>(
-    `
-      SELECT id
-      FROM payments
-      WHERE order_id = ? AND provider = ?
-      ORDER BY id DESC
-      LIMIT 1
-    `,
-    [input.orderId, input.provider],
-  );
-
-  if (latestRows[0]?.id) {
-    await conn.query(
+  if (transactionReference) {
+    const [existingRows] = await conn.query<RowDataPacket[]>(
       `
-        UPDATE payments
-        SET
-          provider_payment_id = COALESCE(?, provider_payment_id),
-          webhook_event_id = COALESCE(?, webhook_event_id),
-          status = ?,
-          amount = ?,
-          currency = ?,
-          paid_at = COALESCE(?, paid_at),
-          raw_event = COALESCE(?, raw_event),
-          raw_response = ?,
-          signature_validated_at = COALESCE(?, signature_validated_at),
-          processed_at = COALESCE(?, processed_at),
-          updated_at = NOW()
-        WHERE id = ?
+        SELECT id
+        FROM payments
+        WHERE transaction_reference = ?
+        LIMIT 1
       `,
-      [
-        providerPaymentId,
-        webhookEventId,
-        input.status,
-        input.amount,
-        input.currency ?? "MXN",
-        paidAt,
-        serializedRawEvent,
-        serializedRawResponse,
-        signatureValidatedAt,
-        processedAt,
-        latestRows[0].id,
-      ],
+      [transactionReference],
     );
 
-    return Number(latestRows[0].id);
+    if (existingRows[0]?.id) {
+      await conn.query(
+        `
+          UPDATE payments
+          SET
+            order_id = ?,
+            payment_method_id = COALESCE(?, payment_method_id),
+            payment_status = ?,
+            provider_name = COALESCE(?, provider_name),
+            provider = COALESCE(?, provider),
+            provider_payment_id = COALESCE(?, provider_payment_id),
+            webhook_event_id = COALESCE(?, webhook_event_id),
+            status = ?,
+            amount = ?,
+            currency = ?,
+            paid_at = COALESCE(?, paid_at),
+            raw_event = COALESCE(?, raw_event),
+            raw_response = ?,
+            signature_validated_at = COALESCE(?, signature_validated_at),
+            processed_at = COALESCE(?, processed_at),
+            updated_at = NOW()
+          WHERE id = ?
+        `,
+        [
+          input.orderId,
+          input.paymentMethodId ?? null,
+          paymentStatus,
+          providerName,
+          provider,
+          providerPaymentId,
+          webhookEventId,
+          input.status,
+          input.amount,
+          input.currency ?? "MXN",
+          paidAt,
+          serializedRawEvent,
+          serializedRawResponse,
+          signatureValidatedAt,
+          processedAt,
+          existingRows[0].id,
+        ],
+      );
+
+      return Number(existingRows[0].id);
+    }
   }
 
   const [result] = await conn.query<ResultSetHeader>(
     `
       INSERT INTO payments (
         order_id,
+        payment_method_id,
+        payment_status,
+        transaction_reference,
+        provider_name,
         provider,
         provider_payment_id,
         webhook_event_id,
@@ -300,11 +495,15 @@ export async function upsertPaymentRecord(
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `,
     [
       input.orderId,
-      input.provider,
+      input.paymentMethodId ?? null,
+      paymentStatus,
+      transactionReference,
+      providerName,
+      provider,
       providerPaymentId,
       webhookEventId,
       input.status,

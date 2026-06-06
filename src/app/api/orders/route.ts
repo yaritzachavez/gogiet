@@ -17,7 +17,11 @@ import {
   createNotificationsForAdminGeneralSafely,
 } from "@/lib/notifications";
 import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
-import { ensureOrderPaymentColumns } from "@/lib/order-payments";
+import {
+  ensureOrderPaymentColumns,
+  ensurePaymentsTable,
+  upsertPaymentRecord,
+} from "@/lib/order-payments";
 import {
   ensureAdminMessagesRuntimeSchema,
   ensureOrderItemsRuntimeSchema,
@@ -195,6 +199,75 @@ function parseAddressMeta(referenceNotes?: string | null) {
     };
   } catch {
     return {};
+  }
+}
+
+function resolvePaymentProvider(paymentMethodName: string) {
+  switch (paymentMethodName) {
+    case "mercadopago":
+      return "MERCADOPAGO";
+    case "transferencia":
+      return "TRANSFER";
+    case "efectivo":
+      return "CASH";
+    case "terminal":
+      return "TERMINAL";
+    default:
+      return "MANUAL";
+  }
+}
+
+function getInitialPaymentRecord(input: {
+  orderId: number;
+  paymentMethodId: number;
+  paymentMethodName: string;
+  totalAmount: number;
+  transferProofUrl?: string | null;
+  transferReceiptNote?: string | null;
+}) {
+  switch (input.paymentMethodName) {
+    case "efectivo":
+      return {
+        orderId: input.orderId,
+        paymentMethodId: input.paymentMethodId,
+        paymentStatus: "pending",
+        transactionReference: `cash-order-${input.orderId}`,
+        providerName: "Efectivo",
+        provider: "CASH",
+        status: "awaiting_collection",
+        amount: input.totalAmount,
+        currency: "MXN",
+      };
+    case "terminal":
+      return {
+        orderId: input.orderId,
+        paymentMethodId: input.paymentMethodId,
+        paymentStatus: "pending",
+        transactionReference: `terminal-order-${input.orderId}`,
+        providerName: "Terminal",
+        provider: "TERMINAL",
+        status: "awaiting_charge",
+        amount: input.totalAmount,
+        currency: "MXN",
+      };
+    case "transferencia":
+      return {
+        orderId: input.orderId,
+        paymentMethodId: input.paymentMethodId,
+        paymentStatus: "review",
+        transactionReference: `transfer-order-${input.orderId}`,
+        providerName: "Transferencia",
+        provider: "TRANSFER",
+        status: "awaiting_validation",
+        amount: input.totalAmount,
+        currency: "MXN",
+        rawEvent: {
+          transferProofUrl: input.transferProofUrl ?? null,
+          transferReceiptNote: input.transferReceiptNote ?? null,
+        },
+      };
+    default:
+      return null;
   }
 }
 
@@ -752,6 +825,7 @@ export async function POST(req: NextRequest) {
     await conn.beginTransaction();
     stage = "ensure_runtime_schema";
     await ensureOrdersColumns(conn);
+    await ensurePaymentsTable(conn);
     await ensureOrderItemsTable(conn);
     await ensureCoreOrderStatuses(conn);
     await ensureAdminMessagesTable(conn);
@@ -810,8 +884,7 @@ export async function POST(req: NextRequest) {
                 : requestedStatus,
             conn,
           );
-    const paymentProvider =
-      paymentMethodName === "mercadopago" ? "MERCADOPAGO" : null;
+    const paymentProvider = resolvePaymentProvider(paymentMethodName);
     const normalizedPaymentStatus =
       paymentMethodName === "mercadopago"
         ? resolvedStatus.canonical === "paid"
@@ -821,7 +894,7 @@ export async function POST(req: NextRequest) {
             : "pending"
         : paymentMethodName === "transferencia"
           ? "review"
-          : null;
+          : "pending";
     const transferProofUrl =
       typeof (body.payment_receipt_url ?? body.comprobante_pago_url) ===
       "string"
@@ -1317,6 +1390,20 @@ export async function POST(req: NextRequest) {
         `,
         [orderId, userId, transferReceiptNote],
       );
+    }
+
+    const initialPaymentRecord = getInitialPaymentRecord({
+      orderId,
+      paymentMethodId,
+      paymentMethodName,
+      totalAmount: commissionBreakdown.total,
+      transferProofUrl: transferProofUrl || null,
+      transferReceiptNote: transferReceiptNote || null,
+    });
+
+    if (initialPaymentRecord) {
+      stage = "insert_payment_record";
+      await upsertPaymentRecord(conn, initialPaymentRecord);
     }
 
     if (paymentMethodName === "transferencia" && transferProofUrl) {

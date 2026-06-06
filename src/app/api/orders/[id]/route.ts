@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { safeErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 import { createNotificationsForAdminGeneral } from "@/lib/notifications";
+import { ensurePaymentsTable, upsertPaymentRecord } from "@/lib/order-payments";
 import {
   ensureAdminMessagesRuntimeSchema,
   ensureOrderItemsRuntimeSchema,
@@ -337,6 +338,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     const body = await req.json();
     await ensureOrdersColumns();
+    await ensurePaymentsTable(pool);
     await ensureCoreOrderStatuses();
     await ensureAdminMessagesTable();
     const fields: string[] = [];
@@ -467,6 +469,36 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
           relatedId: orderId,
         });
       }
+    }
+
+    const effectivePaymentMethod = normalizeCatalogName(
+      body.payment_method ?? existingOrder.payment_method,
+      "efectivo",
+    );
+    const proofUrl = String(
+      body.payment_receipt_url ?? body.comprobante_pago_url ?? "",
+    ).trim();
+    const transferReceiptNote = String(body.transfer_receipt_note ?? "").trim();
+
+    if (
+      effectivePaymentMethod === "transferencia" &&
+      (proofUrl || transferReceiptNote)
+    ) {
+      await upsertPaymentRecord(pool, {
+        orderId,
+        paymentMethodId: Number(existingOrder.payment_method_id ?? 0) || null,
+        paymentStatus: "review",
+        transactionReference: `transfer-order-${orderId}`,
+        providerName: "Transferencia",
+        provider: "TRANSFER",
+        status: "awaiting_validation",
+        amount: Number(existingOrder.total_amount ?? 0),
+        currency: "MXN",
+        rawEvent: {
+          transferProofUrl: proofUrl || null,
+          transferReceiptNote: transferReceiptNote || null,
+        },
+      });
     }
 
     const order = await getOrderById(orderId);

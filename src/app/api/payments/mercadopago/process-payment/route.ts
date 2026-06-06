@@ -14,6 +14,8 @@ import {
 import {
   ensureOrderPaymentColumns,
   ensurePaymentsTable,
+  findApprovedPaymentForOrder,
+  findLatestPaymentForOrder,
   upsertPaymentRecord,
 } from "@/lib/order-payments";
 import { resolveCanonicalOrderStatus } from "@/lib/order-status";
@@ -27,6 +29,7 @@ type OrderRow = RowDataPacket & {
   business_id: number;
   user_id: number;
   total_amount: string | number;
+  payment_method_id: number;
   payment_method: string | null;
   status_name: string | null;
   customer_name: string | null;
@@ -129,6 +132,12 @@ export async function POST(req: NextRequest) {
   }
 
   const conn = await pool.getConnection();
+  let paymentAttemptId: number | null = null;
+  let paymentAttemptReference: string | null = null;
+  let transactionOpen = false;
+  let currentOrderId: number | null = null;
+  let currentPaymentMethodId: number | null = null;
+  let currentOrderTotal = 0;
 
   try {
     const body = await req.json().catch(() => null);
@@ -154,6 +163,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    currentOrderId = orderId;
+
+    await conn.beginTransaction();
+    transactionOpen = true;
     await ensureOrderPaymentColumns(conn);
     await ensurePaymentsTable(conn);
     await ensureCoreOrderStatuses(conn);
@@ -165,6 +178,7 @@ export async function POST(req: NextRequest) {
           o.business_id,
           o.user_id,
           o.total_amount,
+          o.payment_method_id,
           o.payment_method,
           osc.name AS status_name,
           CONCAT(u.first_name, ' ', COALESCE(u.last_name, '')) AS customer_name,
@@ -181,6 +195,8 @@ export async function POST(req: NextRequest) {
     const order = orderRows[0];
 
     if (!order || Number(order.user_id) !== auth.user.id) {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         { success: false, error: "No encontramos ese pedido para tu sesión." },
         { status: 404 },
@@ -188,6 +204,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (String(order.payment_method ?? "").toLowerCase() !== "mercadopago") {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         {
           success: false,
@@ -197,11 +215,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    currentPaymentMethodId = Number(order.payment_method_id ?? 0) || null;
     const currentStatus = resolveCanonicalOrderStatus(order.status_name);
     if (
       currentStatus !== "pending_payment" &&
       currentStatus !== "payment_failed"
     ) {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         {
           success: false,
@@ -212,10 +233,13 @@ export async function POST(req: NextRequest) {
     }
 
     const backendTotal = roundMoney(order.total_amount);
+    currentOrderTotal = backendTotal;
     if (
       !Number.isFinite(frontendTotal) ||
       Number(frontendTotal.toFixed(2)) !== backendTotal
     ) {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         {
           success: false,
@@ -236,6 +260,8 @@ export async function POST(req: NextRequest) {
     );
 
     if (!orderItems.length) {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         {
           success: false,
@@ -249,6 +275,8 @@ export async function POST(req: NextRequest) {
       frontendItems.length > 0 &&
       frontendItems.length !== orderItems.length
     ) {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         {
           success: false,
@@ -266,6 +294,8 @@ export async function POST(req: NextRequest) {
         );
         const quantity = parsePositiveNumber(item?.quantity);
         if (!productId || !quantity) {
+          await conn.rollback();
+          transactionOpen = false;
           return NextResponse.json(
             {
               success: false,
@@ -284,6 +314,8 @@ export async function POST(req: NextRequest) {
       });
 
       if (hasMismatch) {
+        await conn.rollback();
+        transactionOpen = false;
         return NextResponse.json(
           {
             success: false,
@@ -294,11 +326,65 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const approvedPayment = await findApprovedPaymentForOrder(
+      conn,
+      orderId,
+      "MERCADOPAGO",
+    );
+
+    if (approvedPayment?.id) {
+      await conn.rollback();
+      transactionOpen = false;
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Este pedido ya tiene un pago aprobado y no puede cobrarse otra vez.",
+        },
+        { status: 409 },
+      );
+    }
+
+    const latestPayment = await findLatestPaymentForOrder(
+      conn,
+      orderId,
+      "MERCADOPAGO",
+    );
+    const latestPaymentState = normalizePaymentStatus(
+      latestPayment?.payment_status ?? latestPayment?.status,
+    );
+    const blockingAttemptStates = new Set([
+      "initiated",
+      "processing",
+      "pending",
+      "in_process",
+      "review",
+      "awaiting_payment",
+      "awaiting_confirmation",
+      "approved",
+      "paid",
+    ]);
+
+    if (latestPayment?.id && blockingAttemptStates.has(latestPaymentState)) {
+      await conn.rollback();
+      transactionOpen = false;
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Ya existe un intento de cobro activo para este pedido. Espera su confirmación o revisa el estado del pago.",
+        },
+        { status: 409 },
+      );
+    }
+
     const externalReference = buildExternalReference(orderId, auth.user.id);
     const appUrl = getAppUrl();
     const payerEmail = String(order.customer_email ?? "").trim();
 
     if (!payerEmail) {
+      await conn.rollback();
+      transactionOpen = false;
       return NextResponse.json(
         {
           success: false,
@@ -307,6 +393,43 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+
+    paymentAttemptReference = `gogi-order-${orderId}-${crypto.randomUUID()}`;
+    paymentAttemptId = await upsertPaymentRecord(conn, {
+      orderId,
+      paymentMethodId: currentPaymentMethodId,
+      paymentStatus: "pending",
+      transactionReference: paymentAttemptReference,
+      providerName: "Mercado Pago",
+      provider: "MERCADOPAGO",
+      status: "initiated",
+      amount: backendTotal,
+      currency: "MXN",
+      rawEvent: {
+        phase: "attempt_created",
+        frontendTotal,
+        issuerId,
+        installments,
+        paymentMethodId,
+        identificationType: identificationType || null,
+        frontendItemsCount: frontendItems.length,
+      },
+    });
+
+    await conn.query(
+      `
+        UPDATE orders
+        SET
+          payment_provider = 'MERCADOPAGO',
+          payment_status = 'pending',
+          updated_at = NOW()
+        WHERE id = ?
+      `,
+      [orderId],
+    );
+
+    await conn.commit();
+    transactionOpen = false;
 
     const payment = await createMercadoPagoPayment(
       {
@@ -336,7 +459,7 @@ export async function POST(req: NextRequest) {
           integration: "checkout_api_in_app",
         },
       },
-      `gogi-order-${orderId}-${crypto.randomUUID()}`,
+      paymentAttemptReference,
     );
 
     const paymentId = String(payment.id ?? "").trim();
@@ -346,6 +469,9 @@ export async function POST(req: NextRequest) {
         ? parseMercadoPagoDate(payment.date_approved)
         : null;
     const nextStatus = mapPaymentStatusToOrderStatus(paymentStatus);
+
+    await conn.beginTransaction();
+    transactionOpen = true;
 
     if (nextStatus) {
       const { statusId } = await ensureCanonicalOrderStatus(nextStatus, conn);
@@ -394,7 +520,20 @@ export async function POST(req: NextRequest) {
     }
 
     await upsertPaymentRecord(conn, {
+      id: paymentAttemptId ?? undefined,
       orderId,
+      paymentMethodId: currentPaymentMethodId,
+      paymentStatus:
+        paymentStatus === "approved"
+          ? "approved"
+          : paymentStatus === "rejected" ||
+              paymentStatus === "cancelled" ||
+              paymentStatus === "charged_back" ||
+              paymentStatus === "refunded"
+            ? "rejected"
+            : "pending",
+      transactionReference: paymentAttemptReference,
+      providerName: "Mercado Pago",
       provider: "MERCADOPAGO",
       providerPaymentId: paymentId || null,
       status: paymentStatus || "unknown",
@@ -435,6 +574,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    await conn.commit();
+    transactionOpen = false;
+
     return NextResponse.json({
       success: true,
       orderId,
@@ -448,6 +590,52 @@ export async function POST(req: NextRequest) {
       "Error POST /api/payments/mercadopago/process-payment:",
       error,
     );
+
+    if (transactionOpen) {
+      await conn.rollback();
+      transactionOpen = false;
+    }
+
+    if (paymentAttemptReference && currentOrderId) {
+      try {
+        await conn.query(
+          `
+            UPDATE orders
+            SET
+              payment_provider = 'MERCADOPAGO',
+              payment_status = 'failed',
+              updated_at = NOW()
+            WHERE id = ?
+              AND LOWER(COALESCE(payment_status, '')) <> 'approved'
+          `,
+          [currentOrderId],
+        );
+
+        await upsertPaymentRecord(conn, {
+          id: paymentAttemptId ?? undefined,
+          orderId: currentOrderId,
+          paymentMethodId: currentPaymentMethodId,
+          paymentStatus: "failed",
+          transactionReference: paymentAttemptReference,
+          providerName: "Mercado Pago",
+          provider: "MERCADOPAGO",
+          status: "provider_error",
+          amount: currentOrderTotal,
+          currency: "MXN",
+          processedAt: new Date(),
+          rawResponse: {
+            error:
+              error instanceof Error ? error.message : "unknown_provider_error",
+          },
+        });
+      } catch (persistError) {
+        console.error(
+          "Error persisting Mercado Pago failure attempt:",
+          persistError,
+        );
+      }
+    }
+
     return NextResponse.json(
       {
         success: false,

@@ -32,6 +32,7 @@ type OrderRow = RowDataPacket & {
   business_id: number;
   user_id: number;
   total_amount: string | number;
+  payment_method_id: number;
   payment_method: string | null;
   payment_provider: string | null;
   provider_payment_id: string | null;
@@ -330,6 +331,7 @@ export async function POST(req: NextRequest) {
           o.business_id,
           o.user_id,
           o.total_amount,
+          o.payment_method_id,
           COALESCE(o.payment_method, pm.name) AS payment_method,
           o.payment_provider,
           o.provider_payment_id,
@@ -533,6 +535,20 @@ export async function POST(req: NextRequest) {
 
     await upsertPaymentRecord(conn, {
       orderId,
+      paymentMethodId: Number(order.payment_method_id ?? 0) || null,
+      paymentStatus:
+        paymentStatus === "approved"
+          ? "approved"
+          : paymentStatus === "rejected" ||
+              paymentStatus === "cancelled" ||
+              paymentStatus === "charged_back" ||
+              paymentStatus === "refunded"
+            ? "rejected"
+            : paymentStatus === "in_mediation"
+              ? "review"
+              : "pending",
+      transactionReference: externalReference || null,
+      providerName: "Mercado Pago",
       provider: "MERCADOPAGO",
       providerPaymentId: paymentId,
       webhookEventId: webhookEventId || notificationId,

@@ -624,8 +624,10 @@ model payments {
   @@index([order_id], map: "fk_payments_order")
   @@index([payment_method_id], map: "fk_payments_payment_method")
   @@index([provider], map: "idx_payments_provider")
-  @@index([provider_payment_id], map: "idx_payments_provider_payment_id")
-  @@index([webhook_event_id], map: "idx_payments_webhook_event_id")
+  @@index([order_id, provider, created_at], map: "idx_payments_order_provider_created_at")
+  @@unique([transaction_reference], map: "uk_payments_transaction_reference")
+  @@unique([provider, provider_payment_id], map: "uk_payments_provider_provider_payment_id")
+  @@unique([provider, webhook_event_id], map: "uk_payments_provider_webhook_event_id")
 }
 
 model product_categories {
