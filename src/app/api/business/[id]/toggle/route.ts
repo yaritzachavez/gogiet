@@ -1,8 +1,14 @@
+import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
+
 import pool from "@/lib/db";
 
+type BusinessOpenRow = RowDataPacket & {
+  is_open: number | boolean | null;
+};
+
 export async function GET(
-  req: NextRequest,
+  _req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -16,7 +22,7 @@ export async function GET(
       );
     }
 
-    const [rows]: any = await pool.query(
+    const [rows] = await pool.query<BusinessOpenRow[]>(
       "SELECT is_open FROM business WHERE id = ? LIMIT 1",
       [businessId],
     );
@@ -43,7 +49,7 @@ export async function GET(
 }
 
 export async function PUT(
-  req: NextRequest,
+  _req: NextRequest,
   context: { params: Promise<{ id: string }> },
 ) {
   try {
@@ -57,7 +63,7 @@ export async function PUT(
       );
     }
 
-    const [rows]: any = await pool.query(
+    const [rows] = await pool.query<BusinessOpenRow[]>(
       "SELECT is_open FROM business WHERE id = ? LIMIT 1",
       [businessId],
     );

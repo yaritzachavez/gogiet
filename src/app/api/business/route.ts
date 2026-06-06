@@ -1,3 +1,4 @@
+import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
@@ -5,6 +6,66 @@ import { ensureBusinessLogoColumn } from "@/lib/business-logo";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 import { requireAdminGeneral } from "@/lib/permissions";
+
+type BusinessListRow = RowDataPacket & {
+  id: number;
+  name: string;
+  business_category_id: number | null;
+  category_name: string | null;
+  city: string | null;
+  district: string | null;
+  address: string | null;
+  legal_name: string | null;
+  tax_id: string | null;
+  address_notes: string | null;
+  phone: string | null;
+  email: string | null;
+  logo_url: string | null;
+  cover_image_url: string | null;
+  min_order_amount: number | null;
+  estimated_delivery_minutes: number | null;
+  rating_average: number | null;
+  is_open_now: number | boolean | null;
+  status_id: number | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  owner_id: number | null;
+};
+
+type BusinessDetailRow = RowDataPacket & {
+  id: number;
+  name: string;
+  legal_name: string | null;
+  tax_id: string | null;
+  city: string | null;
+  district: string | null;
+  address: string | null;
+  address_notes: string | null;
+  phone: string | null;
+  email: string | null;
+  logo_url: string | null;
+  status_id: number | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+  business_category_id: number | null;
+  category_name: string | null;
+};
+
+type CreateBusinessBody = {
+  owner_id?: number | string | null;
+  name?: string | null;
+  business_category_id?: number | string | null;
+  city?: string | null;
+  district?: string | null;
+  address?: string | null;
+  legal_name?: string | null;
+  tax_id?: string | null;
+  address_notes?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  logo_url?: string | null;
+  status_id?: number | string | null;
+};
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,7 +76,7 @@ export async function GET(req: NextRequest) {
       return admin.response;
     }
 
-    const [rows] = await pool.query(`
+    const [rows] = await pool.query<BusinessListRow[]>(`
       SELECT
         b.id,
         b.name,
@@ -46,7 +107,7 @@ export async function GET(req: NextRequest) {
       ORDER BY b.id DESC
     `);
 
-    const negocios = (rows as any[]).map((business) => ({
+    const negocios = rows.map((business) => ({
       ...business,
       business_owner: { user_id: business.owner_id ?? null },
     }));
@@ -69,7 +130,7 @@ export async function POST(req: NextRequest) {
       return admin.response;
     }
 
-    const body = await req.json();
+    const body: CreateBusinessBody = await req.json();
     const {
       owner_id,
       name,
@@ -86,7 +147,18 @@ export async function POST(req: NextRequest) {
       status_id = 1,
     } = body;
 
-    if (!owner_id || !name || !business_category_id || !city || !address) {
+    const ownerId = Number(owner_id);
+    const businessCategoryId = Number(business_category_id);
+    const normalizedStatusId = Number(status_id);
+
+    if (
+      !ownerId ||
+      !name ||
+      !businessCategoryId ||
+      !city ||
+      !address ||
+      !Number.isFinite(normalizedStatusId)
+    ) {
       return NextResponse.json(
         {
           error:
@@ -98,7 +170,7 @@ export async function POST(req: NextRequest) {
 
     await connection.beginTransaction();
 
-    const [businessResult]: any = await connection.query(
+    const [businessResult] = await connection.query<ResultSetHeader>(
       `
         INSERT INTO business (
           name,
@@ -128,7 +200,7 @@ export async function POST(req: NextRequest) {
         phone ?? null,
         email ?? null,
         logo_url ?? null,
-        status_id,
+        normalizedStatusId,
       ],
     );
 
@@ -139,21 +211,21 @@ export async function POST(req: NextRequest) {
         INSERT INTO business_category_map (business_id, category_id)
         VALUES (?, ?)
       `,
-      [businessId, business_category_id],
+      [businessId, businessCategoryId],
     );
 
     const { alreadyAssigned: ownerAlreadyAssigned } =
-      await syncBusinessOwnerSafely(connection, businessId, owner_id);
+      await syncBusinessOwnerSafely(connection, businessId, ownerId);
 
     await connection.query(
       `
         INSERT IGNORE INTO user_roles (user_id, role_id)
         SELECT ?, id FROM roles WHERE name = 'business_admin'
       `,
-      [owner_id],
+      [ownerId],
     );
 
-    const [data]: any = await connection.query(
+    const [data] = await connection.query<BusinessDetailRow[]>(
       `
         SELECT
           b.*,
@@ -178,7 +250,7 @@ export async function POST(req: NextRequest) {
         owner_assignment_message: ownerAlreadyAssigned
           ? "El negocio ya tiene ese dueño asignado"
           : "Dueño asignado correctamente",
-        business: data[0],
+        business: data[0] ?? null,
       },
       { status: 201 },
     );
