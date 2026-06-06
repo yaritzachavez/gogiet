@@ -7,7 +7,15 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!node_modules", "!.next", "!dist", "!build"]
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.next",
+      "!dist",
+      "!build",
+      "!ios/App/App/Assets.xcassets/**/Contents.json",
+      "!ops_backups/prod_schema_snapshot_2026-05-18Tlaunch.json"
+    ]
   },
   "formatter": {
     "enabled": true,
