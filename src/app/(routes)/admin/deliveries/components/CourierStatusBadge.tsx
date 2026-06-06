@@ -1,6 +1,6 @@
 "use client";
 
-import { CourierStatus } from "@/types/Couriers";
+import type { CourierStatus } from "@/types/Couriers";
 
 export function CourierStatusBadge({ status }: { status: CourierStatus }) {
   const palette =

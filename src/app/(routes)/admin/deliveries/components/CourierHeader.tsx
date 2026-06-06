@@ -2,16 +2,13 @@
 
 import Link from "next/link";
 
-import { CourierHeaderProps } from "@/types/Couriers";
-
-
+import type { CourierHeaderProps } from "@/types/Couriers";
 
 export function CourierHeader({
   courierId,
   name,
   zone,
   shift,
-  status,
 }: CourierHeaderProps) {
   return (
     <header className="flex flex-wrap items-center justify-between gap-4">

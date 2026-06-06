@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { validateAuth } from "@/lib/authToken";
+import pool from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
     if (!payload) {
       return NextResponse.json(
         { error: "Token inválido o faltante" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -20,14 +21,14 @@ export async function POST(req: NextRequest) {
     if (!business_id) {
       return NextResponse.json(
         { error: "El business_id es obligatorio" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!name || name.trim() === "") {
       return NextResponse.json(
         { error: "El nombre es obligatorio" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -36,13 +37,13 @@ export async function POST(req: NextRequest) {
     // 4. Verificar que el negocio exista
     const [business] = await pool.query(
       "SELECT id FROM business WHERE id = ?",
-      [business_id]
+      [business_id],
     );
 
     if (!Array.isArray(business) || business.length === 0) {
       return NextResponse.json(
         { error: "El negocio no existe" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -53,13 +54,13 @@ export async function POST(req: NextRequest) {
         FROM product_categories
         WHERE name = ?
       `,
-      [cleanName]
+      [cleanName],
     );
 
     if (Array.isArray(dupCheck) && dupCheck.length > 0) {
       return NextResponse.json(
         { error: "Ya existe una categoría con ese nombre" },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -69,19 +70,18 @@ export async function POST(req: NextRequest) {
         INSERT INTO product_categories (name)
         VALUES (?)
       `,
-      [cleanName]
+      [cleanName],
     );
 
     return NextResponse.json(
       { message: "Categoría creada correctamente" },
-      { status: 201 }
+      { status: 201 },
     );
-
   } catch (err) {
     console.error("❌ Error POST /categories:", err);
     return NextResponse.json(
       { error: "Error interno del servidor" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -3,7 +3,7 @@
 import clsx from "clsx";
 import Image from "next/image";
 import Link from "next/link";
-import type { ComponentProps } from "react";
+
 import { useParallax } from "@/hooks/useParallax";
 
 interface HeroProps {
@@ -89,7 +89,8 @@ export function Hero({
         </div>
         <div className="absolute inset-0 bg-[rgba(0,0,0,0.35)]" />
         <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/20 to-transparent" />
-        <div className="absolute inset-0"
+        <div
+          className="absolute inset-0"
           style={{
             background:
               "radial-gradient(70% 50% at 50% 40%, transparent, rgba(0,0,0,0.45))",

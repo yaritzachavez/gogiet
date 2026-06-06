@@ -1,4 +1,4 @@
-import type { Pool, PoolConnection, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection } from "mysql2/promise";
 
 import pool from "@/lib/db";
 import {

@@ -1,15 +1,20 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState, useEffect } from "react";
 import { MessageCircle } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+
 import { cn } from "@/lib/utils";
 
-export function AdminChatBubble({ initialUnread = 3 }: { initialUnread?: number }) {
+export function AdminChatBubble({
+  initialUnread = 3,
+}: {
+  initialUnread?: number;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const [unread, setUnread] = useState(initialUnread);
-  const [pulse, setPulse] = useState(false);
+  const [pulse] = useState(false);
 
   const targetHref = useMemo(() => {
     const base = pathname?.startsWith("/admin") ? pathname : "/admin";

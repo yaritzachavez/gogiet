@@ -1,8 +1,6 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
-
-import pool from "@/lib/db";
 import {
   consumeRateLimit,
   createPasswordResetToken,
@@ -14,6 +12,7 @@ import {
   normalizeEmail,
   recordAuthAuditLog,
 } from "@/lib/auth-security";
+import pool from "@/lib/db";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type UserRow = RowDataPacket & {
@@ -55,7 +54,10 @@ export async function POST(req: Request) {
     const userAgent = getRequestUserAgent(req);
 
     if (!email || !isValidEmail(email)) {
-      return json({ success: false, error: "Ingresa un correo válido." }, { status: 400 });
+      return json(
+        { success: false, error: "Ingresa un correo válido." },
+        { status: 400 },
+      );
     }
 
     const rateLimitByIp = await consumeRateLimit({
@@ -70,7 +72,8 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "Has solicitado demasiados enlaces de recuperación. Intenta nuevamente más tarde.",
+          error:
+            "Has solicitado demasiados enlaces de recuperación. Intenta nuevamente más tarde.",
         },
         { status: 429 },
       );
@@ -88,7 +91,8 @@ export async function POST(req: Request) {
       return json(
         {
           success: false,
-          error: "Debes esperar un momento antes de volver a solicitar la recuperación.",
+          error:
+            "Debes esperar un momento antes de volver a solicitar la recuperación.",
         },
         { status: 429 },
       );
@@ -104,7 +108,10 @@ export async function POST(req: Request) {
       });
 
       return json(
-        { success: false, error: "No pudimos iniciar la recuperación de contraseña." },
+        {
+          success: false,
+          error: "No pudimos iniciar la recuperación de contraseña.",
+        },
         { status: 500 },
       );
     }
@@ -169,7 +176,10 @@ export async function POST(req: Request) {
       });
 
       return json(
-        { success: false, error: "No pudimos enviar el enlace de recuperación." },
+        {
+          success: false,
+          error: "No pudimos enviar el enlace de recuperación.",
+        },
         { status: 500 },
       );
     }
@@ -189,7 +199,9 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+      typeof error === "object" && error !== null
+        ? (error as SqlLikeError)
+        : null;
 
     console.error("FORGOT PASSWORD ERROR:", {
       code: sqlError?.code ?? null,
@@ -200,7 +212,10 @@ export async function POST(req: Request) {
     });
 
     return json(
-      { success: false, error: "No pudimos iniciar la recuperación de contraseña." },
+      {
+        success: false,
+        error: "No pudimos iniciar la recuperación de contraseña.",
+      },
       { status: 500 },
     );
   }

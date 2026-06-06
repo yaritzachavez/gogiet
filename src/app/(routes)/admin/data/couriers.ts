@@ -1,4 +1,4 @@
-import { CourierRecord } from "@/types/Couriers";
+import type { CourierRecord } from "@/types/Couriers";
 
 export const couriers: CourierRecord[] = [
   {

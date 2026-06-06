@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { type AdminNavLink, DesktopMenu, MobileMenu } from "./components/nav";
 import { AdminChatBubble } from "./components/AdminChatBubble";
+import { type AdminNavLink, DesktopMenu, MobileMenu } from "./components/nav";
 
 const NAV_LINKS: AdminNavLink[] = [
   {

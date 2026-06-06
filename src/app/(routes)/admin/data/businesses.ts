@@ -1,5 +1,4 @@
-
-import { BusinessRecord } from "@/types/Business";
+import type { BusinessRecord } from "@/types/Business";
 
 export const businesses: BusinessRecord[] = [
   {

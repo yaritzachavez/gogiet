@@ -1,7 +1,5 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
-
-import pool from "@/lib/db";
 import {
   ensureAuthSecuritySchema,
   hashPassword,
@@ -11,6 +9,7 @@ import {
   validatePasswordResetToken,
   validatePasswordStrength,
 } from "@/lib/auth-security";
+import pool from "@/lib/db";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type UserColumnRow = RowDataPacket & {
@@ -27,7 +26,9 @@ type SqlLikeError = {
 
 async function getUserColumns() {
   const [rows] = await pool.query<UserColumnRow[]>("SHOW COLUMNS FROM users");
-  return new Set(rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean));
+  return new Set(
+    rows.map((row) => String(row.Field ?? "").trim()).filter(Boolean),
+  );
 }
 
 export function OPTIONS(req: Request) {
@@ -50,7 +51,10 @@ export async function POST(req: Request) {
     const confirmPassword = String(body.confirmPassword ?? "");
 
     if (!token) {
-      return json({ success: false, error: "El enlace de recuperación no es válido." }, { status: 400 });
+      return json(
+        { success: false, error: "El enlace de recuperación no es válido." },
+        { status: 400 },
+      );
     }
 
     const passwordError = validatePasswordStrength(password);
@@ -59,14 +63,20 @@ export async function POST(req: Request) {
     }
 
     if (password !== confirmPassword) {
-      return json({ success: false, error: "Las contraseñas no coinciden." }, { status: 400 });
+      return json(
+        { success: false, error: "Las contraseñas no coinciden." },
+        { status: 400 },
+      );
     }
 
     await ensureAuthSecuritySchema();
 
     const validation = await validatePasswordResetToken(token);
     if (!validation.ok) {
-      return json({ success: false, error: validation.message }, { status: validation.status });
+      return json(
+        { success: false, error: validation.message },
+        { status: validation.status },
+      );
     }
 
     const userColumns = await getUserColumns();
@@ -78,7 +88,10 @@ export async function POST(req: Request) {
 
     if (!passwordColumn) {
       return json(
-        { success: false, error: "La base no tiene soporte para actualizar contraseña." },
+        {
+          success: false,
+          error: "La base no tiene soporte para actualizar contraseña.",
+        },
         { status: 500 },
       );
     }
@@ -113,7 +126,9 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     const sqlError =
-      typeof error === "object" && error !== null ? (error as SqlLikeError) : null;
+      typeof error === "object" && error !== null
+        ? (error as SqlLikeError)
+        : null;
 
     console.error("RESET PASSWORD ERROR:", {
       code: sqlError?.code ?? null,

@@ -1,21 +1,28 @@
-"use client"
+"use client";
 
-import type * as React from "react"
-import * as DialogPrimitive from "@radix-ui/react-dialog"
-import { X } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { DialogDescription } from "@/components/ui/dialog"
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { X } from "lucide-react";
+import type * as React from "react";
+import { DialogDescription } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 interface ResponsiveModalProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: string
-  icon?: React.ReactNode
-  children: React.ReactNode
-  footer?: React.ReactNode
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
-export default function ResponsiveModal({ open, onOpenChange, title, icon, children, footer }: ResponsiveModalProps) {
+export default function ResponsiveModal({
+  open,
+  onOpenChange,
+  title,
+  icon,
+  children,
+  footer,
+}: ResponsiveModalProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -35,9 +42,7 @@ export default function ResponsiveModal({ open, onOpenChange, title, icon, child
             "sm:data-[state=open]:slide-in-from-left-1/2 sm:data-[state=open]:slide-in-from-top-[48%]",
             "sm:data-[state=closed]:zoom-out-95 sm:data-[state=open]:zoom-in-95",
           )}
-          
         >
-
           <DialogDescription className="sr-only">
             Modifica los datos del usuario y guarda los cambios.
           </DialogDescription>
@@ -56,12 +61,16 @@ export default function ResponsiveModal({ open, onOpenChange, title, icon, child
           </div>
 
           {/* Body - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-hide">{children}</div>
+          <div className="flex-1 overflow-y-auto px-6 py-5 scrollbar-hide">
+            {children}
+          </div>
 
           {/* Footer */}
-          {footer && <div className="border-t border-zinc-800 px-6 py-4">{footer}</div>}
+          {footer && (
+            <div className="border-t border-zinc-800 px-6 py-4">{footer}</div>
+          )}
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
-  )
+  );
 }

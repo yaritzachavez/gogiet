@@ -4,8 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { businesses } from "@/app/(routes)/admin/data/businesses";
-
-import { BusinessRecord, BusinessStatus } from "@/types/Business";
+import type { BusinessRecord, BusinessStatus } from "@/types/Business";
 
 type EstadoFiltro = "Todos" | BusinessStatus;
 
@@ -46,9 +45,12 @@ export function BusinessList() {
     <section className="w-full rounded-[28px] border border-white/40 bg-white/65 px-6 py-8 shadow-[0_40px_120px_-60px_rgba(244,63,94,0.3)] backdrop-blur-xl dark:border-white/10 dark:bg-white/10 dark:shadow-none sm:px-8 lg:px-12 lg:py-10">
       <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-2">
-          <h2 className="text-2xl font-semibold text-red-600 sm:text-[28px]">Negocios registrados</h2>
+          <h2 className="text-2xl font-semibold text-red-600 sm:text-[28px]">
+            Negocios registrados
+          </h2>
           <p className="max-w-2xl text-sm text-zinc-500 dark:text-zinc-300">
-            Gestiona comercios aliados, revisa documentación y estado de verificación en una sola vista.
+            Gestiona comercios aliados, revisa documentación y estado de
+            verificación en una sola vista.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -61,7 +63,9 @@ export function BusinessList() {
           />
           <select
             value={estadoFiltro}
-            onChange={(event) => setEstadoFiltro(event.target.value as EstadoFiltro)}
+            onChange={(event) =>
+              setEstadoFiltro(event.target.value as EstadoFiltro)
+            }
             className="rounded-xl border border-red-200/60 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-200 dark:border-white/20 dark:bg-white/5"
           >
             <option value="Todos">Todos los estados</option>
@@ -103,7 +107,10 @@ export function BusinessList() {
           <tbody className="divide-y divide-white/45 bg-white/80 text-zinc-700 backdrop-blur dark:divide-white/10 dark:bg-white/5 dark:text-zinc-200">
             {filteredBusinesses.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-8 text-center text-sm text-zinc-400">
+                <td
+                  colSpan={7}
+                  className="px-6 py-8 text-center text-sm text-zinc-400"
+                >
                   No se encontraron negocios con los filtros actuales.
                 </td>
               </tr>
@@ -117,7 +124,8 @@ export function BusinessList() {
       </div>
 
       <p className="mt-4 text-xs text-zinc-400">
-        Esta vista utiliza datos simulados. Conecta tu API cuando tengas la tabla de negocios lista.
+        Esta vista utiliza datos simulados. Conecta tu API cuando tengas la
+        tabla de negocios lista.
       </p>
     </section>
   );
@@ -128,7 +136,9 @@ function BusinessRow({ business }: { business: BusinessRecord }) {
   return (
     <tr className="transition hover:bg-rose-50/40 dark:hover:bg-white/10">
       <td className="px-6 py-4 font-medium">{business.nombre}</td>
-      <td className="px-6 py-4 text-zinc-500 dark:text-zinc-300">{business.categoria}</td>
+      <td className="px-6 py-4 text-zinc-500 dark:text-zinc-300">
+        {business.categoria}
+      </td>
       <td className="px-6 py-4">{business.ciudad}</td>
       <td className="px-6 py-4">
         <div className="flex flex-col gap-0.5">
@@ -156,7 +166,9 @@ function BusinessRow({ business }: { business: BusinessRecord }) {
           </Link>
           <select
             value={status}
-            onChange={(event) => setStatus(event.target.value as BusinessStatus)}
+            onChange={(event) =>
+              setStatus(event.target.value as BusinessStatus)
+            }
             className="rounded-lg border border-red-200/60 bg-white px-3 py-1 text-xs font-semibold text-zinc-600 transition focus:border-red-400 focus:outline-none focus:ring-1 focus:ring-red-200 dark:border-white/20 dark:bg-white/5 dark:text-zinc-200"
           >
             <option value="Verificado">Verificado</option>
@@ -208,7 +220,9 @@ function StatusBadge({ status }: { status: BusinessStatus }) {
         : "bg-rose-100/70 text-rose-700";
 
   return (
-    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${theme}`}>
+    <span
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${theme}`}
+    >
       <span className="size-2 rounded-full bg-current" />
       {status}
     </span>

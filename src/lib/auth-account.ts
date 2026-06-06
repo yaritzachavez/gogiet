@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { getEmailFromAddress, getResendClient } from "@/lib/resend";
+
 export {
   generateTokenExpiration,
   isCooldownActive,
@@ -19,7 +20,10 @@ export function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
 
-export async function sendPasswordResetEmail(email: string, resetToken: string) {
+export async function sendPasswordResetEmail(
+  email: string,
+  resetToken: string,
+) {
   const baseUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.APP_URL ||
@@ -39,6 +43,8 @@ export async function sendPasswordResetEmail(email: string, resetToken: string) 
   });
 
   if (response.error) {
-    throw new Error(response.error.message || "No se pudo enviar el correo de recuperacion");
+    throw new Error(
+      response.error.message || "No se pudo enviar el correo de recuperacion",
+    );
   }
 }

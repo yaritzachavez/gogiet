@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import pool from "@/lib/db";
+import { type NextRequest, NextResponse } from "next/server";
+
 import { validateAuth } from "@/lib/authToken";
+import pool from "@/lib/db";
 
 export async function GET(
   req: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
     if (!validateAuth(req)) {
       return NextResponse.json(
         { error: "Token inválido o faltante" },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -31,7 +32,7 @@ export async function GET(
       GROUP BY pc.id
       ORDER BY name ASC
       `,
-      [id, id]
+      [id, id],
     );
 
     return NextResponse.json({ categories: rows }, { status: 200 });
