@@ -7,6 +7,7 @@
     "build": "prisma generate && next build --turbopack ",
     "start": "next start",
     "seed": "node prisma/seed.js",
+    "seed:staging:qa": "node scripts/seed-staging-qa.js",
     "db:check": "node scripts/check-db-connection.js",
     "db:doctor": "node scripts/db-doctor.js",
     "verify:staging": "node scripts/verify-staging-environment.js",
