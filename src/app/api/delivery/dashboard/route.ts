@@ -1,29 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import {
+  forbiddenResponse,
+  unauthorizedResponse,
+} from "@/lib/api-auth-response";
 import { getSafeErrorMessage } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
 import { getCurrentDriverDeliveries } from "@/lib/delivery/current-driver-orders";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
-
-function serializeError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    };
-  }
-
-  try {
-    return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)));
-  } catch {
-    return {
-      message: String(error),
-    };
-  }
-}
 
 export async function GET(req: NextRequest) {
   const requestContext = getRequestLoggerContext(req);
@@ -32,54 +18,52 @@ export async function GET(req: NextRequest) {
     const authUser = getAuthUser(req);
 
     if (!authUser?.token) {
-      return NextResponse.json(
-        { success: false, ok: false, error: "Token faltante", dashboard: null },
-        { status: 401 },
+      return unauthorizedResponse(
+        req,
+        { ok: false, dashboard: null },
+        "Token faltante",
       );
     }
 
     if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, ok: false, error: "Token inválido", dashboard: null },
-        { status: 401 },
+      return unauthorizedResponse(
+        req,
+        { ok: false, dashboard: null },
+        "Token inválido",
       );
     }
 
     const userId = authUser.user.id;
-    console.log("[DELIVERY DASHBOARD] inicio");
-    console.log("[DELIVERY DASHBOARD] user", userId);
+    logger.info(
+      "delivery.dashboard_request",
+      "Solicitud de dashboard de repartidor",
+      {
+        ...requestContext,
+        userId,
+      },
+    );
 
     const access = await resolveDeliveryAccess(userId);
 
     if (!access.allowed) {
-      return NextResponse.json(
+      return forbiddenResponse(
+        req,
         {
-          success: false,
           ok: false,
-          error: "No autorizado para acceder al panel de repartidor",
           dashboard: null,
           stats: null,
           activeDeliveries: [],
           availableOffers: [],
           driver: {
             userId,
-            email: access.email,
             roles: access.roles,
             operationalStatus: access.operationalStatus,
             canOperate: access.canOperate,
           },
         },
-        { status: 403 },
+        "No autorizado para acceder al panel de repartidor",
       );
     }
-
-    console.log("[DELIVERY DASHBOARD] driver", {
-      userId,
-      email: access.email,
-      roles: access.roles,
-      operationalStatus: access.operationalStatus,
-      canOperate: access.canOperate,
-    });
 
     logDbUsage("/api/delivery/dashboard", {
       userId,
@@ -102,12 +86,6 @@ export async function GET(req: NextRequest) {
       })),
       completedDeliveriesToday: [],
     };
-
-    console.log(
-      "[DELIVERY DASHBOARD] activeDeliveries",
-      activeDeliveries.length,
-    );
-    console.log("[DELIVERY DASHBOARD] offers", 0);
 
     logger.info(
       "delivery.dashboard_loaded",
@@ -134,21 +112,18 @@ export async function GET(req: NextRequest) {
       availableOffers: [],
       driver: {
         userId,
-        email: access.email,
         roles: access.roles,
         operationalStatus: access.operationalStatus,
         canOperate: access.canOperate,
       },
     });
   } catch (error) {
-    const serializedError = serializeError(error);
-    console.error("[DELIVERY DASHBOARD ERROR]", serializedError);
     logger.error(
       "delivery.dashboard_error",
       "Error cargando dashboard del repartidor",
       {
         ...requestContext,
-        error: serializedError,
+        error,
       },
     );
 
@@ -160,8 +135,6 @@ export async function GET(req: NextRequest) {
           error,
           "No se pudo cargar el dashboard del repartidor.",
         ),
-        debug:
-          process.env.NODE_ENV === "production" ? undefined : serializedError,
         dashboard: null,
         activeDeliveries: [],
         availableOffers: [],

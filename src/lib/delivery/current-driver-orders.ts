@@ -7,6 +7,7 @@ import {
   pickFirstExistingColumn,
   SHIPPING_FEE_COLUMN_CANDIDATES,
 } from "@/lib/delivery-fees";
+import { logger } from "@/lib/logger";
 
 type Queryable = Pool | PoolConnection;
 
@@ -332,35 +333,17 @@ export async function getCurrentDriverDeliveries(
     };
   });
 
-  console.log("[DELIVERY IDENTITY]", {
-    sessionUserId: userId,
-    matchedRows: rows.map((row) => ({
-      orderId: Number(row.order_id),
-      deliveryId:
-        row.delivery_id === null || row.delivery_id === undefined
-          ? null
-          : Number(row.delivery_id),
-      deliveryDriverUserId: row.delivery_driver_user_id,
-      orderDriverId: row.order_driver_id,
-      orderStatus: row.order_status,
-      deliveryStatus: row.delivery_status,
-      deliveryStatusIsFinal: row.delivery_status_is_final,
-      orderDeliveredAt: row.order_delivered_at,
-      deliveryDeliveredAt: row.delivery_delivered_at,
-    })),
-  });
-
-  console.log("[DELIVERY ACTIVE QUERY RESULT]", {
-    count: activeDeliveries.length,
-    orders: activeDeliveries.map((order) => ({
-      id: order.id,
-      status: order.status,
-      assignmentStatus: order.assignmentStatus,
-      deliveryId: order.deliveryId,
-      driverUserId: order.driverUserId,
-      orderDriverId: order.orderDriverId,
-    })),
-  });
+  logger.debug(
+    "delivery.active_orders_summary",
+    "Entregas activas del repartidor calculadas",
+    {
+      userId,
+      matchedRowsCount: rows.length,
+      activeDeliveriesCount: activeDeliveries.length,
+      orderIds: activeDeliveries.map((order) => order.id),
+      deliveryIds: activeDeliveries.map((order) => order.deliveryId),
+    },
+  );
 
   return {
     activeDeliveries,

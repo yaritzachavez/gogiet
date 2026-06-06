@@ -2,6 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { logger } from "@/lib/logger";
+
 const CERTIFICATE_HEADER = "-----BEGIN CERTIFICATE-----";
 const RUNTIME_CA_FILENAME = "gogiet-aiven-ca.pem";
 
@@ -124,9 +126,11 @@ export function resolveDbSslCaContent() {
     const summary = getDbSslSummary();
 
     if (summary.ignoredSources.length > 0) {
-      console.warn(
-        "[db-ssl] Ningún certificado SSL válido fue encontrado en env",
+      logger.warn(
+        "db.ssl_certificate_missing",
+        "Ningún certificado SSL válido fue encontrado en env",
         {
+          ignoredSourcesCount: summary.ignoredSources.length,
           ignoredSources: summary.ignoredSources,
         },
       );
@@ -136,10 +140,15 @@ export function resolveDbSslCaContent() {
   }
 
   if (selected.ignoredSources.length > 0) {
-    console.warn("[db-ssl] Se ignoraron variables SSL inválidas", {
-      selectedSource: selected.source,
-      ignoredSources: selected.ignoredSources,
-    });
+    logger.warn(
+      "db.ssl_invalid_sources_ignored",
+      "Se ignoraron variables SSL inválidas",
+      {
+        selectedSource: selected.source,
+        ignoredSourcesCount: selected.ignoredSources.length,
+        ignoredSources: selected.ignoredSources,
+      },
+    );
   }
 
   return selected.value;
@@ -162,11 +171,11 @@ export function ensureRuntimeCaFile() {
     fs.writeFileSync(certificatePath, certificateContents, "utf8");
   }
 
-  console.info("[db-ssl] Runtime CA listo", {
-    path: certificatePath,
+  logger.info("db.runtime_ca_ready", "Runtime CA listo", {
     source: getDbSslSummary().source,
     certificateLoaded: true,
     certificateLength: certificate.length,
+    runtimeFileCreated: true,
   });
 
   return certificatePath;

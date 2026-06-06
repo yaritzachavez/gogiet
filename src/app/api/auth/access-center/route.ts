@@ -2,7 +2,9 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { safeErrorResponse } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { mapDbRolesToPublicRoles } from "@/lib/role-utils";
 
 type RoleRow = RowDataPacket & {
@@ -37,6 +39,8 @@ type AccessItem = {
 };
 
 export async function GET(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
+
   try {
     const authUser = getAuthUser(req);
 
@@ -154,10 +158,15 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    console.log("GET /api/auth/access-center userId:", userId);
-    console.log("GET /api/auth/access-center email:", user?.email ?? null);
-    console.log("GET /api/auth/access-center role:", publicRoles);
-    console.log("GET /api/auth/access-center accesos encontrados:", access);
+    logger.info("auth.access_center_loaded", "Centro de accesos calculado", {
+      ...requestContext,
+      userId,
+      roles: publicRoles,
+      accessKeys: access.map((item) => item.key),
+      businessOwnerCount: businessOwnerRows.length,
+      businessManagerCount: businessManagerRows.length,
+      hasDeliveryProfile,
+    });
     logDbUsage("/api/auth/access-center", {
       userId,
       email: user?.email ?? null,
@@ -184,15 +193,15 @@ export async function GET(req: NextRequest) {
       deliveryProfile: hasDeliveryProfile,
     });
   } catch (error) {
-    console.error("Error GET /api/auth/access-center:", error);
-    return NextResponse.json(
+    return safeErrorResponse(
+      "auth.access_center_error",
+      error,
+      "No se pudieron obtener los accesos del usuario.",
+      500,
       {
-        success: false,
-        error: "No se pudieron obtener los accesos del usuario.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        request: req,
         access: [],
       },
-      { status: 500 },
     );
   }
 }

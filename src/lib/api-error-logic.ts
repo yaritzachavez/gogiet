@@ -1,4 +1,5 @@
-import crypto from "node:crypto";
+import { sanitizeLogValue } from "./log-sanitizer.ts";
+import { resolveRequestId } from "./request-id.ts";
 
 type ErrorContext = Record<string, unknown>;
 type ValidationFields = Record<string, string>;
@@ -21,7 +22,6 @@ export type RequestLike =
   | null
   | undefined;
 
-const REQUEST_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/;
 const BLOCKED_PUBLIC_ERROR_KEYS = new Set([
   "debug",
   "details",
@@ -170,17 +170,7 @@ export function getRequestId(
   request?: RequestLike,
   fallbackRequestId?: string | null,
 ) {
-  const candidate =
-    request?.headers?.get("x-request-id")?.trim() ||
-    request?.headers?.get("x-correlation-id")?.trim() ||
-    fallbackRequestId?.trim() ||
-    null;
-
-  if (candidate && REQUEST_ID_PATTERN.test(candidate)) {
-    return candidate;
-  }
-
-  return crypto.randomUUID();
+  return resolveRequestId(request?.headers, fallbackRequestId);
 }
 
 export function getStatusForErrorCode(code: ApiErrorCode) {
@@ -295,7 +285,7 @@ export function buildApiErrorLogMeta(params: {
     code: params.code,
     statusCode: getStatusForErrorCode(params.code),
     errorType: getErrorName(params.error),
-    message: getErrorMessageText(params.error),
+    message: sanitizeLogValue(getErrorMessageText(params.error)),
     ...params.context,
   };
 }

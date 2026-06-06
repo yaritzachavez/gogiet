@@ -5,10 +5,10 @@ import {
   areInternalToolsEnabled,
   isInternalToolPath,
 } from "@/lib/internal-tools";
+import { resolveRequestId } from "@/lib/request-id";
 
 export function middleware(req: NextRequest) {
-  const requestId =
-    req.headers.get("x-request-id")?.trim() || crypto.randomUUID();
+  const requestId = resolveRequestId(req.headers);
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
 

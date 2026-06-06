@@ -6,6 +6,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/admin-security";
 import { isAuthUserActive } from "@/lib/auth-users";
 import pool from "@/lib/db";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import { createMercadoPagoPayment, getAppUrl } from "@/lib/mercadopago";
 import {
   createNotificationForBusinessSafely,
@@ -115,6 +116,7 @@ async function clearActiveCartForUser(conn: PoolConnection, userId: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
   const auth = getAuthUser(req);
 
   if (!auth.token || !auth.user) {
@@ -586,9 +588,16 @@ export async function POST(req: NextRequest) {
       orderStatus: nextStatus,
     });
   } catch (error) {
-    console.error(
-      "Error POST /api/payments/mercadopago/process-payment:",
-      error,
+    logger.error(
+      "payments.mercadopago.process_payment_error",
+      "Error procesando pago con Mercado Pago",
+      {
+        ...requestContext,
+        orderId: currentOrderId,
+        paymentAttemptId,
+        paymentAttemptReference,
+        error,
+      },
     );
 
     if (transactionOpen) {
@@ -629,9 +638,16 @@ export async function POST(req: NextRequest) {
           },
         });
       } catch (persistError) {
-        console.error(
-          "Error persisting Mercado Pago failure attempt:",
-          persistError,
+        logger.error(
+          "payments.mercadopago.failure_attempt_persist_error",
+          "No se pudo persistir el intento fallido de Mercado Pago",
+          {
+            ...requestContext,
+            orderId: currentOrderId,
+            paymentAttemptId,
+            paymentAttemptReference,
+            error: persistError,
+          },
         );
       }
     }

@@ -9,6 +9,7 @@ import type { NextRequest } from "next/server";
 
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
+import { logger } from "@/lib/logger";
 import { assertColumnsExist, assertTablesExist } from "@/lib/runtime-schema";
 
 type Queryable = Pool | PoolConnection;
@@ -227,12 +228,17 @@ export async function getSupportAuthUser(
       (role) => DB_ROLE_TO_SUPPORT_ROLE[role] === "admin_general",
     );
 
-    console.log("SUPPORT AUTH USER", {
-      userId,
-      name: payload.name ? String(payload.name) : null,
-      tokenRoles,
-    });
-    console.log("SUPPORT USER ROLES", normalizedDbRoles);
+    logger.info(
+      "support.auth_user_resolved",
+      "Usuario de soporte autenticado",
+      {
+        userId,
+        supportRoles,
+        dbRoles: normalizedDbRoles,
+        tokenRoleCount: tokenRoles.length,
+        isAdminGeneral,
+      },
+    );
 
     return {
       token,
@@ -243,7 +249,13 @@ export async function getSupportAuthUser(
       isAdminGeneral,
     };
   } catch (error) {
-    console.error("Error validando JWT de soporte:", error);
+    logger.warn(
+      "support.jwt_validation_failed",
+      "No se pudo validar el JWT de soporte",
+      {
+        error,
+      },
+    );
     return null;
   }
 }

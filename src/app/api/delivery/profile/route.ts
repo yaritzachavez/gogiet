@@ -2,9 +2,9 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { getSafeErrorMessage } from "@/lib/api-error";
+import { getSafeErrorMessage, safeErrorResponse } from "@/lib/api-error";
 import { cloudinary, getCloudinaryConfigStatus } from "@/lib/cloudinary";
-import pool, { getDbRuntimeConfig } from "@/lib/db";
+import pool from "@/lib/db";
 import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import {
   type DriverOperationalStatus,
@@ -14,6 +14,7 @@ import {
   isDriverAvailableStatus,
   normalizeDriverStatus,
 } from "@/lib/driver-status";
+import { getRequestLoggerContext, logger } from "@/lib/logger";
 import {
   buildUserAvatarSelect,
   ensureUserAvatarColumn,
@@ -34,10 +35,6 @@ type DeliveryProfileRow = RowDataPacket & {
   delivery_notes: string | null;
   is_available: number | boolean | null;
   driver_status: DriverOperationalStatus | string | null;
-};
-
-type CurrentDatabaseRow = RowDataPacket & {
-  current_database: string | null;
 };
 
 type DescribeUserRow = RowDataPacket & {
@@ -96,32 +93,6 @@ async function ensureDeliveryProfileColumns() {
   } satisfies DeliveryProfileColumns;
 }
 
-async function logDeliveryProfileDbDiagnostics() {
-  const runtimeConfig = getDbRuntimeConfig();
-  const [databases] = await pool.query<RowDataPacket[]>("SHOW DATABASES");
-  const [currentDatabaseRows] = await pool.query<CurrentDatabaseRow[]>(
-    "SELECT DATABASE() AS current_database",
-  );
-  const [describeUsersRows] =
-    await pool.query<DescribeUserRow[]>("DESCRIBE users");
-
-  console.log("[delivery-profile] db diagnostics", {
-    DB_HOST: runtimeConfig.DB_HOST,
-    DB_NAME: runtimeConfig.DB_NAME,
-    DB_USER: runtimeConfig.DB_USER,
-    DB_PORT: runtimeConfig.DB_PORT,
-    currentDatabase: currentDatabaseRows[0]?.current_database ?? null,
-    databases: databases.map((row) => {
-      const values = Object.values(row);
-      return values[0] ? String(values[0]) : null;
-    }),
-    usersColumns: describeUsersRows.map((row) => row.Field),
-    hasProfileImageUrl: describeUsersRows.some(
-      (row) => String(row.Field).toLowerCase() === "profile_image_url",
-    ),
-  });
-}
-
 function normalizeProfilePayload(row: DeliveryProfileRow | undefined) {
   if (!row) {
     return null;
@@ -155,10 +126,6 @@ function normalizeProfilePayload(row: DeliveryProfileRow | undefined) {
   };
 }
 
-function normalizeAvailabilityLabel(isAvailable: boolean) {
-  return isAvailable ? "Activo" : "En descanso";
-}
-
 function parseDriverStatusInput(
   value: unknown,
   fallback: DriverOperationalStatus,
@@ -178,6 +145,8 @@ function parseDriverStatusInput(
 }
 
 export async function GET(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
+
   try {
     const authUser = getAuthUser(req);
 
@@ -196,8 +165,6 @@ export async function GET(req: NextRequest) {
         { status: 403 },
       );
     }
-
-    await logDeliveryProfileDbDiagnostics();
 
     const profileColumns = await ensureDeliveryProfileColumns();
     const avatarSelect = buildUserAvatarSelect(
@@ -246,17 +213,11 @@ export async function GET(req: NextRequest) {
     );
 
     const normalizedProfile = normalizeProfilePayload(rows[0]);
-    console.log("driver status sync", {
+    logger.info("delivery.profile_loaded", "Perfil de repartidor cargado", {
+      ...requestContext,
       userId: authUser.user.id,
-      driverId: authUser.user.id,
-      statusFromAdmin: normalizedProfile
-        ? String(normalizedProfile.driver_status_label)
-        : null,
-      statusFromDelivery: normalizedProfile
-        ? String(normalizedProfile.driver_status_label)
-        : null,
+      hasProfile: Boolean(normalizedProfile),
       isAvailable: normalizedProfile?.is_available ?? null,
-      statusId: rows[0]?.status_id ?? null,
       driverStatus: rows[0]?.driver_status ?? null,
     });
 
@@ -265,21 +226,21 @@ export async function GET(req: NextRequest) {
       profile: normalizedProfile,
     });
   } catch (error) {
-    console.error("Error GET /api/delivery/profile:", error);
-    return NextResponse.json(
+    return safeErrorResponse(
+      "delivery.profile_get_error",
+      error,
+      getSafeErrorMessage(error, "No se pudo cargar el perfil del repartidor."),
+      500,
       {
-        success: false,
-        error: getSafeErrorMessage(
-          error,
-          "No se pudo cargar el perfil del repartidor.",
-        ),
+        request: req,
       },
-      { status: 500 },
     );
   }
 }
 
 export async function PATCH(req: NextRequest) {
+  const requestContext = getRequestLoggerContext(req);
+
   try {
     const authUser = getAuthUser(req);
 
@@ -298,8 +259,6 @@ export async function PATCH(req: NextRequest) {
         { status: 403 },
       );
     }
-
-    await logDeliveryProfileDbDiagnostics();
 
     const profileColumns = await ensureDeliveryProfileColumns();
 
@@ -511,15 +470,16 @@ export async function PATCH(req: NextRequest) {
       );
 
       const normalizedProfile = normalizeProfilePayload(rows[0]);
-      console.log("driver status sync", {
-        userId: authUser.user.id,
-        driverId: authUser.user.id,
-        statusFromAdmin: driverStatusToLabel(nextDriverStatus),
-        statusFromDelivery: driverStatusToLabel(nextDriverStatus),
-        isAvailable: nextIsAvailable,
-        statusId: rows[0]?.status_id ?? null,
-        driverStatus: nextDriverStatus,
-      });
+      logger.info(
+        "delivery.profile_status_updated",
+        "Estado operativo del repartidor actualizado",
+        {
+          ...requestContext,
+          userId: authUser.user.id,
+          isAvailable: nextIsAvailable,
+          driverStatus: nextDriverStatus,
+        },
+      );
 
       return NextResponse.json({
         success: true,
@@ -648,19 +608,17 @@ export async function PATCH(req: NextRequest) {
     );
 
     const normalizedProfile = normalizeProfilePayload(rows[0]);
-    console.log("driver status sync", {
-      userId: authUser.user.id,
-      driverId: authUser.user.id,
-      statusFromAdmin: normalizedProfile
-        ? String(normalizedProfile.driver_status_label)
-        : normalizeAvailabilityLabel(isAvailable),
-      statusFromDelivery: normalizedProfile
-        ? String(normalizedProfile.driver_status_label)
-        : normalizeAvailabilityLabel(isAvailable),
-      isAvailable: normalizedProfile?.is_available ?? isAvailable,
-      statusId: rows[0]?.status_id ?? null,
-      driverStatus: rows[0]?.driver_status ?? null,
-    });
+    logger.info(
+      "delivery.profile_updated",
+      "Perfil del repartidor actualizado",
+      {
+        ...requestContext,
+        userId: authUser.user.id,
+        isAvailable: normalizedProfile?.is_available ?? isAvailable,
+        driverStatus: rows[0]?.driver_status ?? null,
+        hasAvatar: Boolean(avatarUrlToSave),
+      },
+    );
 
     return NextResponse.json({
       success: true,
@@ -668,16 +626,17 @@ export async function PATCH(req: NextRequest) {
       profile: normalizedProfile,
     });
   } catch (error) {
-    console.error("Error PATCH /api/delivery/profile:", error);
-    return NextResponse.json(
+    return safeErrorResponse(
+      "delivery.profile_patch_error",
+      error,
+      getSafeErrorMessage(
+        error,
+        "No se pudo actualizar el perfil del repartidor.",
+      ),
+      500,
       {
-        success: false,
-        error: getSafeErrorMessage(
-          error,
-          "No se pudo actualizar el perfil del repartidor.",
-        ),
+        request: req,
       },
-      { status: 500 },
     );
   }
 }

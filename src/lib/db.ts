@@ -239,10 +239,6 @@ if (
     {
       sourceOfTruth: "DATABASE_URL",
       databaseUrlExists: Boolean(process.env.DATABASE_URL),
-      databaseUrlHost,
-      dbHost: process.env.DB_HOST?.trim() ?? null,
-      dbName: dbConfig.database,
-      dbPort: dbConfig.port,
       sslEnabled: dbConfig.useSsl,
       hostMismatch:
         Boolean(databaseUrlHost) &&
