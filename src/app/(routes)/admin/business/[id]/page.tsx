@@ -1,17 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { getBusinessById } from "../../data/businesses";
+import type { BusinessOrder, BusinessStatus } from "@/types/Business";
 import { BusinessOrdersTable } from "../../components/BusinessOrdersTable";
-import { BusinessOrder, BusinessStatus } from "@/types/Business";
+import { getBusinessById } from "../../data/businesses";
 
-interface PageProps {
-  params: {
-    id: string;
-  };
-}
-
-export default async function BusinessDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function BusinessDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params; // 👈 Esperas la promesa
   const businessId = Number(id);
   const business = getBusinessById(businessId);
@@ -169,8 +167,10 @@ function getMonthlySummary(pedidos: BusinessOrder[]) {
     const fecha = new Date(pedido.fecha);
     const key = `${fecha.getFullYear()}-${fecha.getMonth()}`;
 
-    if (!map.has(key)) {
-      map.set(key, {
+    let summary = map.get(key);
+
+    if (!summary) {
+      summary = {
         label: fecha.toLocaleDateString("es-MX", {
           month: "short",
           year: "numeric",
@@ -178,10 +178,10 @@ function getMonthlySummary(pedidos: BusinessOrder[]) {
         count: 0,
         total: 0,
         key: fecha.getFullYear() * 100 + fecha.getMonth(),
-      });
+      };
+      map.set(key, summary);
     }
 
-    const summary = map.get(key)!;
     summary.count += 1;
     summary.total += pedido.total;
   });
