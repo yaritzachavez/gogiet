@@ -1,7 +1,7 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
-import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { getAuthUser } from "@/lib/admin-security";
 import { getSafeErrorMessage } from "@/lib/api-error";
 import {
   ensureBusinessHoursSchema,
@@ -11,7 +11,7 @@ import {
   ensureBusinessLogoColumn,
   getBusinessLogoSelect,
 } from "@/lib/business-logo";
-import { syncBusinessOwnerSafely } from "@/lib/business-owners";
+import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
 
 type BusinessRow = RowDataPacket & {
@@ -47,30 +47,8 @@ type CountRow = RowDataPacket & {
   total: number | null;
 };
 
-type AssignedBusinessRow = RowDataPacket & {
-  id: number;
-  name: string;
-  city: string | null;
-  source: string;
-};
-
-type RawBusinessOwnerRow = RowDataPacket & {
-  business_id: number;
-  user_id: number;
-  assigned_at: string | null;
-  notes: string | null;
-};
-
-type UserRoleRow = RowDataPacket & {
-  role_name: string;
-};
-
 type UserInfoRow = RowDataPacket & {
   email: string;
-};
-
-type ColumnExistsRow = RowDataPacket & {
-  column_name: string;
 };
 
 type BusinessMeDebug = {
@@ -112,104 +90,6 @@ async function countSafely(
 function toPositiveNumber(value: string | null) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-async function tryRepairBusinessOwnerRelation(params: {
-  userId: number;
-  email: string | null;
-  debug: BusinessMeDebug;
-}) {
-  const [businessColumns] = await pool.query<ColumnExistsRow[]>(
-    `
-      SELECT COLUMN_NAME AS column_name
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'business'
-        AND COLUMN_NAME IN ('owner_id', 'owner_user_id', 'email')
-    `,
-  );
-
-  const availableColumns = new Set(
-    businessColumns.map((row) => String(row.column_name).toLowerCase()),
-  );
-  params.debug.availableBusinessColumns = Array.from(availableColumns);
-  const candidateBusinesses = new Map<number, AssignedBusinessRow>();
-
-  if (availableColumns.has("owner_id")) {
-    const [ownerIdCandidates] = await pool.query<AssignedBusinessRow[]>(
-      `
-        SELECT b.id, b.name, b.city, 'owner_id_repair' AS source
-        FROM business b
-        WHERE b.owner_id = ?
-        ORDER BY b.updated_at DESC, b.id DESC
-      `,
-      [params.userId],
-    );
-
-    for (const business of ownerIdCandidates) {
-      candidateBusinesses.set(Number(business.id), business);
-    }
-  }
-
-  if (availableColumns.has("owner_user_id")) {
-    const [ownerUserIdCandidates] = await pool.query<AssignedBusinessRow[]>(
-      `
-        SELECT b.id, b.name, b.city, 'owner_user_id_repair' AS source
-        FROM business b
-        WHERE b.owner_user_id = ?
-        ORDER BY b.updated_at DESC, b.id DESC
-      `,
-      [params.userId],
-    );
-
-    for (const business of ownerUserIdCandidates) {
-      if (!candidateBusinesses.has(Number(business.id))) {
-        candidateBusinesses.set(Number(business.id), business);
-      }
-    }
-  }
-
-  if (params.email && availableColumns.has("email")) {
-    const [emailCandidates] = await pool.query<AssignedBusinessRow[]>(
-      `
-        SELECT b.id, b.name, b.city, 'email_repair' AS source
-        FROM business b
-        WHERE LOWER(TRIM(COALESCE(b.email, ''))) = LOWER(TRIM(?))
-        ORDER BY b.updated_at DESC, b.id DESC
-      `,
-      [params.email],
-    );
-
-    for (const business of emailCandidates) {
-      if (!candidateBusinesses.has(Number(business.id))) {
-        candidateBusinesses.set(Number(business.id), business);
-      }
-    }
-  }
-
-  const repairedBusinesses = Array.from(candidateBusinesses.values());
-
-  if (!repairedBusinesses.length) {
-    return {
-      repaired: false,
-      source: null,
-      businesses: [] as AssignedBusinessRow[],
-    };
-  }
-
-  for (const business of repairedBusinesses) {
-    await syncBusinessOwnerSafely(pool, Number(business.id), params.userId);
-  }
-
-  params.debug.repairSources = repairedBusinesses.map((business) =>
-    String(business.source),
-  );
-
-  return {
-    repaired: true,
-    source: repairedBusinesses.map((business) => business.source).join(","),
-    businesses: repairedBusinesses,
-  };
 }
 
 export async function GET(req: NextRequest) {
@@ -271,152 +151,46 @@ export async function GET(req: NextRequest) {
     );
     debug.userId = authUser.user.id;
     debug.email = userInfoRows[0]?.email ?? null;
-
-    const [roleRows] = await pool.query<UserRoleRow[]>(
-      `
-        SELECT r.name AS role_name
-        FROM user_roles ur
-        INNER JOIN roles r ON r.id = ur.role_id
-        WHERE ur.user_id = ?
-      `,
-      [authUser.user.id],
+    const access = await resolveBusinessAccess(
+      authUser.user.id,
+      requestedBusinessId,
     );
     logDbUsage("/api/business/me", {
-      userId: authUser.user.id,
-      email: userInfoRows[0]?.email ?? null,
-      role: roleRows.map((row) => row.role_name),
+      userId: access.userId,
+      email: access.email,
+      role: access.roles,
     });
 
-    debug.businessOwnersQuery = `
-        SELECT *
-        FROM business_owners
-        WHERE user_id = ?
-      `.trim();
-    const [rawBusinessOwners] = await pool.query<RawBusinessOwnerRow[]>(
-      debug.businessOwnersQuery,
-      [authUser.user.id],
-    );
-    debug.businessOwnersResult = rawBusinessOwners.map((row) => ({
-      business_id: Number(row.business_id),
-      user_id: Number(row.user_id),
-    }));
-
-    debug.ownerBusinessesQuery = `
-        SELECT b.id, b.name, b.city, 'owner' AS source
-        FROM business_owners bo
-        INNER JOIN business b ON b.id = bo.business_id
-        WHERE bo.user_id = ?
-        ORDER BY b.name ASC
-      `.trim();
-    let [ownerBusinesses] = await pool.query<AssignedBusinessRow[]>(
-      debug.ownerBusinessesQuery,
-      [authUser.user.id],
-    );
-    debug.ownerBusinessesResult = ownerBusinesses.map((business) => ({
+    debug.ownerBusinessesResult = access.businesses.map((business) => ({
       id: Number(business.id),
       name: String(business.name),
       source: String(business.source),
     }));
+    debug.repairSources = access.businesses
+      .filter((business) => business.source === "owner_repaired")
+      .map((business) => business.source);
 
-    if (!ownerBusinesses.length) {
-      const repairResult = await tryRepairBusinessOwnerRelation({
-        userId: authUser.user.id,
-        email: userInfoRows[0]?.email ?? null,
-        debug,
-      });
-
-      if (repairResult.repaired) {
-        ownerBusinesses = repairResult.businesses.map((business) => ({
-          ...business,
-          source: "owner_repaired",
-        }));
-        debug.ownerBusinessesResult = ownerBusinesses.map((business) => ({
-          id: Number(business.id),
-          name: String(business.name),
-          source: String(business.source),
-        }));
-      }
-    }
-
-    const orphanedOwnerBusinessIds = rawBusinessOwners
-      .map((row) => Number(row.business_id))
-      .filter(
-        (businessId) =>
-          businessId > 0 &&
-          !ownerBusinesses.some(
-            (business) => Number(business.id) === Number(businessId),
-          ),
+    if (!access.businessId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            access.denialReason === "requested_business_forbidden"
+              ? "No puedes acceder a ese negocio"
+              : "No tienes un negocio asignado",
+          business: null,
+          businesses: [],
+          products_count: 0,
+          active_orders_count: 0,
+          completed_orders_count: 0,
+          critical_inventory_count: 0,
+          hours: [],
+        },
+        { status: 403 },
       );
-
-    const [managerBusinesses] = await pool.query<AssignedBusinessRow[]>(
-      `
-        SELECT b.id, b.name, b.city, 'manager' AS source
-        FROM business_managers bm
-        INNER JOIN business b ON b.id = bm.business_id
-        WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
-        ORDER BY b.name ASC
-      `,
-      [authUser.user.id],
-    );
-
-    const userIsAdminGeneral = await isAdminGeneral(authUser.user.id);
-    const assignedBusinessesMap = new Map<number, AssignedBusinessRow>();
-
-    for (const business of [...ownerBusinesses, ...managerBusinesses]) {
-      assignedBusinessesMap.set(Number(business.id), business);
     }
 
-    let assignedBusinesses = Array.from(assignedBusinessesMap.values());
-
-    if (!assignedBusinesses.length && userIsAdminGeneral) {
-      const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
-        `
-          SELECT b.id, b.name, b.city, 'admin_general' AS source
-          FROM business b
-          WHERE COALESCE(b.status_id, 1) = 1
-          ORDER BY b.name ASC
-        `,
-      );
-
-      assignedBusinesses = adminBusinesses;
-    }
-
-    if (!assignedBusinesses.length) {
-      return NextResponse.json({
-        success: false,
-        error:
-          orphanedOwnerBusinessIds.length > 0
-            ? "Tu negocio asignado ya no existe"
-            : "No tienes un negocio asignado",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : {
-                details:
-                  orphanedOwnerBusinessIds.length > 0
-                    ? "Se detectaron relaciones huérfanas en business_owners. Revisa la asignación del negocio."
-                    : "No se encontró relación del usuario autenticado en business_owners ni coincidencia reparable por owner_id, owner_user_id o email.",
-                context: debug,
-              },
-        business: null,
-        businesses: [],
-        orphaned_business_ids: orphanedOwnerBusinessIds,
-        repair_required: orphanedOwnerBusinessIds.length > 0,
-        products_count: 0,
-        active_orders_count: 0,
-        completed_orders_count: 0,
-        critical_inventory_count: 0,
-        hours: [],
-      });
-    }
-
-    const availableBusinessIds = new Set(
-      assignedBusinesses.map((business) => Number(business.id)),
-    );
-    const businessId =
-      requestedBusinessId && availableBusinessIds.has(requestedBusinessId)
-        ? requestedBusinessId
-        : Number(assignedBusinesses[0].id);
+    const businessId = Number(access.businessId);
 
     debug.businessQuery = `
         SELECT *
@@ -480,7 +254,7 @@ export async function GET(req: NextRequest) {
                 context: debug,
               },
         business: null,
-        businesses: assignedBusinesses.map((assignedBusiness) => ({
+        businesses: access.businesses.map((assignedBusiness) => ({
           id: Number(assignedBusiness.id),
           name: assignedBusiness.name,
           city: assignedBusiness.city,
@@ -581,10 +355,11 @@ export async function GET(req: NextRequest) {
         }),
         business_owner: { user_id: business.owner_id ?? null },
       },
-      businesses: assignedBusinesses.map((assignedBusiness) => ({
+      businesses: access.businesses.map((assignedBusiness) => ({
         id: Number(assignedBusiness.id),
         name: assignedBusiness.name,
         city: assignedBusiness.city,
+        source: assignedBusiness.source,
       })),
       products_count: productsCount,
       active_orders_count: activeOrdersCount,

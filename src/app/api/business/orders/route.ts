@@ -110,11 +110,17 @@ export async function GET(req: NextRequest) {
     });
 
     if (!access.businessId) {
-      return NextResponse.json({
-        success: true,
-        orders: [],
-        message: "No tienes negocio asignado",
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            access.denialReason === "requested_business_forbidden"
+              ? "No puedes acceder a ese negocio"
+              : "No tienes un negocio asignado",
+          orders: [],
+        },
+        { status: 403 },
+      );
     }
 
     const avatarColumns = await getUserAvatarColumns();
