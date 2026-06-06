@@ -1,5 +1,9 @@
 import dotenv from "dotenv";
 import mysql, { type Connection, type RowDataPacket } from "mysql2/promise";
+import {
+  assertSafeWriteTarget,
+  logDbOperationTarget,
+} from "./lib/db-write-guard.js";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config({ path: ".env" });
@@ -848,6 +852,16 @@ async function main() {
     String(process.env[CONFIRMATION_VARIABLE] ?? "")
       .trim()
       .toLowerCase() === CONFIRMATION_VALUE;
+  if (confirmed) {
+    assertSafeWriteTarget({
+      operation: "scripts/cleanup-test-stores-products.ts confirmed cleanup",
+    });
+  } else {
+    logDbOperationTarget({
+      operation: "scripts/cleanup-test-stores-products.ts preview summary",
+      mode: "read",
+    });
+  }
   const connection = await mysql.createConnection(getConnectionConfig());
 
   try {

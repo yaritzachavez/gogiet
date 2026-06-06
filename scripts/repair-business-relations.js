@@ -3,6 +3,10 @@
 require("dotenv").config({ path: ".env" });
 
 const mysql = require("mysql2/promise");
+const {
+  assertSafeWriteTarget,
+  logDbOperationTarget,
+} = require("./lib/db-write-guard");
 
 function resolveSslConfig() {
   const caCertificate = process.env.DB_CA || process.env.DB_SSL_CA;
@@ -18,6 +22,16 @@ function resolveSslConfig() {
 
 async function main() {
   const applyChanges = process.argv.includes("--apply");
+  if (applyChanges) {
+    assertSafeWriteTarget({
+      operation: "scripts/repair-business-relations.js --apply",
+    });
+  } else {
+    logDbOperationTarget({
+      operation: "scripts/repair-business-relations.js dry-run",
+      mode: "read",
+    });
+  }
 
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST,

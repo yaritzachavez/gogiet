@@ -3,6 +3,10 @@
 require("dotenv").config({ path: ".env" });
 
 const mysql = require("mysql2/promise");
+const {
+  assertSafeWriteTarget,
+  logDbOperationTarget,
+} = require("./lib/db-write-guard");
 
 function resolveSslConfig() {
   const caCertificate = process.env.DB_CA || process.env.DB_SSL_CA;
@@ -85,6 +89,16 @@ async function cleanupDuplicateOwners(connection) {
 
 async function main() {
   const applyChanges = process.argv.includes("--apply");
+  if (applyChanges) {
+    assertSafeWriteTarget({
+      operation: "scripts/cleanup-business-owners.js --apply",
+    });
+  } else {
+    logDbOperationTarget({
+      operation: "scripts/cleanup-business-owners.js dry-run",
+      mode: "read",
+    });
+  }
 
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST,

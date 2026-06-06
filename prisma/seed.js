@@ -1,6 +1,11 @@
 const bcrypt = require("bcrypt");
 const { seedMarketplaceProducts } = require("./seed-products");
+const { assertSafeWriteTarget } = require("../scripts/lib/db-write-guard");
 const { prisma } = require("../scripts/prisma-runtime");
+
+assertSafeWriteTarget({
+  operation: "prisma/seed.js",
+});
 
 function getOptionalSeedValue(name) {
   const value = process.env[name];

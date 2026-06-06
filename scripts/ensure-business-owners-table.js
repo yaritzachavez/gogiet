@@ -3,6 +3,7 @@
 require("dotenv").config({ path: ".env" });
 
 const mysql = require("mysql2/promise");
+const { assertSafeWriteTarget } = require("./lib/db-write-guard");
 
 function resolveSslConfig() {
   const caCertificate = process.env.DB_CA || process.env.DB_SSL_CA;
@@ -17,6 +18,10 @@ function resolveSslConfig() {
 }
 
 async function main() {
+  assertSafeWriteTarget({
+    operation: "scripts/ensure-business-owners-table.js",
+  });
+
   const connection = await mysql.createConnection({
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT || 3306),

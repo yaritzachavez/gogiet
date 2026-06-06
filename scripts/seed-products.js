@@ -1,5 +1,10 @@
 const { PRODUCT_CATALOGS } = require("../prisma/seed-products");
+const { assertSafeWriteTarget } = require("./lib/db-write-guard");
 const { prisma } = require("./prisma-runtime");
+
+assertSafeWriteTarget({
+  operation: "scripts/seed-products.js",
+});
 
 const CLOUDINARY_BASE = "https://res.cloudinary.com/demo/image/upload";
 

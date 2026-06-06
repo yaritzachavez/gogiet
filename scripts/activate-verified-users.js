@@ -2,6 +2,10 @@ require("dotenv").config({ path: ".env.local" });
 require("dotenv").config({ path: ".env" });
 
 const mysql = require("mysql2/promise");
+const {
+  assertSafeWriteTarget,
+  logDbOperationTarget,
+} = require("./lib/db-write-guard");
 
 function getConnectionConfig() {
   const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -49,6 +53,16 @@ async function main() {
   const includeAdminDisabled = process.argv.includes(
     "--include-admin-disabled",
   );
+  if (apply) {
+    assertSafeWriteTarget({
+      operation: "scripts/activate-verified-users.js --apply",
+    });
+  } else {
+    logDbOperationTarget({
+      operation: "scripts/activate-verified-users.js dry-run",
+      mode: "read",
+    });
+  }
   const connection = await mysql.createConnection(getConnectionConfig());
 
   try {
