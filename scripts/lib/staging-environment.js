@@ -372,6 +372,142 @@ function evaluateWriteTarget({
   return summary;
 }
 
+function evaluateStagingEnvironment(env = process.env) {
+  const signals = getEnvironmentSignals(env);
+  const databaseTarget = parseDatabaseTarget(env);
+  const productionReference = getProductionReference(env);
+  const appUrl = analyzeAppUrl(env);
+  const mercadoPagoPublicKey = classifyMercadoPagoCredential(
+    env.NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY,
+  );
+  const mercadoPagoAccessToken = classifyMercadoPagoCredential(
+    env.MERCADOPAGO_ACCESS_TOKEN,
+  );
+
+  const reasons = [];
+  const databaseNameLower = normalizeEnvToken(databaseTarget.databaseName);
+  const hostMatchesProduction = Boolean(
+    databaseTarget.host &&
+      ((productionReference.host &&
+        normalizeEnvToken(databaseTarget.host) ===
+          normalizeEnvToken(productionReference.host)) ||
+        (productionReference.hostFingerprint &&
+          databaseTarget.hostFingerprint ===
+            productionReference.hostFingerprint)),
+  );
+  const userMatchesProduction = Boolean(
+    productionReference.userFingerprint &&
+      databaseTarget.userFingerprint &&
+      productionReference.userFingerprint === databaseTarget.userFingerprint,
+  );
+
+  if (!STAGING_RUNTIME_ENVIRONMENTS.has(signals.appEnv)) {
+    reasons.push("APP_ENV_NOT_STAGING_OR_TEST");
+  }
+
+  if (!STAGING_RUNTIME_ENVIRONMENTS.has(signals.databaseEnv)) {
+    reasons.push("DATABASE_ENV_NOT_STAGING_OR_TEST");
+  }
+
+  if (!databaseTarget.rawUrlPresent) {
+    reasons.push("DATABASE_URL_MISSING");
+  }
+
+  if (!databaseTarget.rawUrlParseable) {
+    reasons.push(databaseTarget.parseError || "DATABASE_URL_INVALID");
+  }
+
+  if (!databaseTarget.databaseName) {
+    reasons.push("DATABASE_NAME_MISSING");
+  }
+
+  if (!databaseTarget.host) {
+    reasons.push("DATABASE_HOST_MISSING");
+  }
+
+  if (PRODUCTION_DATABASE_NAMES.has(databaseNameLower)) {
+    reasons.push("DATABASE_NAME_IS_PRODUCTION");
+  }
+
+  if (!productionReference.hostFingerprint && !productionReference.host) {
+    reasons.push("PRODUCTION_HOST_REFERENCE_MISSING");
+  }
+
+  if (hostMatchesProduction) {
+    reasons.push("DATABASE_HOST_MATCHES_PRODUCTION");
+  }
+
+  if (
+    productionReference.databaseName &&
+    databaseTarget.databaseName &&
+    normalizeEnvToken(productionReference.databaseName) === databaseNameLower
+  ) {
+    reasons.push("DATABASE_NAME_MATCHES_PRODUCTION_REFERENCE");
+  }
+
+  if (userMatchesProduction) {
+    reasons.push("DATABASE_USER_MATCHES_PRODUCTION");
+  }
+
+  if (signals.vercelEnv === "production") {
+    reasons.push("VERCEL_ENV_PRODUCTION");
+  }
+
+  if (appUrl.parseError) {
+    reasons.push(appUrl.parseError);
+  }
+
+  if (appUrl.isProductionHostname) {
+    reasons.push("APP_URL_POINTS_TO_PRODUCTION");
+  }
+
+  if (!appUrl.isPreviewHostname && signals.vercelEnv === "preview") {
+    reasons.push("APP_URL_NOT_PREVIEW_HOST");
+  }
+
+  if (mercadoPagoPublicKey.state !== "test") {
+    reasons.push("MERCADOPAGO_PUBLIC_KEY_NOT_VERIFIED_AS_TEST");
+  }
+
+  if (mercadoPagoAccessToken.state !== "test") {
+    reasons.push("MERCADOPAGO_ACCESS_TOKEN_NOT_VERIFIED_AS_TEST");
+  }
+
+  const writesAllowed = evaluateWriteTarget({
+    operation: "scripts/seed-staging-qa.js --write",
+    env,
+  }).writeAllowed;
+
+  return {
+    appEnv: signals.appEnv || null,
+    databaseEnv: signals.databaseEnv || null,
+    nodeEnv: signals.nodeEnv || null,
+    vercelEnv: signals.vercelEnv || null,
+    runtimeEnvironment: signals.runtimeEnvironment,
+    databaseName: databaseTarget.databaseName ?? null,
+    databaseHost: maskHost(databaseTarget.host),
+    databaseHostFingerprint: databaseTarget.hostFingerprint,
+    databaseUserFingerprint: databaseTarget.userFingerprint,
+    databaseUrlPresent: databaseTarget.rawUrlPresent,
+    databaseUrlParseable: databaseTarget.rawUrlParseable,
+    productionReferenceConfigured: Boolean(
+      productionReference.hostFingerprint || productionReference.host,
+    ),
+    hostMatchesProduction,
+    userMatchesProduction,
+    appUrlHost: appUrl.maskedHost,
+    appUrlFingerprint: appUrl.fingerprint,
+    appUrlLooksPreview: appUrl.isPreviewHostname,
+    mercadoPagoPublicKeyState: mercadoPagoPublicKey.state,
+    mercadoPagoPublicKeyFingerprint: mercadoPagoPublicKey.fingerprint,
+    mercadoPagoAccessTokenState: mercadoPagoAccessToken.state,
+    mercadoPagoAccessTokenFingerprint: mercadoPagoAccessToken.fingerprint,
+    writeGuardEligible: writesAllowed,
+    blockingReasons: reasons,
+    verified: reasons.length === 0,
+  };
+}
+
 module.exports = {
   ALLOWED_WRITE_OPERATIONS,
   PRODUCTION_APP_HOSTNAMES,
@@ -380,6 +516,7 @@ module.exports = {
   analyzeAppUrl,
   classifyMercadoPagoCredential,
   createFingerprint,
+  evaluateStagingEnvironment,
   evaluateWriteTarget,
   getEnvironmentSignals,
   getProductionReference,
