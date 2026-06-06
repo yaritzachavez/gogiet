@@ -1,33 +1,33 @@
-import { NextResponse } from "next/server";
-
-import { buildAuthorizationErrorPayload } from "./api-auth-payload";
+import { apiErrorResponse } from "./api-error";
 
 type AuthorizationErrorExtra = Record<string, unknown>;
 
 export function unauthorizedResponse(
+  request?:
+    | Request
+    | { headers?: Pick<Headers, "get">; method?: string; url?: string }
+    | null,
   extra?: AuthorizationErrorExtra,
   message = "No autorizado",
 ) {
-  return NextResponse.json(
-    buildAuthorizationErrorPayload({
-      code: "UNAUTHORIZED",
-      message,
-      extra,
-    }),
-    { status: 401 },
-  );
+  return apiErrorResponse(request, {
+    code: "UNAUTHORIZED",
+    message,
+    extra,
+  });
 }
 
 export function forbiddenResponse(
+  request?:
+    | Request
+    | { headers?: Pick<Headers, "get">; method?: string; url?: string }
+    | null,
   extra?: AuthorizationErrorExtra,
   message = "Acceso denegado",
 ) {
-  return NextResponse.json(
-    buildAuthorizationErrorPayload({
-      code: "FORBIDDEN",
-      message,
-      extra,
-    }),
-    { status: 403 },
-  );
+  return apiErrorResponse(request, {
+    code: "FORBIDDEN",
+    message,
+    extra,
+  });
 }

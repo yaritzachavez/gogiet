@@ -1,28 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { getSafeErrorMessage } from "@/lib/api-error";
+import { apiErrorResponse, safeErrorResponse } from "@/lib/api-error";
 import pool, { logDbUsage } from "@/lib/db";
 import { getCurrentDriverDeliveries } from "@/lib/delivery/current-driver-orders";
 import { requireDriverAccess } from "@/lib/permissions";
-
-function serializeError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    };
-  }
-
-  try {
-    return JSON.parse(JSON.stringify(error, Object.getOwnPropertyNames(error)));
-  } catch {
-    return {
-      message: String(error),
-    };
-  }
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -35,22 +17,20 @@ export async function GET(req: NextRequest) {
     );
 
     if (!access.ok) {
-      return NextResponse.json(
-        {
-          success: false,
+      return apiErrorResponse(req, {
+        code: access.response.status === 401 ? "UNAUTHORIZED" : "FORBIDDEN",
+        message: "No autorizado para acceder al panel de repartidor",
+        extra: {
           ok: false,
-          error: "No autorizado para acceder al panel de repartidor",
           orders: [],
           activeDeliveries: [],
           availableOffers: [],
         },
-        { status: access.response.status },
-      );
+      });
     }
 
     const userId = access.access.userId;
 
-    console.log("[DELIVERY ORDERS] inicio", { userId });
     logDbUsage("/api/delivery/orders", {
       userId,
       email: access.deliveryAccess.email,
@@ -67,24 +47,18 @@ export async function GET(req: NextRequest) {
       availableOffers: [],
     });
   } catch (error) {
-    const serializedError = serializeError(error);
-    console.error("[DELIVERY ORDERS ERROR]", serializedError);
-
-    return NextResponse.json(
+    return safeErrorResponse(
+      "delivery.orders.get_error",
+      error,
+      "No se pudieron cargar las entregas del repartidor.",
+      500,
       {
-        success: false,
+        request: req,
         ok: false,
-        error: getSafeErrorMessage(
-          error,
-          "No se pudieron cargar las entregas del repartidor.",
-        ),
-        debug:
-          process.env.NODE_ENV === "production" ? undefined : serializedError,
         orders: [],
         activeDeliveries: [],
         availableOffers: [],
       },
-      { status: 500 },
     );
   }
 }

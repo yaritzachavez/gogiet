@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from "@/lib/api-auth-response";
-import { getSafeErrorMessage, logServerError } from "@/lib/api-error";
+import { safeErrorResponse } from "@/lib/api-error";
 import {
   ensureBusinessHoursSchema,
   isBusinessOpenByHours,
@@ -84,11 +84,11 @@ export async function GET(req: NextRequest) {
     const authUser = getAuthUser(req);
 
     if (!authUser?.token) {
-      return unauthorizedResponse();
+      return unauthorizedResponse(req);
     }
 
     if (!authUser?.user) {
-      return unauthorizedResponse();
+      return unauthorizedResponse(req);
     }
 
     requestedBusinessId = toPositiveNumber(
@@ -118,6 +118,7 @@ export async function GET(req: NextRequest) {
 
     if (!access.businessId) {
       return forbiddenResponse(
+        req,
         {
           business: null,
           businesses: [],
@@ -308,21 +309,18 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    logServerError("business.me.get_error", error, {
-      userId,
-      email,
-      requestedBusinessId,
-      resolvedBusinessId,
-    });
-    return NextResponse.json(
+    return safeErrorResponse(
+      "business.me.get_error",
+      error,
+      "No se pudo cargar el negocio del usuario.",
+      500,
       {
-        success: false,
-        error: getSafeErrorMessage(
-          error,
-          "No se pudo cargar el negocio del usuario.",
-        ),
+        request: req,
+        userId,
+        email,
+        requestedBusinessId,
+        resolvedBusinessId,
       },
-      { status: 500 },
     );
   }
 }

@@ -6,7 +6,7 @@ import {
   forbiddenResponse,
   unauthorizedResponse,
 } from "@/lib/api-auth-response";
-import { logServerError } from "@/lib/api-error";
+import { safeErrorResponse } from "@/lib/api-error";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { getFriendlyDatabaseErrorMessage, logDbUsage } from "@/lib/db";
 import {
@@ -77,11 +77,11 @@ export async function GET(req: NextRequest) {
     const authUser = getAuthUser(req);
 
     if (!authUser?.token) {
-      return unauthorizedResponse({ orders: [] });
+      return unauthorizedResponse(req, { orders: [] });
     }
 
     if (!authUser?.user) {
-      return unauthorizedResponse({ orders: [] });
+      return unauthorizedResponse(req, { orders: [] });
     }
 
     const requestedBusinessId = toPositiveNumber(
@@ -100,6 +100,7 @@ export async function GET(req: NextRequest) {
 
     if (!access.businessId) {
       return forbiddenResponse(
+        req,
         {
           orders: [],
         },
@@ -231,14 +232,15 @@ export async function GET(req: NextRequest) {
       orders: responseOrders,
     });
   } catch (error) {
-    logServerError("business.orders.get_error", error);
-    return NextResponse.json(
+    return safeErrorResponse(
+      "business.orders.get_error",
+      error,
+      getFriendlyDatabaseErrorMessage(error),
+      500,
       {
-        success: false,
-        error: getFriendlyDatabaseErrorMessage(error),
+        request: req,
         orders: [],
       },
-      { status: 500 },
     );
   }
 }

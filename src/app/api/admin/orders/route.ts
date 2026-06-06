@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { apiErrorResponse, safeErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
 
@@ -138,14 +139,11 @@ export async function GET(req: NextRequest) {
     const authUser = getAuthUser(req);
 
     if (!authUser) {
-      return NextResponse.json(
-        { error: "Token inválido o faltante" },
-        { status: 401 },
-      );
+      return apiErrorResponse(req, { code: "UNAUTHORIZED" });
     }
 
     if (!(await isAdminGeneral(authUser.id))) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      return apiErrorResponse(req, { code: "FORBIDDEN" });
     }
 
     const { searchParams } = new URL(req.url);
@@ -334,13 +332,12 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error("Error GET /api/admin/orders:", error);
-    return NextResponse.json(
-      {
-        error: "No se pudieron cargar los pedidos del panel admin.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
-      },
-      { status: 500 },
+    return safeErrorResponse(
+      "admin.orders.get_error",
+      error,
+      "No se pudieron cargar los pedidos del panel admin.",
+      500,
+      { request: req },
     );
   }
 }
