@@ -2,6 +2,11 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import {
+  forbiddenResponse,
+  unauthorizedResponse,
+} from "@/lib/api-auth-response";
+import { logServerError } from "@/lib/api-error";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { getFriendlyDatabaseErrorMessage, logDbUsage } from "@/lib/db";
 import {
@@ -72,17 +77,11 @@ export async function GET(req: NextRequest) {
     const authUser = getAuthUser(req);
 
     if (!authUser?.token) {
-      return NextResponse.json(
-        { success: false, error: "Token faltante", orders: [] },
-        { status: 401 },
-      );
+      return unauthorizedResponse({ orders: [] });
     }
 
     if (!authUser?.user) {
-      return NextResponse.json(
-        { success: false, error: "Token inválido", orders: [] },
-        { status: 401 },
-      );
+      return unauthorizedResponse({ orders: [] });
     }
 
     const requestedBusinessId = toPositiveNumber(
@@ -93,16 +92,6 @@ export async function GET(req: NextRequest) {
       requestedBusinessId,
     );
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[business/orders] access", {
-        userId: authUser.user.id,
-        requestedBusinessId,
-        resolvedBusinessId: access.businessId,
-        businessIds: access.businessIds,
-        roles: access.roles,
-      });
-    }
-
     logDbUsage("/api/business/orders", {
       userId: access.userId,
       email: access.email,
@@ -110,16 +99,13 @@ export async function GET(req: NextRequest) {
     });
 
     if (!access.businessId) {
-      return NextResponse.json(
+      return forbiddenResponse(
         {
-          success: false,
-          error:
-            access.denialReason === "requested_business_forbidden"
-              ? "No puedes acceder a ese negocio"
-              : "No tienes un negocio asignado",
           orders: [],
         },
-        { status: 403 },
+        access.denialReason === "requested_business_forbidden"
+          ? "No puedes acceder a ese negocio"
+          : "No tienes un negocio asignado",
       );
     }
 
@@ -177,11 +163,6 @@ export async function GET(req: NextRequest) {
     );
 
     if (!orderRows.length) {
-      if (process.env.NODE_ENV !== "production") {
-        console.log("[business/orders] no orders found", {
-          businessId: access.businessId,
-        });
-      }
       return NextResponse.json({
         success: true,
         orders: [],
@@ -245,25 +226,12 @@ export async function GET(req: NextRequest) {
       })),
     }));
 
-    if (process.env.NODE_ENV !== "production") {
-      console.log("[business/orders] payload", {
-        businessId: access.businessId,
-        totalOrders: responseOrders.length,
-        orders: responseOrders.map((order) => ({
-          id: order.id,
-          status: order.status,
-          statusCode: order.statusCode,
-          paymentMethod: order.paymentMethod,
-        })),
-      });
-    }
-
     return NextResponse.json({
       success: true,
       orders: responseOrders,
     });
   } catch (error) {
-    console.error("Error GET /api/business/orders:", error);
+    logServerError("business.orders.get_error", error);
     return NextResponse.json(
       {
         success: false,
