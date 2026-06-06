@@ -20,7 +20,10 @@ export async function getUserColumns() {
   try {
     return await loadUserColumns();
   } catch (error) {
-    console.warn("No se pudieron cargar las columnas de users para auth compat:", error);
+    console.warn(
+      "No se pudieron cargar las columnas de users para auth compat:",
+      error,
+    );
     return new Set<string>();
   }
 }

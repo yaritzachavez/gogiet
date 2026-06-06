@@ -90,7 +90,12 @@ export async function GET(req: NextRequest) {
       {
         success: false,
         error: "No se pudieron cargar las preferencias.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );
@@ -179,7 +184,12 @@ export async function PATCH(req: NextRequest) {
       {
         success: false,
         error: "No se pudieron guardar las preferencias.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );

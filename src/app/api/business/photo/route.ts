@@ -223,7 +223,12 @@ export async function POST(req: NextRequest) {
       {
         success: false,
         error: "No se pudo guardar la imagen del negocio",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );

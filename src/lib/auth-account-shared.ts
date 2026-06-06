@@ -1,5 +1,7 @@
 export function normalizeEmail(email: string) {
-  return String(email ?? "").trim().toLowerCase();
+  return String(email ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 export function normalizePhone(phone: string) {

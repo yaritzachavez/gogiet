@@ -25,7 +25,9 @@ export async function sendVerificationCodeEmail(
   });
 
   if (response.error) {
-    throw new Error(response.error.message || "No se pudo enviar el correo de verificacion");
+    throw new Error(
+      response.error.message || "No se pudo enviar el correo de verificacion",
+    );
   }
 }
 
@@ -33,10 +35,7 @@ export function isUserTemporarilyVerified(user: {
   verification_code?: string | null;
   verification_expires_at?: Date | string | null;
 }) {
-  if (
-    user.verification_code &&
-    user.verification_expires_at
-  ) {
+  if (user.verification_code && user.verification_expires_at) {
     return new Date(user.verification_expires_at).getTime() < Date.now();
   }
 

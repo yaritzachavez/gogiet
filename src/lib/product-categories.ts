@@ -72,13 +72,7 @@ const CATEGORY_RULES: Array<{
     ],
   },
   {
-    businessNames: [
-      "restaurante",
-      "tacos",
-      "pollo",
-      "mariscos",
-      "sushi",
-    ],
+    businessNames: ["restaurante", "tacos", "pollo", "mariscos", "sushi"],
     allowedCategoryNames: [
       "bebidas",
       "combos",
@@ -183,7 +177,8 @@ export function getProductCategoriesForBusiness(
   businessCategoryName: string | null | undefined,
   categories: ProductCategoryOption[],
 ) {
-  const normalizedBusinessCategory = normalizeCategoryName(businessCategoryName);
+  const normalizedBusinessCategory =
+    normalizeCategoryName(businessCategoryName);
 
   if (!normalizedBusinessCategory) {
     return [...categories].sort((a, b) => a.name.localeCompare(b.name, "es"));

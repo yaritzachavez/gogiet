@@ -55,7 +55,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Error al obtener usuarios",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );

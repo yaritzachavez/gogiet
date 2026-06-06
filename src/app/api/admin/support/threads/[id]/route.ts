@@ -93,7 +93,12 @@ export async function GET(
     return NextResponse.json(
       {
         error: "No se pudo cargar la conversación.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );
@@ -142,7 +147,12 @@ export async function PATCH(
     return NextResponse.json(
       {
         error: "No se pudo actualizar la conversación.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );

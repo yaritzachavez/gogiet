@@ -17,16 +17,25 @@ function mapTechnicalMessage(message: string) {
   if (normalized.includes("network") || normalized.includes("fetch")) {
     return "Tu conexión se perdió. Revisa tu internet.";
   }
-  if (normalized.includes("unauthorized") || normalized.includes("token inválido")) {
+  if (
+    normalized.includes("unauthorized") ||
+    normalized.includes("token inválido")
+  ) {
     return "Necesitas iniciar sesión para continuar.";
   }
   if (normalized.includes("forbidden")) {
     return "No tienes permisos para realizar esta acción.";
   }
-  if (normalized.includes("internal server error") || normalized.includes("server error")) {
+  if (
+    normalized.includes("internal server error") ||
+    normalized.includes("server error")
+  ) {
     return "No pudimos completar la acción. Intenta nuevamente.";
   }
-  if (normalized.includes("bad request") || normalized.includes("invalid input")) {
+  if (
+    normalized.includes("bad request") ||
+    normalized.includes("invalid input")
+  ) {
     return "Revisa la información e intenta nuevamente.";
   }
   if (

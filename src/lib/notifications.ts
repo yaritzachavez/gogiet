@@ -324,7 +324,9 @@ export async function createNotificationsForUsersSafely(
     console.error(
       "[notifications] no se pudieron guardar notificaciones para usuarios:",
       {
-        userIds: Array.from(new Set(userIds.map((userId) => normalizeId(userId)).filter(Boolean))),
+        userIds: Array.from(
+          new Set(userIds.map((userId) => normalizeId(userId)).filter(Boolean)),
+        ),
         type: payload.type,
         title: payload.title,
         relatedId: normalizeId(payload.relatedId),

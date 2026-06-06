@@ -70,7 +70,12 @@ export async function GET(
       {
         success: false,
         error: "No se pudieron cargar los mensajes.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );
@@ -182,7 +187,12 @@ export async function POST(
       {
         success: false,
         error: "No se pudo guardar el mensaje.",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );

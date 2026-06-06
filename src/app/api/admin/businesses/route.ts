@@ -180,7 +180,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Error interno",
-        debug: process.env.NODE_ENV === "production" ? undefined : (error instanceof Error ? error.message : String(error)),
+        debug:
+          process.env.NODE_ENV === "production"
+            ? undefined
+            : error instanceof Error
+              ? error.message
+              : String(error),
       },
       { status: 500 },
     );
