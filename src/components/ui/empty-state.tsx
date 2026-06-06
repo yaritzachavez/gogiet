@@ -37,12 +37,7 @@ export function EmptyState({
         {description}
       </p>
       {actionLabel && onAction ? (
-        <Button
-          type="button"
-          size="lg"
-          className="mt-6"
-          onClick={onAction}
-        >
+        <Button type="button" size="lg" className="mt-6" onClick={onAction}>
           {actionLabel}
         </Button>
       ) : null}

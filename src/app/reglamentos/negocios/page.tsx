@@ -255,7 +255,10 @@ export default function BusinessRegulationsPage() {
                 Puedes regresar al inicio y seguir explorando Gogi Eats.
               </p>
             </div>
-            <Button asChild className="rounded-full bg-orange-600 hover:bg-orange-700">
+            <Button
+              asChild
+              className="rounded-full bg-orange-600 hover:bg-orange-700"
+            >
               <Link href="/">Volver al inicio</Link>
             </Button>
           </div>

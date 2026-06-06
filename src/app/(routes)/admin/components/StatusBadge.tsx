@@ -1,9 +1,9 @@
 interface StatusBadgeProps {
-  status: number
+  status: number;
 }
 
 export default function StatusBadge({ status }: StatusBadgeProps) {
-  const isActive = status === 1
+  const isActive = status === 1;
 
   return (
     <span
@@ -15,5 +15,5 @@ export default function StatusBadge({ status }: StatusBadgeProps) {
     >
       {isActive ? "Activo" : "Inactivo"}
     </span>
-  )
+  );
 }

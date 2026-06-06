@@ -218,9 +218,9 @@ export default function CustomerRegulationsPage() {
             clientes.
           </p>
           <p className="mt-4 text-sm leading-7 text-slate-700 sm:text-base">
-            Al registrarse, acceder o utilizar la plataforma, el usuario
-            declara haber leído, comprendido y aceptado en su totalidad el
-            presente reglamento.
+            Al registrarse, acceder o utilizar la plataforma, el usuario declara
+            haber leído, comprendido y aceptado en su totalidad el presente
+            reglamento.
           </p>
         </SectionCard>
 
@@ -272,7 +272,10 @@ export default function CustomerRegulationsPage() {
                 Puedes volver al inicio y continuar navegando por la plataforma.
               </p>
             </div>
-            <Button asChild className="rounded-full bg-orange-600 hover:bg-orange-700">
+            <Button
+              asChild
+              className="rounded-full bg-orange-600 hover:bg-orange-700"
+            >
               <Link href="/">Volver al inicio</Link>
             </Button>
           </div>

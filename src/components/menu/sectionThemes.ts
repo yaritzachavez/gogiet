@@ -150,4 +150,3 @@ export function getSectionTheme(title: string): SectionTheme {
 
   return SECTION_PRESETS.default;
 }
-

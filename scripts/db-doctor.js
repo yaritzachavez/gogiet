@@ -65,7 +65,9 @@ async function getTableCount(connection, tableName) {
 
 async function getRowCount(connection, tableName) {
   try {
-    const [rows] = await connection.query(`SELECT COUNT(*) AS total FROM \`${tableName}\``);
+    const [rows] = await connection.query(
+      `SELECT COUNT(*) AS total FROM \`${tableName}\``,
+    );
     return Number(rows[0]?.total ?? 0);
   } catch {
     return null;
@@ -164,7 +166,8 @@ main().catch((error) => {
     message: error instanceof Error ? error.message : String(error),
     code: error && typeof error === "object" ? error.code : undefined,
     errno: error && typeof error === "object" ? error.errno : undefined,
-    sqlMessage: error && typeof error === "object" ? error.sqlMessage : undefined,
+    sqlMessage:
+      error && typeof error === "object" ? error.sqlMessage : undefined,
   });
   process.exitCode = 1;
 });

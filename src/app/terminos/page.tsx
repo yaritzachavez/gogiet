@@ -23,8 +23,8 @@ export default function TermsPage() {
           <div className="space-y-4 text-sm leading-7 text-slate-700 sm:text-base">
             <p>
               Gogi Eats opera como una plataforma tecnológica que conecta
-              clientes, negocios afiliados y repartidores independientes. El
-              uso de la plataforma implica la aceptación de los lineamientos
+              clientes, negocios afiliados y repartidores independientes. El uso
+              de la plataforma implica la aceptación de los lineamientos
               públicos aplicables a cada perfil.
             </p>
             <p>

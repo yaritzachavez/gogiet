@@ -367,9 +367,12 @@ export default function AdminSettingsPage() {
       setLoggingOutAll(true);
       setSecurityError("");
 
-      const response = await fetchWithSession("/api/admin/security/logout-all", {
-        method: "POST",
-      });
+      const response = await fetchWithSession(
+        "/api/admin/security/logout-all",
+        {
+          method: "POST",
+        },
+      );
 
       const data = await response.json();
 

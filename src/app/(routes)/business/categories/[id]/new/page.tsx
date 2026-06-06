@@ -7,5 +7,5 @@ export default async function NewCategoryPage({
 }) {
   const { id } = await params;
 
-  return <FormClient businessId={Number(id)} />; 
+  return <FormClient businessId={Number(id)} />;
 }

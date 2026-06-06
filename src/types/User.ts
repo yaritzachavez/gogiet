@@ -1,4 +1,3 @@
-
 export type User = {
   status_id: number;
   id: number;
