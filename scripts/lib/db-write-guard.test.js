@@ -17,6 +17,7 @@ const guardedStagingEnv = {
   DB_HOST: "staging.example.com",
   DB_USER: "staging_user",
   PRODUCTION_DB_NAME: "gogi_prod",
+  PRODUCTION_DB_USER: "prod_writer",
   PRODUCTION_DB_HOST_FINGERPRINT: "prodhost0001",
   PRODUCTION_DB_USER_FINGERPRINT: "produser0001",
 };
@@ -59,6 +60,44 @@ test("allows writes in isolated staging with explicit flag", () => {
   assert.equal(summary.databaseName, "gogi_staging");
   assert.equal(summary.isProductionDatabase, false);
   assert.equal(summary.allowStagingWrites, true);
+});
+
+test("allows writes on a shared host only with the explicit shared-host flag", () => {
+  const summary = assertSafeWriteTarget({
+    operation: "prisma/seed.js",
+    env: {
+      ...guardedStagingEnv,
+      DATABASE_URL:
+        "mysql://staging_user:pass@shared.example.com:3306/gogi_staging",
+      DB_HOST: "shared.example.com",
+      PRODUCTION_DB_HOST: "shared.example.com",
+      PRODUCTION_DB_HOST_FINGERPRINT: "",
+      ALLOW_SHARED_DB_HOST_FOR_STAGING: "true",
+    },
+  });
+
+  assert.equal(summary.writeAllowed, true);
+  assert.equal(summary.databaseHostMatchesProduction, true);
+  assert.equal(summary.sharedHostAllowed, true);
+});
+
+test("blocks shared-host writes without the explicit shared-host flag", () => {
+  assert.throws(
+    () =>
+      assertSafeWriteTarget({
+        operation: "prisma/seed.js",
+        env: {
+          ...guardedStagingEnv,
+          DATABASE_URL:
+            "mysql://staging_user:pass@shared.example.com:3306/gogi_staging",
+          DB_HOST: "shared.example.com",
+          PRODUCTION_DB_HOST: "shared.example.com",
+          PRODUCTION_DB_HOST_FINGERPRINT: "",
+          ALLOW_SHARED_DB_HOST_FOR_STAGING: "false",
+        },
+      }),
+    /ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE/i,
+  );
 });
 
 test("sanitizes host and preserves operation metadata", () => {

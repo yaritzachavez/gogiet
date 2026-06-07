@@ -17,6 +17,7 @@ const ALLOWED_WRITE_OPERATIONS = new Set([
   "scripts/seed-staging-qa.js --write",
   "scripts/cleanup-staging-qa.js --write",
 ]);
+const FORBIDDEN_SHARED_HOST_USERS = new Set(["avnadmin"]);
 
 function normalizeEnvToken(value) {
   return String(value ?? "")
@@ -174,6 +175,8 @@ function getEnvironmentSignals(env = process.env) {
     runtimeEnvironment: getRuntimeEnvironment(env),
     allowStagingWrites:
       normalizeEnvToken(env.ALLOW_STAGING_DB_WRITES) === "true",
+    allowSharedDbHostForStaging:
+      normalizeEnvToken(env.ALLOW_SHARED_DB_HOST_FOR_STAGING) === "true",
   };
 }
 
@@ -254,6 +257,58 @@ function analyzeAppUrl(env = process.env) {
   }
 }
 
+function isExactStagingDatabaseName(databaseName) {
+  return normalizeEnvToken(databaseName) === "gogi_staging";
+}
+
+function isForbiddenSharedHostUser(databaseTarget, productionReference) {
+  const normalizedUser = normalizeEnvToken(databaseTarget.user);
+
+  if (!normalizedUser) {
+    return false;
+  }
+
+  if (FORBIDDEN_SHARED_HOST_USERS.has(normalizedUser)) {
+    return true;
+  }
+
+  if (
+    productionReference.user &&
+    normalizedUser === normalizeEnvToken(productionReference.user)
+  ) {
+    return true;
+  }
+
+  return Boolean(
+    productionReference.userFingerprint &&
+      databaseTarget.userFingerprint &&
+      productionReference.userFingerprint === databaseTarget.userFingerprint,
+  );
+}
+
+function canAllowSharedHostForStaging({
+  operation,
+  signals,
+  databaseTarget,
+  productionReference,
+}) {
+  return (
+    STAGING_RUNTIME_ENVIRONMENTS.has(signals.appEnv) &&
+    STAGING_RUNTIME_ENVIRONMENTS.has(signals.databaseEnv) &&
+    signals.allowStagingWrites &&
+    signals.allowSharedDbHostForStaging &&
+    signals.nodeEnv !== "production" &&
+    signals.vercelEnv !== "production" &&
+    databaseTarget.rawUrlPresent &&
+    databaseTarget.rawUrlParseable &&
+    isExactStagingDatabaseName(databaseTarget.databaseName) &&
+    normalizeEnvToken(databaseTarget.databaseName) !==
+      normalizeEnvToken(productionReference.databaseName) &&
+    !isForbiddenSharedHostUser(databaseTarget, productionReference) &&
+    isAllowedWriteOperation(operation)
+  );
+}
+
 function evaluateWriteTarget({
   operation,
   env = process.env,
@@ -315,16 +370,27 @@ function evaluateWriteTarget({
 
   if (!productionReference.hostFingerprint && !productionReference.host) {
     reasons.push("PRODUCTION_HOST_REFERENCE_MISSING");
-  } else if (
-    databaseTarget.host &&
-    ((productionReference.host &&
-      normalizeEnvToken(databaseTarget.host) ===
-        normalizeEnvToken(productionReference.host)) ||
-      (productionReference.hostFingerprint &&
-        databaseTarget.hostFingerprint === productionReference.hostFingerprint))
-  ) {
-    reasons.push("DATABASE_HOST_MATCHES_PRODUCTION");
   }
+
+  const databaseHostMatchesProduction = Boolean(
+    databaseTarget.host &&
+      ((productionReference.host &&
+        normalizeEnvToken(databaseTarget.host) ===
+          normalizeEnvToken(productionReference.host)) ||
+        (productionReference.hostFingerprint &&
+          databaseTarget.hostFingerprint ===
+            productionReference.hostFingerprint)),
+  );
+  const databaseUserMatchesProduction = isForbiddenSharedHostUser(
+    databaseTarget,
+    productionReference,
+  );
+  const sharedHostAllowed = canAllowSharedHostForStaging({
+    operation: normalizedOperation,
+    signals,
+    databaseTarget,
+    productionReference,
+  });
 
   if (
     productionReference.databaseName &&
@@ -335,12 +401,15 @@ function evaluateWriteTarget({
     reasons.push("DATABASE_NAME_MATCHES_PRODUCTION_REFERENCE");
   }
 
-  if (
-    productionReference.userFingerprint &&
-    databaseTarget.userFingerprint &&
-    productionReference.userFingerprint === databaseTarget.userFingerprint
-  ) {
+  if (databaseUserMatchesProduction) {
     reasons.push("DATABASE_USER_MATCHES_PRODUCTION");
+  }
+
+  if (databaseHostMatchesProduction && !sharedHostAllowed) {
+    reasons.push("DATABASE_HOST_MATCHES_PRODUCTION");
+    if (!signals.allowSharedDbHostForStaging) {
+      reasons.push("ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE");
+    }
   }
 
   const summary = {
@@ -356,12 +425,17 @@ function evaluateWriteTarget({
     databaseUserFingerprint: databaseTarget.userFingerprint,
     databaseUrlPresent: databaseTarget.rawUrlPresent,
     databaseUrlParseable: databaseTarget.rawUrlParseable,
+    databaseHostMatchesProduction,
+    databaseUserMatchesProduction,
+    hostMatchesProduction: databaseHostMatchesProduction,
+    userMatchesProduction: databaseUserMatchesProduction,
     isProductionDatabase:
       PRODUCTION_DATABASE_NAMES.has(databaseNameLower) ||
-      reasons.includes("DATABASE_HOST_MATCHES_PRODUCTION") ||
       reasons.includes("DATABASE_NAME_MATCHES_PRODUCTION_REFERENCE") ||
       reasons.includes("DATABASE_USER_MATCHES_PRODUCTION"),
     allowStagingWrites: signals.allowStagingWrites,
+    allowSharedDbHostForStaging: signals.allowSharedDbHostForStaging,
+    sharedHostAllowed,
     productionReferenceConfigured: Boolean(
       productionReference.hostFingerprint || productionReference.host,
     ),
@@ -396,10 +470,14 @@ function evaluateStagingEnvironment(env = process.env) {
             productionReference.hostFingerprint)),
   );
   const userMatchesProduction = Boolean(
-    productionReference.userFingerprint &&
-      databaseTarget.userFingerprint &&
-      productionReference.userFingerprint === databaseTarget.userFingerprint,
+    isForbiddenSharedHostUser(databaseTarget, productionReference),
   );
+  const sharedHostAllowed = canAllowSharedHostForStaging({
+    operation: "scripts/seed-staging-qa.js --write",
+    signals,
+    databaseTarget,
+    productionReference,
+  });
 
   if (!STAGING_RUNTIME_ENVIRONMENTS.has(signals.appEnv)) {
     reasons.push("APP_ENV_NOT_STAGING_OR_TEST");
@@ -433,8 +511,11 @@ function evaluateStagingEnvironment(env = process.env) {
     reasons.push("PRODUCTION_HOST_REFERENCE_MISSING");
   }
 
-  if (hostMatchesProduction) {
+  if (hostMatchesProduction && !sharedHostAllowed) {
     reasons.push("DATABASE_HOST_MATCHES_PRODUCTION");
+    if (!signals.allowSharedDbHostForStaging) {
+      reasons.push("ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE");
+    }
   }
 
   if (
@@ -451,6 +532,10 @@ function evaluateStagingEnvironment(env = process.env) {
 
   if (signals.vercelEnv === "production") {
     reasons.push("VERCEL_ENV_PRODUCTION");
+  }
+
+  if (signals.nodeEnv === "production") {
+    reasons.push("NODE_ENV_PRODUCTION");
   }
 
   if (appUrl.parseError) {
@@ -490,11 +575,14 @@ function evaluateStagingEnvironment(env = process.env) {
     databaseUserFingerprint: databaseTarget.userFingerprint,
     databaseUrlPresent: databaseTarget.rawUrlPresent,
     databaseUrlParseable: databaseTarget.rawUrlParseable,
+    allowStagingWrites: signals.allowStagingWrites,
+    allowSharedDbHostForStaging: signals.allowSharedDbHostForStaging,
     productionReferenceConfigured: Boolean(
       productionReference.hostFingerprint || productionReference.host,
     ),
     hostMatchesProduction,
     userMatchesProduction,
+    sharedHostAllowed,
     appUrlHost: appUrl.maskedHost,
     appUrlFingerprint: appUrl.fingerprint,
     appUrlLooksPreview: appUrl.isPreviewHostname,
