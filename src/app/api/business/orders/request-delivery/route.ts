@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
-import { getSafeErrorMessage } from "@/lib/api-error";
+import { getSafeErrorMessage, legacyErrorResponse } from "@/lib/api-error";
 import {
   DeliveryAssignmentError,
   requestCourierAssignment,
@@ -83,23 +83,19 @@ export async function POST(req: NextRequest) {
             error,
             "No se pudo solicitar el repartidor.",
           ),
-          ...(process.env.NODE_ENV !== "production" && error.debug
-            ? { debug: error.debug }
-            : {}),
         },
         { status: error.status },
       );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: getSafeErrorMessage(
-          error,
-          "No se pudo solicitar el repartidor.",
-        ),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "business.request_delivery_error_response",
+      error,
+      message: getSafeErrorMessage(
+        error,
+        "No se pudo solicitar el repartidor.",
+      ),
+      body: { success: false },
+    });
   }
 }

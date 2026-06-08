@@ -1,6 +1,8 @@
 import type { RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+
+import { legacyErrorResponse } from "@/lib/api-error";
 import {
   consumeRateLimit,
   createPasswordResetToken,
@@ -19,14 +21,6 @@ type UserRow = RowDataPacket & {
   id: number;
   email: string;
   email_verified?: number | boolean | null;
-};
-
-type SqlLikeError = {
-  code?: string;
-  errno?: number;
-  sqlMessage?: string;
-  message?: string;
-  stack?: string;
 };
 
 function buildResetUrl(email: string, token: string) {
@@ -198,25 +192,14 @@ export async function POST(req: Request) {
         "Si encontramos una cuenta asociada a ese correo, recibirás un enlace de recuperación.",
     });
   } catch (error) {
-    const sqlError =
-      typeof error === "object" && error !== null
-        ? (error as SqlLikeError)
-        : null;
-
-    console.error("FORGOT PASSWORD ERROR:", {
-      code: sqlError?.code ?? null,
-      errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
-    });
-
-    return json(
-      {
-        success: false,
-        error: "No pudimos iniciar la recuperación de contraseña.",
-      },
-      { status: 500 },
+    return withCors(
+      req,
+      legacyErrorResponse(req, {
+        event: "auth.forgot_password_error",
+        error,
+        message: "No pudimos iniciar la recuperación de contraseña.",
+        body: { success: false },
+      }),
     );
   }
 }

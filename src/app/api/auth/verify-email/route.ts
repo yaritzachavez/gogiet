@@ -1,5 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
+
+import { legacyErrorResponse } from "@/lib/api-error";
 import {
   consumeRateLimit,
   ensureAuthSecuritySchema,
@@ -21,14 +23,6 @@ type VerificationRow = RowDataPacket & {
   verification_expires_at?: Date | string | null;
   email_verified?: number | boolean | null;
   status_id?: number | null;
-};
-
-type SqlLikeError = {
-  code?: string;
-  errno?: number;
-  sqlMessage?: string;
-  message?: string;
-  stack?: string;
 };
 
 export function OPTIONS(req: Request) {
@@ -191,22 +185,14 @@ export async function POST(req: Request) {
       message: "Correo verificado correctamente.",
     });
   } catch (error) {
-    const sqlError =
-      typeof error === "object" && error !== null
-        ? (error as SqlLikeError)
-        : null;
-
-    console.error("VERIFY EMAIL ERROR:", {
-      code: sqlError?.code ?? null,
-      errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
-    });
-
-    return json(
-      { success: false, error: "No se pudo verificar el correo." },
-      { status: 500 },
+    return withCors(
+      req,
+      legacyErrorResponse(req, {
+        event: "auth.verify_email_error",
+        error,
+        message: "No se pudo verificar el correo.",
+        body: { success: false },
+      }),
     );
   }
 }

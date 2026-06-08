@@ -9,6 +9,7 @@ import {
   getSafeErrorMessage,
   getStatusForErrorCode,
   type RequestLike,
+  sanitizeLegacyErrorBody,
 } from "./api-error-logic";
 import { logger } from "./logger";
 
@@ -121,6 +122,37 @@ export function safeErrorResponse(
       status: responseStatus,
       headers: {
         "x-request-id": requestId,
+      },
+    },
+  );
+}
+
+export function legacyErrorResponse(
+  request: RequestLike,
+  params: {
+    event: string;
+    error: unknown;
+    message: string;
+    status?: number;
+    body?: ErrorContext;
+    requestId?: string | null;
+  },
+) {
+  const requestId = logServerError(params.event, params.error, {
+    request,
+    ...(params.body ?? {}),
+  });
+  const sanitizedBody = sanitizeLegacyErrorBody(params.body) ?? {};
+
+  return NextResponse.json(
+    {
+      ...sanitizedBody,
+      error: params.message,
+    },
+    {
+      status: params.status ?? 500,
+      headers: {
+        "x-request-id": getRequestId(request, params.requestId ?? requestId),
       },
     },
   );

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { legacyErrorResponse } from "@/lib/api-error";
 import { isSessionTokenActive, touchSessionToken } from "@/lib/auth-security";
 import pool from "@/lib/db";
 import { getExistingTables } from "@/lib/db-schema";
@@ -87,23 +88,14 @@ export async function GET(req: Request) {
       }),
     );
   } catch (error) {
-    console.error(error);
     return withCors(
       req,
-      NextResponse.json(
-        {
-          success: false,
-          error: "Error al obtener roles",
-          debug:
-            process.env.NODE_ENV === "production"
-              ? undefined
-              : error instanceof Error
-                ? error.message
-                : String(error),
-          roles: [],
-        },
-        { status: 500 },
-      ),
+      legacyErrorResponse(req, {
+        event: "auth.role_error",
+        error,
+        message: "Error al obtener roles",
+        body: { success: false, roles: [] },
+      }),
     );
   }
 }

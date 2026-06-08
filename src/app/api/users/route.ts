@@ -1,4 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
+
+import { legacyErrorResponse } from "@/lib/api-error";
 import { getActiveAuthStatusId } from "@/lib/auth-users";
 import pool from "@/lib/db";
 import { requirePermission } from "@/lib/permissions";
@@ -51,18 +53,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ success: true, users: rows });
   } catch (error) {
-    console.error("Error GET /api/users:", error);
-    return NextResponse.json(
-      {
-        error: "Error al obtener usuarios",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "users.list_error",
+      error,
+      message: "Error al obtener usuarios",
+    });
   }
 }

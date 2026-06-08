@@ -1,5 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
+
+import { legacyErrorResponse } from "@/lib/api-error";
 import {
   ensureAuthSecuritySchema,
   hashPassword,
@@ -14,14 +16,6 @@ import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
 type UserColumnRow = RowDataPacket & {
   Field?: string;
-};
-
-type SqlLikeError = {
-  code?: string;
-  errno?: number;
-  sqlMessage?: string;
-  message?: string;
-  stack?: string;
 };
 
 async function getUserColumns() {
@@ -125,22 +119,14 @@ export async function POST(req: Request) {
       message: "Tu contraseña fue actualizada correctamente.",
     });
   } catch (error) {
-    const sqlError =
-      typeof error === "object" && error !== null
-        ? (error as SqlLikeError)
-        : null;
-
-    console.error("RESET PASSWORD ERROR:", {
-      code: sqlError?.code ?? null,
-      errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
-    });
-
-    return json(
-      { success: false, error: "No pudimos actualizar tu contraseña." },
-      { status: 500 },
+    return withCors(
+      req,
+      legacyErrorResponse(req, {
+        event: "auth.reset_password_error",
+        error,
+        message: "No pudimos actualizar tu contraseña.",
+        body: { success: false },
+      }),
     );
   }
 }

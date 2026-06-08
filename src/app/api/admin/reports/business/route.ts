@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { legacyErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
 
@@ -300,18 +301,10 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error("Error GET /api/admin/reports/business:", error);
-    return NextResponse.json(
-      {
-        error: "No se pudieron cargar los reportes del negocio",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.business_reports_error",
+      error,
+      message: "No se pudieron cargar los reportes del negocio",
+    });
   }
 }

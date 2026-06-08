@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { legacyErrorResponse } from "@/lib/api-error";
 import {
   getPersistedImageUrlError,
   normalizePersistedImageUrl,
@@ -199,7 +200,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "La columna logo_url no existe en la base activa",
+          error:
+            "La configuracion de base de datos del negocio no esta lista para guardar imagenes.",
         },
         { status: 500 },
       );
@@ -213,24 +215,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "La tabla businesses no existe en la base activa",
+          error:
+            "La configuracion de base de datos del negocio no esta lista para guardar imagenes.",
         },
         { status: 500 },
       );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo guardar la imagen del negocio",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "business.photo_error_response",
+      error,
+      message: "No se pudo guardar la imagen del negocio",
+      body: { success: false, step },
+    });
   }
 }

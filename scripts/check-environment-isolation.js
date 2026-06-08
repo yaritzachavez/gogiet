@@ -77,7 +77,9 @@ function evaluateIsolationChecks({
 
   if (
     staging.vercelEnv === "preview" &&
-    (staging.hostMatchesProduction || staging.databaseName === "gogi_prod")
+    (staging.databaseName === "gogi_prod" ||
+      staging.userMatchesProduction ||
+      (staging.hostMatchesProduction && !staging.sharedHostAllowed))
   ) {
     failures.push("PREVIEW_DATABASE_MATCHES_PRODUCTION");
   }
@@ -140,6 +142,10 @@ function evaluateIsolationChecks({
       mercadoPagoPublicKeyState: mercadoPagoPublicKey.state,
       mercadoPagoAccessTokenState: mercadoPagoAccessToken.state,
       blockingReasons: staging.blockingReasons,
+      allowSharedDbHostForStaging: staging.allowSharedDbHostForStaging,
+      hostMatchesProduction: staging.hostMatchesProduction,
+      userMatchesProduction: staging.userMatchesProduction,
+      sharedHostAllowed: staging.sharedHostAllowed,
     },
     trackedRealEnvFiles: realTrackedEnvFiles,
     dangerousScriptsWithoutGuard,

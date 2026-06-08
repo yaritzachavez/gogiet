@@ -2,6 +2,7 @@ import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser } from "@/lib/admin-security";
+import { legacyErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 
 type OwnedBusinessRow = RowDataPacket & {
@@ -166,19 +167,11 @@ export async function GET(req: NextRequest) {
       week_over_week_change: weekOverWeekChange,
     });
   } catch (error) {
-    console.error("Error GET /api/business/reports/weekly:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo cargar el reporte semanal.",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "business.reports.weekly_error",
+      error,
+      message: "No se pudo cargar el reporte semanal.",
+      body: { success: false },
+    });
   }
 }

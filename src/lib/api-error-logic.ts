@@ -166,6 +166,12 @@ function sanitizePublicErrorExtra(
   return Object.keys(sanitized).length ? sanitized : undefined;
 }
 
+export function sanitizeLegacyErrorBody(
+  body?: ErrorContext,
+): ErrorContext | undefined {
+  return sanitizePublicErrorExtra(body);
+}
+
 export function getRequestId(
   request?: RequestLike,
   fallbackRequestId?: string | null,
