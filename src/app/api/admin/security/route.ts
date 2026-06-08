@@ -7,6 +7,7 @@ import {
   isAdminGeneral,
   type SessionRow,
 } from "@/lib/admin-security";
+import { legacyErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 
 type SecuritySettingsRow = RowDataPacket & {
@@ -74,20 +75,12 @@ export async function GET(req: NextRequest) {
       })),
     });
   } catch (error) {
-    console.error("Error GET /api/admin/security:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo cargar la seguridad.",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.security_load_error",
+      error,
+      message: "No se pudo cargar la seguridad.",
+      body: { success: false },
+    });
   }
 }
 
@@ -135,19 +128,11 @@ export async function PATCH(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error PATCH /api/admin/security:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo actualizar la seguridad.",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.security_update_error",
+      error,
+      message: "No se pudo actualizar la seguridad.",
+      body: { success: false },
+    });
   }
 }

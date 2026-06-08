@@ -6,6 +6,7 @@ import {
   getAuthUser,
   isAdminGeneral,
 } from "@/lib/admin-security";
+import { legacyErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 
 type AdminSettingRow = RowDataPacket & {
@@ -179,19 +180,11 @@ export async function PATCH(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error PATCH /api/admin/settings:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudieron guardar las preferencias.",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.settings_update_error",
+      error,
+      message: "No se pudieron guardar las preferencias.",
+      body: { success: false },
+    });
   }
 }

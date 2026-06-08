@@ -120,3 +120,15 @@ test("fails when a dangerous script omits the guard import", () => {
   assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK FAILED");
   assert(result.failures.includes("DANGEROUS_SCRIPT_WITHOUT_GUARD"));
 });
+
+test("fails when staging verification itself is incomplete", () => {
+  const result = evaluateIsolationChecks({
+    env: {},
+    trackedFiles: [".env.example"],
+    readFile: () => guardedSource,
+    rootDir: process.cwd(),
+  });
+
+  assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK FAILED");
+  assert(result.failures.includes("STAGING_ENVIRONMENT_NOT_VERIFIED"));
+});

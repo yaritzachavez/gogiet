@@ -70,6 +70,7 @@ model UserSession {
   deviceName       String?  @map("device_name") @db.VarChar(120)
   location         String?  @db.VarChar(191)
   lastActiveAt     DateTime? @map("last_active_at") @db.DateTime(0)
+  lastUsedAt       DateTime? @map("last_used_at") @db.DateTime(0)
   expiresAt        DateTime @map("expires_at") @db.DateTime(0)
   revokedAt        DateTime? @map("revoked_at") @db.DateTime(0)
   status           String   @default("active") @db.VarChar(30)
@@ -78,8 +79,10 @@ model UserSession {
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade, map: "fk_user_sessions_user")
 
   @@index([userId], map: "idx_user_sessions_user_id")
+  @@index([userId, status], map: "idx_user_sessions_user_status")
   @@index([status], map: "idx_user_sessions_status")
   @@index([expiresAt], map: "idx_user_sessions_expires_at")
+  @@index([lastUsedAt], map: "idx_user_sessions_last_used_at")
   @@index([createdAt], map: "idx_user_sessions_created_at")
   @@map("user_sessions")
 }

@@ -1,6 +1,7 @@
 import type { PoolConnection, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
 
+import { legacyErrorResponse } from "@/lib/api-error";
 import pool from "@/lib/db";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 
@@ -12,14 +13,6 @@ type UserRow = RowDataPacket & {
 
 type UserColumnRow = RowDataPacket & {
   Field?: string;
-};
-
-type SqlLikeError = {
-  code?: string;
-  errno?: number;
-  sqlMessage?: string;
-  message?: string;
-  stack?: string;
 };
 
 function isValidEmail(value: string) {
@@ -114,22 +107,14 @@ export async function POST(req: Request) {
       connection.release();
     }
   } catch (error) {
-    const sqlError =
-      typeof error === "object" && error !== null
-        ? (error as SqlLikeError)
-        : null;
-
-    console.error("VERIFY RESET CODE ERROR:", {
-      code: sqlError?.code ?? null,
-      errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
-    });
-
-    return json(
-      { success: false, error: "No pudimos verificar el código." },
-      { status: 500 },
+    return withCors(
+      req,
+      legacyErrorResponse(req, {
+        event: "auth.verify_reset_code_error",
+        error,
+        message: "No pudimos verificar el código.",
+        body: { success: false },
+      }),
     );
   }
 }

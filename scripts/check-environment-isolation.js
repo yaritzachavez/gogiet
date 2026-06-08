@@ -59,6 +59,10 @@ function evaluateIsolationChecks({
   );
   const failures = [];
 
+  if (!staging.verified) {
+    failures.push("STAGING_ENVIRONMENT_NOT_VERIFIED");
+  }
+
   if (
     staging.appEnv === "staging" &&
     (!staging.databaseName || staging.databaseName === "gogi_prod")

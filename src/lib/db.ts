@@ -222,10 +222,13 @@ if (!globalThis.__gogiDbLogged && areInternalToolsEnabled()) {
   globalThis.__gogiDbLogged = true;
 }
 
-if (
+const shouldLogRuntimeSummary =
   !globalThis.__gogiDbRuntimeSummaryLogged &&
-  getRuntimeEnvironment() === "production"
-) {
+  getRuntimeEnvironment() === "production" &&
+  process.env.NEXT_PHASE !== "phase-production-build" &&
+  process.env.LOG_DB_RUNTIME_SUMMARY !== "0";
+
+if (shouldLogRuntimeSummary) {
   let databaseUrlHost: string | null = null;
   try {
     databaseUrlHost = process.env.DATABASE_URL

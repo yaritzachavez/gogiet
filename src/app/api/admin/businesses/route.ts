@@ -2,6 +2,7 @@ import jwt from "jsonwebtoken";
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { legacyErrorResponse } from "@/lib/api-error";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
@@ -176,19 +177,11 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     await connection.rollback();
-    console.error("Error POST /api/admin/businesses:", error);
-    return NextResponse.json(
-      {
-        error: "Error interno",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.businesses_create_error",
+      error,
+      message: "Error interno",
+    });
   } finally {
     connection.release();
   }

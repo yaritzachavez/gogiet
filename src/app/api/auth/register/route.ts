@@ -1,5 +1,7 @@
 import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { NextResponse } from "next/server";
+
+import { legacyErrorResponse } from "@/lib/api-error";
 import {
   assignRoleToUser,
   consumeRateLimit,
@@ -261,12 +263,14 @@ export async function POST(req: Request) {
       );
     }
 
-    return json(
-      {
-        success: false,
-        error: "Ocurrió un problema en el servidor. Intenta nuevamente.",
-      },
-      { status: 500 },
+    return withCors(
+      req,
+      legacyErrorResponse(req, {
+        event: "auth.register_error_response",
+        error,
+        message: "Ocurrió un problema en el servidor. Intenta nuevamente.",
+        body: { success: false },
+      }),
     );
   }
 }

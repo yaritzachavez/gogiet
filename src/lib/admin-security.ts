@@ -36,6 +36,7 @@ export type UserSessionsSchema = {
   hasDeviceName: boolean;
   hasLocation: boolean;
   hasLastActiveAt: boolean;
+  hasLastUsedAt: boolean;
   hasExpiresAt: boolean;
   hasRevokedAt: boolean;
   hasStatus: boolean;
@@ -123,6 +124,7 @@ export async function getUserSessionsSchema() {
     hasDeviceName: columns.has("device_name"),
     hasLocation: columns.has("location"),
     hasLastActiveAt: columns.has("last_active_at"),
+    hasLastUsedAt: columns.has("last_used_at"),
     hasExpiresAt: columns.has("expires_at"),
     hasRevokedAt: columns.has("revoked_at"),
     hasStatus: columns.has("status"),
@@ -139,6 +141,7 @@ export async function getUserSessionsSchema() {
       hasDeviceName: columns.has("device_name"),
       hasLocation: columns.has("location"),
       hasLastActiveAt: columns.has("last_active_at"),
+      hasLastUsedAt: columns.has("last_used_at"),
       hasExpiresAt: columns.has("expires_at"),
       hasRevokedAt: columns.has("revoked_at"),
       hasStatus: columns.has("status"),
@@ -274,6 +277,10 @@ export async function createUserSession(params: {
     columns.push("last_active_at");
   }
 
+  if (schema.hasLastUsedAt) {
+    columns.push("last_used_at");
+  }
+
   if (schema.hasExpiresAt) {
     columns.push("expires_at");
     values.push(params.expiresAt);
@@ -285,7 +292,9 @@ export async function createUserSession(params: {
   }
 
   const placeholders = columns.map((columnName) =>
-    columnName === "last_active_at" ? "NOW()" : "?",
+    columnName === "last_active_at" || columnName === "last_used_at"
+      ? "NOW()"
+      : "?",
   );
 
   const [result] = await pool.query<ResultSetHeader>(

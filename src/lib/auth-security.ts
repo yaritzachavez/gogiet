@@ -642,6 +642,10 @@ export async function touchSessionToken(token: string) {
     updates.push("last_active_at = NOW()");
   }
 
+  if (schema.hasLastUsedAt) {
+    updates.push("last_used_at = NOW()");
+  }
+
   if (schema.hasUpdatedAt) {
     updates.push("updated_at = NOW()");
   }

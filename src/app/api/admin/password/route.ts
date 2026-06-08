@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { legacyErrorResponse } from "@/lib/api-error";
 import { updateAuthUserPassword } from "@/lib/auth-users";
 import pool from "@/lib/db";
 import { JWT_SECRET } from "@/lib/env";
@@ -83,19 +84,11 @@ export async function PATCH(req: NextRequest) {
       message: "Contraseña actualizada correctamente",
     });
   } catch (error) {
-    console.error("Error PATCH /api/admin/password:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No se pudo actualizar la contraseña.",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.password_update_error",
+      error,
+      message: "No se pudo actualizar la contraseña.",
+      body: { success: false },
+    });
   }
 }

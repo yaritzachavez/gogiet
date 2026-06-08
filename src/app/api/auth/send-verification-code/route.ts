@@ -6,6 +6,8 @@ import type {
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
 
+import { legacyErrorResponse } from "@/lib/api-error";
+
 import {
   consumeRateLimit,
   ensureAuthSecuritySchema,
@@ -27,14 +29,6 @@ type ExistingUserRow = RowDataPacket & {
   id: number;
   email_verified?: number | boolean | null;
   verification_sent_at?: Date | string | null;
-};
-
-type SqlLikeError = {
-  code?: string;
-  errno?: number;
-  sqlMessage?: string;
-  message?: string;
-  stack?: string;
 };
 
 type UserColumnRow = RowDataPacket & {
@@ -337,22 +331,11 @@ export async function POST(req: Request) {
       connection.release();
     }
   } catch (error) {
-    const sqlError =
-      typeof error === "object" && error !== null
-        ? (error as SqlLikeError)
-        : null;
-
-    console.error("SEND VERIFICATION CODE ERROR:", {
-      code: sqlError?.code ?? null,
-      errno: sqlError?.errno ?? null,
-      sqlMessage: sqlError?.sqlMessage ?? null,
-      message: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : sqlError?.stack,
+    return legacyErrorResponse(req, {
+      event: "auth.send_verification_code_error",
+      error,
+      message: "No se pudo enviar el código de verificación.",
+      body: { success: false },
     });
-
-    return NextResponse.json(
-      { success: false, error: "No se pudo enviar el código de verificación." },
-      { status: 500 },
-    );
   }
 }

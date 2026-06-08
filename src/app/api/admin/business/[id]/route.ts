@@ -2,6 +2,7 @@ import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { getAuthUser, isAdminGeneral } from "@/lib/admin-security";
+import { legacyErrorResponse } from "@/lib/api-error";
 import { syncBusinessOwnerSafely } from "@/lib/business-owners";
 import pool from "@/lib/db";
 
@@ -228,20 +229,12 @@ export async function PATCH(
     });
   } catch (error) {
     await connection.rollback();
-    console.error("Error PATCH /api/admin/business/[id]:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Error al actualizar negocio",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.business_update_error",
+      error,
+      message: "Error al actualizar negocio",
+      body: { success: false },
+    });
   } finally {
     connection.release();
   }

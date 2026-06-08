@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 
+import { legacyErrorResponse } from "@/lib/api-error";
 import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import { requireAdminGeneral } from "@/lib/permissions";
@@ -128,19 +129,11 @@ export async function PATCH(
     });
   } catch (error) {
     await connection.rollback();
-    console.error("Error PATCH /api/admin/users/:id/role:", error);
-    return NextResponse.json(
-      {
-        error: "Error al actualizar rol",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
+    return legacyErrorResponse(req, {
+      event: "admin.user_role_update_error",
+      error,
+      message: "Error al actualizar rol",
+    });
   } finally {
     connection.release();
   }
