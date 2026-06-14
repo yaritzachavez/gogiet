@@ -9,6 +9,7 @@ const PRODUCTION_APP_HOSTNAMES = new Set([
 const ALLOWED_WRITE_OPERATIONS = new Set([
   "prisma/seed.js",
   "scripts/activate-verified-users.js --apply",
+  "scripts/business-ownership-repair.js --write",
   "scripts/cleanup-business-owners.js --apply",
   "scripts/cleanup-test-stores-products.ts confirmed cleanup",
   "scripts/ensure-business-owners-table.js",
@@ -190,6 +191,13 @@ function classifyMercadoPagoCredential(value) {
     return {
       state: "missing",
       fingerprint: null,
+    };
+  }
+
+  if (/pega_aqui|replace_me|your_|example|placeholder/i.test(normalized)) {
+    return {
+      state: "placeholder",
+      fingerprint: createFingerprint(normalized),
     };
   }
 

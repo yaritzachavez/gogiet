@@ -3,6 +3,11 @@ import { type NextRequest, NextResponse } from "next/server";
 import { ensureAddressesTable } from "@/lib/addresses-table";
 import { getAuthUser } from "@/lib/admin-security";
 import { getFirstExistingTable } from "@/lib/db-schema";
+import {
+  buildAddressMeta,
+  resolveAuthoritativeShippingQuote,
+  validateCoordinate,
+} from "@/lib/order-quote";
 import { prisma } from "@/lib/prisma";
 import { handleCorsPreflight, withCors } from "@/lib/server/cors";
 import {
@@ -14,7 +19,6 @@ type StoredAddressMeta = {
   references?: string;
   deliveryInstructions?: string;
   deliveryNotes?: string;
-  estimatedDistanceKm?: number | null;
   zone?: string;
 };
 
@@ -114,10 +118,7 @@ function normalizeAddressResponse(address: {
     references: meta.references ?? "",
     deliveryInstructions: meta.deliveryInstructions ?? meta.deliveryNotes ?? "",
     deliveryNotes: meta.deliveryNotes ?? meta.deliveryInstructions ?? "",
-    estimatedDistanceKm:
-      typeof meta.estimatedDistanceKm === "number"
-        ? meta.estimatedDistanceKm
-        : null,
+    estimatedDistanceKm: null,
     fullAddress: formatAddress(address),
     storageKey: DELIVERY_LOCATION_STORAGE_KEY,
   };
@@ -348,22 +349,50 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const estimatedDistanceKm =
-      body?.estimated_distance_km !== undefined &&
-      body?.estimated_distance_km !== null &&
-      String(body.estimated_distance_km).trim() !== ""
-        ? Number(body.estimated_distance_km)
-        : Number(selectedZone.distanciaKm ?? 0);
+    const latitude = validateCoordinate(body?.latitude, -90, 90);
+    const longitude = validateCoordinate(body?.longitude, -180, 180);
 
-    const serializedMeta = JSON.stringify({
+    if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Las coordenadas de la dirección no son válidas.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const quote = resolveAuthoritativeShippingQuote({
+      address: {
+        neighborhood: selectedZone.nombre,
+        latitude,
+        longitude,
+      },
+      zones: [
+        {
+          id: Number(selectedZone.id),
+          nombre: selectedZone.nombre,
+          distanciaKm: Number(selectedZone.distanciaKm ?? 0),
+          activo: Boolean(selectedZone.activo),
+        },
+      ],
+    });
+
+    if (!quote.ok) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: quote.message,
+        },
+        { status: 400 },
+      );
+    }
+
+    const serializedMeta = buildAddressMeta({
       references,
       deliveryInstructions,
-      deliveryNotes: deliveryInstructions,
-      estimatedDistanceKm: Number.isFinite(estimatedDistanceKm)
-        ? estimatedDistanceKm
-        : null,
       zone: selectedZone.nombre,
-    }).slice(0, 255);
+    });
 
     const existingDefaultAddress = await prisma.addresses.findFirst({
       where: {
@@ -409,6 +438,8 @@ export async function POST(req: NextRequest) {
           city: "Mazamitla",
           state: "Jalisco",
           postal_code: "49500",
+          latitude: latitude == null ? null : latitude,
+          longitude: longitude == null ? null : longitude,
           reference_notes: serializedMeta || null,
           is_default: true,
           status_id: Number(existingDefaultAddress.status_id ?? 1) || 1,
@@ -452,6 +483,8 @@ export async function POST(req: NextRequest) {
           city: "Mazamitla",
           state: "Jalisco",
           postal_code: "49500",
+          latitude: latitude == null ? null : latitude,
+          longitude: longitude == null ? null : longitude,
           reference_notes: serializedMeta || null,
           is_default: true,
           status_id:

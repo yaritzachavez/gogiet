@@ -2,8 +2,9 @@ import { type Prisma, PrismaClient } from "@prisma/client";
 
 import {
   applyMysqlSslParams,
-  ensureRuntimeCaFile,
+  getDbRuntimeEnvironment,
   getDbSslSummary,
+  shouldUseDbSsl,
 } from "@/lib/db-ssl";
 import { areInternalToolsEnabled } from "@/lib/internal-tools";
 import { logger } from "@/lib/logger";
@@ -13,16 +14,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function getRuntimeEnvironment() {
-  const nodeEnv = String(process.env.NODE_ENV ?? "")
-    .trim()
-    .toLowerCase();
-  const vercelEnv = String(process.env.VERCEL_ENV ?? "")
-    .trim()
-    .toLowerCase();
-
-  if (nodeEnv !== "production") return "development" as const;
-  if (vercelEnv === "preview") return "preview" as const;
-  return "production" as const;
+  return getDbRuntimeEnvironment();
 }
 
 function getMaskedDatabaseUrl(value?: string | null) {
@@ -48,13 +40,16 @@ function getMaskedDatabaseUrl(value?: string | null) {
 function resolvePrismaDatabaseUrl() {
   const runtimeEnvironment = getRuntimeEnvironment();
   const host = process.env.DB_HOST?.trim();
-  const needsSsl =
-    Boolean(host?.includes("aivencloud.com")) ||
-    process.env.DB_SSL_CA ||
-    process.env.DB_CA ||
-    process.env.DB_REQUIRE_SSL === "true";
   const existingUrl = process.env.DATABASE_URL?.trim();
-  const caPath = ensureRuntimeCaFile();
+  let databaseUrlHost = host ?? null;
+
+  if (existingUrl) {
+    try {
+      databaseUrlHost = new URL(existingUrl).hostname || databaseUrlHost;
+    } catch {}
+  }
+
+  const needsSsl = shouldUseDbSsl(process.env, databaseUrlHost);
   const sslSummary = getDbSslSummary();
 
   if (!existingUrl && runtimeEnvironment === "production") {
@@ -74,7 +69,7 @@ function resolvePrismaDatabaseUrl() {
       dbSslIgnoredSources: sslSummary.ignoredSources,
       nodeEnv: process.env.NODE_ENV ?? "development",
       needsSsl,
-      hasRuntimeCaFile: Boolean(caPath),
+      hasRuntimeCaFile: Boolean(sslSummary.hasCertificate),
     });
   }
 
@@ -137,7 +132,7 @@ function resolvePrismaDatabaseUrl() {
     }
 
     process.env.DATABASE_URL = needsSsl
-      ? applyMysqlSslParams(existingUrl)
+      ? applyMysqlSslParams(existingUrl, process.env)
       : existingUrl;
 
     if (areInternalToolsEnabled()) {
@@ -171,10 +166,12 @@ function resolvePrismaDatabaseUrl() {
   const encodedPassword = encodeURIComponent(password);
   const encodedDatabase = encodeURIComponent(database);
   const hostWithPort = port ? `${host}:${port}` : host;
-  const query = needsSsl ? "?sslaccept=accept_invalid_certs" : "";
+  const query = "";
 
   const url = `mysql://${encodedUser}:${encodedPassword}@${hostWithPort}/${encodedDatabase}${query}`;
-  process.env.DATABASE_URL = needsSsl ? applyMysqlSslParams(url) : url;
+  process.env.DATABASE_URL = needsSsl
+    ? applyMysqlSslParams(url, process.env)
+    : url;
 
   if (areInternalToolsEnabled()) {
     logger.debug(
@@ -185,7 +182,7 @@ function resolvePrismaDatabaseUrl() {
         database,
         port: port ?? "(default)",
         needsSsl,
-        hasRuntimeCaFile: Boolean(caPath),
+        hasRuntimeCaFile: Boolean(sslSummary.hasCertificate),
         databaseUrlMasked: getMaskedDatabaseUrl(process.env.DATABASE_URL),
       },
     );

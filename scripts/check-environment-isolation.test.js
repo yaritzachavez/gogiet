@@ -29,18 +29,23 @@ assertSafeWriteTarget({ operation: "scripts/seed-staging-qa.js --write" });
 test("passes when env is isolated and every dangerous script imports the guard", () => {
   const result = evaluateIsolationChecks({
     env: safeEnv,
-    trackedFiles: [".env.example", "docs/staging-setup.md"],
+    trackedFiles: [
+      ".env.example",
+      "docs/staging-setup.md",
+      "package-lock.json",
+    ],
     readFile: () => guardedSource,
     rootDir: process.cwd(),
   });
 
   assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK PASSED");
+  assert.equal(result.packageLock.tracked, true);
 });
 
 test("fails when a real env file is tracked", () => {
   const result = evaluateIsolationChecks({
     env: safeEnv,
-    trackedFiles: [".env.local", ".env.example"],
+    trackedFiles: [".env.local", ".env.example", "package-lock.json"],
     readFile: () => guardedSource,
     rootDir: process.cwd(),
   });
@@ -56,7 +61,7 @@ test("fails when preview credentials are not verified as test", () => {
       NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: "APP_USR-ambiguous-public",
       MERCADOPAGO_ACCESS_TOKEN: "APP_USR-ambiguous-access",
     },
-    trackedFiles: [".env.example"],
+    trackedFiles: [".env.example", "package-lock.json"],
     readFile: () => guardedSource,
     rootDir: process.cwd(),
   });
@@ -78,7 +83,7 @@ test("allows preview on a shared host when staging guard conditions are fully me
       ALLOW_STAGING_DB_WRITES: "true",
       ALLOW_SHARED_DB_HOST_FOR_STAGING: "true",
     },
-    trackedFiles: [".env.example"],
+    trackedFiles: [".env.example", "package-lock.json"],
     readFile: () => guardedSource,
     rootDir: process.cwd(),
   });
@@ -100,7 +105,7 @@ test("fails preview shared host when the explicit shared-host flag is missing", 
       PRODUCTION_DB_HOST_FINGERPRINT: "",
       ALLOW_STAGING_DB_WRITES: "true",
     },
-    trackedFiles: [".env.example"],
+    trackedFiles: [".env.example", "package-lock.json"],
     readFile: () => guardedSource,
     rootDir: process.cwd(),
   });
@@ -112,7 +117,7 @@ test("fails preview shared host when the explicit shared-host flag is missing", 
 test("fails when a dangerous script omits the guard import", () => {
   const result = evaluateIsolationChecks({
     env: safeEnv,
-    trackedFiles: [".env.example"],
+    trackedFiles: [".env.example", "package-lock.json"],
     readFile: () => "console.log('unsafe');",
     rootDir: process.cwd(),
   });
@@ -124,11 +129,23 @@ test("fails when a dangerous script omits the guard import", () => {
 test("fails when staging verification itself is incomplete", () => {
   const result = evaluateIsolationChecks({
     env: {},
-    trackedFiles: [".env.example"],
+    trackedFiles: [".env.example", "package-lock.json"],
     readFile: () => guardedSource,
     rootDir: process.cwd(),
   });
 
   assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK FAILED");
   assert(result.failures.includes("STAGING_ENVIRONMENT_NOT_VERIFIED"));
+});
+
+test("fails when package-lock.json stops being tracked", () => {
+  const result = evaluateIsolationChecks({
+    env: safeEnv,
+    trackedFiles: [".env.example"],
+    readFile: () => guardedSource,
+    rootDir: process.cwd(),
+  });
+
+  assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK FAILED");
+  assert(result.failures.includes("PACKAGE_LOCK_NOT_TRACKED"));
 });

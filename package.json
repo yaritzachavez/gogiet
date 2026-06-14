@@ -22,6 +22,9 @@
     "cleanup:business-owners": "node scripts/cleanup-business-owners.js",
     "ensure:business-owners": "node scripts/ensure-business-owners-table.js",
     "repair:business-relations": "node scripts/repair-business-relations.js",
+    "business-ownership:audit": "node scripts/business-ownership-repair.js --dry-run",
+    "business-ownership:repair:dry-run": "node scripts/business-ownership-repair.js --dry-run",
+    "business-ownership:repair:write": "node scripts/business-ownership-repair.js --write",
     "lint": "biome check",
     "format": "biome format --write"
   },

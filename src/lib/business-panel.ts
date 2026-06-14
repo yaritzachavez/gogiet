@@ -5,17 +5,13 @@ import type {
   RowDataPacket,
 } from "mysql2/promise";
 
-import { isAdminGeneral } from "@/lib/admin-security";
-import { syncBusinessOwnerSafely } from "@/lib/business-owners";
-import pool from "@/lib/db";
-import { getExistingTables } from "@/lib/db-schema";
-import {
-  getDriverStatusColumns,
-  normalizeDriverStatus,
-} from "@/lib/driver-status";
-import { logger } from "@/lib/logger";
-import { prisma } from "@/lib/prisma";
-import { buildUserAvatarSelect, getUserAvatarColumns } from "@/lib/user-avatar";
+import { isAdminGeneral } from "./admin-security";
+import pool from "./db";
+import { getExistingTables } from "./db-schema";
+import { getDriverStatusColumns, normalizeDriverStatus } from "./driver-status";
+import { logger } from "./logger";
+import { prisma } from "./prisma";
+import { buildUserAvatarSelect, getUserAvatarColumns } from "./user-avatar";
 
 type Queryable = Pool | PoolConnection;
 
@@ -38,12 +34,6 @@ type AssignedBusiness = {
 };
 
 type AssignedBusinessRow = RowDataPacket & AssignedBusiness;
-
-type RepairCandidateRow = RowDataPacket & {
-  id: number;
-  name: string;
-  city: string | null;
-};
 
 type CourierAvailabilityRow = RowDataPacket & {
   id: number;
@@ -159,282 +149,210 @@ const ACTIVE_DELIVERY_STATUS_NAMES = [
   "on_the_way",
 ] as const;
 
-async function tryRepairBusinessOwnerRelation(params: {
-  userId: number;
-  email: string | null;
-}): Promise<AssignedBusiness[]> {
-  const [businessColumns] = await pool.query<ColumnExistsRow[]>(
-    `
-      SELECT COLUMN_NAME AS column_name
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = 'business'
-        AND COLUMN_NAME IN ('owner_id', 'owner_user_id', 'email')
-    `,
-  );
+type BusinessAccessDependencies = {
+  getExistingTables: typeof getExistingTables;
+  query: (
+    sql: string,
+    params?: Array<number | string>,
+  ) => Promise<[RowDataPacket[]]>;
+  findExistingBusinessIds: (ids: number[]) => Promise<number[]>;
+  isAdminGeneral: (userId: number) => Promise<boolean>;
+};
 
-  const availableColumns = new Set(
-    businessColumns.map((row) => String(row.column_name).toLowerCase()),
-  );
-  const candidates = new Map<number, AssignedBusiness>();
+export function createResolveBusinessAccess(
+  dependencies: BusinessAccessDependencies,
+) {
+  return async function resolveBusinessAccess(
+    userId: number,
+    requestedBusinessId?: number | null,
+  ): Promise<BusinessAccessContext> {
+    const existingTables = await dependencies.getExistingTables([
+      "users",
+      "user_roles",
+      "roles",
+      "business_owners",
+      "business_managers",
+      "business",
+      "businesses",
+    ]);
+    const hasUsersTable = existingTables.has("users");
+    const hasRolesTables =
+      existingTables.has("user_roles") && existingTables.has("roles");
+    const hasBusinessTable =
+      existingTables.has("business") || existingTables.has("businesses");
 
-  async function collectCandidates(
-    query: string,
-    values: Array<number | string>,
-  ) {
-    const [rows] = await pool.query<RepairCandidateRow[]>(query, values);
-    for (const row of rows) {
-      const businessId = Number(row.id);
-      if (!Number.isFinite(businessId) || businessId <= 0) {
-        continue;
-      }
+    let userInfoRows: UserInfoRow[] = [];
 
-      candidates.set(businessId, {
-        id: businessId,
-        name: String(row.name),
-        city: row.city ?? null,
-        source: "owner_repaired",
-      });
-    }
-  }
-
-  if (availableColumns.has("owner_id")) {
-    await collectCandidates(
-      `
-        SELECT b.id, b.name, b.city
-        FROM business b
-        WHERE b.owner_id = ?
-        ORDER BY b.name ASC
-      `,
-      [params.userId],
-    );
-  }
-
-  if (availableColumns.has("owner_user_id")) {
-    await collectCandidates(
-      `
-        SELECT b.id, b.name, b.city
-        FROM business b
-        WHERE b.owner_user_id = ?
-        ORDER BY b.name ASC
-      `,
-      [params.userId],
-    );
-  }
-
-  if (params.email && availableColumns.has("email")) {
-    await collectCandidates(
-      `
-        SELECT b.id, b.name, b.city
-        FROM business b
-        WHERE LOWER(TRIM(b.email)) = LOWER(TRIM(?))
-        ORDER BY b.name ASC
-      `,
-      [params.email],
-    );
-  }
-
-  const repairedBusinesses = Array.from(candidates.values());
-
-  for (const business of repairedBusinesses) {
-    try {
-      await syncBusinessOwnerSafely(pool, Number(business.id), params.userId);
-    } catch (error) {
-      logger.warn(
-        "business.owner_relation_repair_failed",
-        "No se pudo sincronizar la relacion de owner detectada en runtime",
-        {
-          userId: params.userId,
-          businessId: Number(business.id),
-          message: error instanceof Error ? error.message : String(error),
-        },
-      );
-    }
-  }
-
-  return repairedBusinesses;
-}
-
-export async function resolveBusinessAccess(
-  userId: number,
-  requestedBusinessId?: number | null,
-): Promise<BusinessAccessContext> {
-  const existingTables = await getExistingTables([
-    "users",
-    "user_roles",
-    "roles",
-    "business_owners",
-    "business_managers",
-    "business",
-    "businesses",
-  ]);
-  const hasUsersTable = existingTables.has("users");
-  const hasRolesTables =
-    existingTables.has("user_roles") && existingTables.has("roles");
-  const hasBusinessTable =
-    existingTables.has("business") || existingTables.has("businesses");
-
-  let userInfoRows: UserInfoRow[] = [];
-
-  if (hasUsersTable && hasRolesTables) {
-    [userInfoRows] = await pool.query<UserInfoRow[]>(
-      `
+    if (hasUsersTable && hasRolesTables) {
+      [userInfoRows] = (await dependencies.query(
+        `
         SELECT u.email, r.name AS role_name
         FROM users u
         LEFT JOIN user_roles ur ON ur.user_id = u.id
         LEFT JOIN roles r ON r.id = ur.role_id
         WHERE u.id = ?
       `,
-      [userId],
-    );
-  } else if (hasUsersTable) {
-    [userInfoRows] = await pool.query<UserInfoRow[]>(
-      `
+        [userId],
+      )) as [UserInfoRow[]];
+    } else if (hasUsersTable) {
+      [userInfoRows] = (await dependencies.query(
+        `
         SELECT u.email, NULL AS role_name
         FROM users u
         WHERE u.id = ?
       `,
-      [userId],
-    );
-  }
+        [userId],
+      )) as [UserInfoRow[]];
+    }
 
-  const email = userInfoRows[0]?.email ?? null;
-  const roles = userInfoRows
-    .map((row) => row.role_name)
-    .filter(Boolean) as string[];
+    const email = userInfoRows[0]?.email ?? null;
+    const roles = userInfoRows
+      .map((row) => row.role_name)
+      .filter(Boolean) as string[];
 
-  let ownerBusinesses: AssignedBusiness[] =
-    existingTables.has("business_owners") && hasBusinessTable
-      ? (
-          await pool.query<AssignedBusinessRow[]>(
-            `
+    const ownerBusinesses: AssignedBusiness[] =
+      existingTables.has("business_owners") && hasBusinessTable
+        ? (
+            (await dependencies.query(
+              `
               SELECT b.id, b.name, b.city, 'owner' AS source
               FROM business_owners bo
               INNER JOIN business b ON b.id = bo.business_id
               WHERE bo.user_id = ?
               ORDER BY b.name ASC
             `,
-            [userId],
-          )
-        )[0]
-      : [];
+              [userId],
+            )) as [AssignedBusinessRow[]]
+          )[0]
+        : [];
 
-  if (!ownerBusinesses.length && hasBusinessTable) {
-    ownerBusinesses = await tryRepairBusinessOwnerRelation({ userId, email });
-  }
-
-  const managerBusinesses: AssignedBusiness[] =
-    existingTables.has("business_managers") && hasBusinessTable
-      ? (
-          await pool.query<AssignedBusinessRow[]>(
-            `
+    const managerBusinesses: AssignedBusiness[] =
+      existingTables.has("business_managers") && hasBusinessTable
+        ? (
+            (await dependencies.query(
+              `
               SELECT b.id, b.name, b.city, 'manager' AS source
               FROM business_managers bm
               INNER JOIN business b ON b.id = bm.business_id
               WHERE bm.user_id = ? AND COALESCE(bm.is_active, 1) = 1
               ORDER BY b.name ASC
             `,
-            [userId],
-          )
-        )[0]
-      : [];
+              [userId],
+            )) as [AssignedBusinessRow[]]
+          )[0]
+        : [];
 
-  const userIsAdminGeneral = hasRolesTables
-    ? await isAdminGeneral(userId)
-    : false;
-  const assignedBusinessesMap = new Map<number, AssignedBusiness>();
+    const userIsAdminGeneral = hasRolesTables
+      ? await dependencies.isAdminGeneral(userId)
+      : false;
+    const assignedBusinessesMap = new Map<number, AssignedBusiness>();
 
-  for (const business of [...ownerBusinesses, ...managerBusinesses]) {
-    assignedBusinessesMap.set(Number(business.id), business);
-  }
+    for (const business of [...ownerBusinesses, ...managerBusinesses]) {
+      assignedBusinessesMap.set(Number(business.id), business);
+    }
 
-  let assignedBusinesses = Array.from(assignedBusinessesMap.values());
+    let assignedBusinesses = Array.from(assignedBusinessesMap.values());
 
-  if (assignedBusinesses.length > 0 && hasBusinessTable) {
-    const requestedIds = assignedBusinesses
-      .map((business) => Number(business.id))
-      .filter((businessId) => Number.isFinite(businessId) && businessId > 0);
-    const existingBusinesses = await prisma.business.findMany({
-      where: { id: { in: requestedIds } },
-      select: { id: true },
-    });
-    const existingBusinessIds = new Set(
-      existingBusinesses.map((business) => Number(business.id)),
-    );
-    const orphanedBusinessIds = requestedIds.filter(
-      (businessId) => !existingBusinessIds.has(businessId),
-    );
+    if (assignedBusinesses.length > 0 && hasBusinessTable) {
+      const requestedIds = assignedBusinesses
+        .map((business) => Number(business.id))
+        .filter((businessId) => Number.isFinite(businessId) && businessId > 0);
+      const existingBusinessIds = new Set(
+        await dependencies.findExistingBusinessIds(requestedIds),
+      );
+      const orphanedBusinessIds = requestedIds.filter(
+        (businessId) => !existingBusinessIds.has(businessId),
+      );
 
-    if (orphanedBusinessIds.length > 0) {
-      logger.warn(
-        "business.orphaned_relations_ignored",
-        "Ignorando relaciones rotas de negocio",
-        {
-          userId,
-          orphanedBusinessIds,
-        },
+      if (orphanedBusinessIds.length > 0) {
+        logger.warn(
+          "business.orphaned_relations_ignored",
+          "Ignorando relaciones rotas de negocio",
+          {
+            userId,
+            orphanedBusinessIds,
+          },
+        );
+      }
+
+      assignedBusinesses = assignedBusinesses.filter((business) =>
+        existingBusinessIds.has(Number(business.id)),
       );
     }
 
-    assignedBusinesses = assignedBusinesses.filter((business) =>
-      existingBusinessIds.has(Number(business.id)),
-    );
-  }
-
-  if (!assignedBusinesses.length && userIsAdminGeneral && hasBusinessTable) {
-    const [adminBusinesses] = await pool.query<AssignedBusinessRow[]>(
-      `
+    if (!assignedBusinesses.length && userIsAdminGeneral && hasBusinessTable) {
+      const [adminBusinesses] = (await dependencies.query(
+        `
         SELECT b.id, b.name, b.city, 'admin_general' AS source
         FROM business b
         WHERE COALESCE(b.status_id, 1) = 1
         ORDER BY b.name ASC
       `,
+      )) as [AssignedBusinessRow[]];
+
+      assignedBusinesses = adminBusinesses;
+    }
+
+    const businessIds = assignedBusinesses.map((business) =>
+      Number(business.id),
     );
+    let denialReason: "not_assigned" | "requested_business_forbidden" | null =
+      null;
+    let businessId: number | null = null;
 
-    assignedBusinesses = adminBusinesses;
-  }
+    if (requestedBusinessId) {
+      businessId = businessIds.includes(requestedBusinessId)
+        ? requestedBusinessId
+        : null;
+      denialReason = businessId
+        ? null
+        : assignedBusinesses.length
+          ? "requested_business_forbidden"
+          : "not_assigned";
+    } else {
+      businessId = businessIds[0] ?? null;
+      denialReason = businessId ? null : "not_assigned";
+    }
 
-  const businessIds = assignedBusinesses.map((business) => Number(business.id));
-  let denialReason: "not_assigned" | "requested_business_forbidden" | null =
-    null;
-  let businessId: number | null = null;
+    const selectedBusinessSource =
+      assignedBusinesses.find((business) => Number(business.id) === businessId)
+        ?.source ?? null;
 
-  if (requestedBusinessId) {
-    businessId = businessIds.includes(requestedBusinessId)
-      ? requestedBusinessId
-      : null;
-    denialReason = businessId
-      ? null
-      : assignedBusinesses.length
-        ? "requested_business_forbidden"
-        : "not_assigned";
-  } else {
-    businessId = businessIds[0] ?? null;
-    denialReason = businessId ? null : "not_assigned";
-  }
-
-  const selectedBusinessSource =
-    assignedBusinesses.find((business) => Number(business.id) === businessId)
-      ?.source ?? null;
-
-  return {
-    userId,
-    email,
-    roles,
-    businessId,
-    businessIds,
-    businesses: assignedBusinesses.map((business) => ({
-      id: Number(business.id),
-      name: String(business.name),
-      city: business.city ?? null,
-      source: business.source,
-    })),
-    selectedBusinessSource,
-    requestedBusinessId: requestedBusinessId ?? null,
-    denialReason,
-    isAdmin: userIsAdminGeneral,
+    return {
+      userId,
+      email,
+      roles,
+      businessId,
+      businessIds,
+      businesses: assignedBusinesses.map((business) => ({
+        id: Number(business.id),
+        name: String(business.name),
+        city: business.city ?? null,
+        source: business.source,
+      })),
+      selectedBusinessSource,
+      requestedBusinessId: requestedBusinessId ?? null,
+      denialReason,
+      isAdmin: userIsAdminGeneral,
+    };
   };
 }
+
+export const resolveBusinessAccess = createResolveBusinessAccess({
+  getExistingTables,
+  query: async (sql, params) => {
+    const [rows] = await pool.query(sql, params);
+    return [rows as RowDataPacket[]];
+  },
+  findExistingBusinessIds: async (ids) => {
+    const businesses = await prisma.business.findMany({
+      where: { id: { in: ids } },
+      select: { id: true },
+    });
+    return businesses.map((business) => Number(business.id));
+  },
+  isAdminGeneral,
+});
 
 export async function ensureOrderStatus(
   statusName: string,

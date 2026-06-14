@@ -1,9 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
-
-import {
-  calculateShippingCost,
-  type ShippingByAddressResult,
-} from "@/lib/shipping";
+import { resolveAuthoritativeShippingQuote } from "@/lib/order-quote";
+import type { ShippingByAddressResult } from "@/lib/shipping";
 import {
   getActiveShippingZones,
   normalizeShippingZoneName,
@@ -55,16 +52,37 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const distanceKm = Number(zone.distanciaKm);
+    const quote = resolveAuthoritativeShippingQuote({
+      address: { neighborhood: zone.nombre },
+      zones: zones.map((item) => ({
+        id: Number(item.id),
+        nombre: item.nombre,
+        distanciaKm: Number(item.distanciaKm),
+        activo: Boolean(item.activo),
+      })),
+    });
+
+    if (!quote.ok) {
+      return NextResponse.json({
+        success: true,
+        shipping: {
+          zoneName: null,
+          shippingCost: null,
+          requiresConfirmation: true,
+          message: quote.message,
+          distanceKm: null,
+        } satisfies ShippingByAddressResult,
+      });
+    }
 
     return NextResponse.json({
       success: true,
       shipping: {
-        zoneName: zone.nombre,
-        shippingCost: calculateShippingCost(distanceKm),
+        zoneName: quote.zoneName,
+        shippingCost: quote.shippingCost,
         requiresConfirmation: false,
-        message: `Envío calculado para ${zone.nombre}.`,
-        distanceKm,
+        message: `Envío calculado para ${quote.zoneName}.`,
+        distanceKm: quote.distanceKm,
       } satisfies ShippingByAddressResult,
     });
   } catch (_error) {

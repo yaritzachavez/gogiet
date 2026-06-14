@@ -1,6 +1,11 @@
 import mysql from "mysql2/promise";
 
-import { getDbSslSummary, resolveDbSslCaContent } from "@/lib/db-ssl";
+import {
+  getDbRuntimeEnvironment,
+  getDbSslSummary,
+  getMysqlSslConfig,
+  shouldUseDbSsl,
+} from "@/lib/db-ssl";
 import { areInternalToolsEnabled } from "@/lib/internal-tools";
 import { logger } from "@/lib/logger";
 
@@ -14,22 +19,7 @@ type DbRuntimeConfig = {
 };
 
 function getRuntimeEnvironment() {
-  const nodeEnv = String(process.env.NODE_ENV ?? "")
-    .trim()
-    .toLowerCase();
-  const vercelEnv = String(process.env.VERCEL_ENV ?? "")
-    .trim()
-    .toLowerCase();
-
-  if (nodeEnv !== "production") {
-    return "development" as const;
-  }
-
-  if (vercelEnv === "preview") {
-    return "preview" as const;
-  }
-
-  return "production" as const;
+  return getDbRuntimeEnvironment();
 }
 
 function getMaskedDatabaseUrl(value?: string | null) {
@@ -112,11 +102,7 @@ function resolveDbConfig(): DbRuntimeConfig {
     );
   }
 
-  const caContent = resolveDbSslCaContent();
-  const useSsl =
-    host.includes("aivencloud.com") ||
-    Boolean(caContent) ||
-    process.env.DB_REQUIRE_SSL === "true";
+  const useSsl = shouldUseDbSsl(process.env, host);
 
   if (parsedUrl) {
     const envHost = process.env.DB_HOST?.trim() ?? null;
@@ -182,19 +168,12 @@ const poolQueueLimit = Math.max(
   5,
   Math.min(Number(process.env.DB_POOL_QUEUE_LIMIT ?? "") || 25, 100),
 );
-const caCertificate = resolveDbSslCaContent();
 const dbSslSummary = getDbSslSummary();
 const maskedDatabaseUrl = getMaskedDatabaseUrl(process.env.DATABASE_URL);
-const sslConfig = caCertificate
-  ? {
-      ca: caCertificate.replace(/\\n/g, "\n"),
-      rejectUnauthorized: false,
-    }
-  : dbConfig.useSsl
-    ? {
-        rejectUnauthorized: false,
-      }
-    : undefined;
+const sslConfig = getMysqlSslConfig({
+  env: process.env,
+  host: dbConfig.host,
+});
 
 declare global {
   // eslint-disable-next-line no-var

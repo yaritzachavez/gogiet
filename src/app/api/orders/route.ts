@@ -10,18 +10,19 @@ import { isAuthUserActive } from "@/lib/auth-users";
 import { getBusinessOpenStatus } from "@/lib/business-hours";
 import { resolveBusinessAccess } from "@/lib/business-panel";
 import pool, { logDbUsage } from "@/lib/db";
+import { resolveDeliveryAccess } from "@/lib/delivery-access";
 import { JWT_SECRET } from "@/lib/env";
 import { getRequestLoggerContext, logger } from "@/lib/logger";
 import {
   createNotificationForBusinessSafely,
   createNotificationsForAdminGeneralSafely,
 } from "@/lib/notifications";
-import { calculateOrderCommissionBreakdown } from "@/lib/order-commissions";
 import {
   ensureOrderPaymentColumns,
   ensurePaymentsTable,
   upsertPaymentRecord,
 } from "@/lib/order-payments";
+import { calculateAuthoritativeOrderQuote } from "@/lib/order-quote";
 import {
   ensureAdminMessagesRuntimeSchema,
   ensureOrderItemsRuntimeSchema,
@@ -36,8 +37,10 @@ import {
   ensureCoreOrderStatuses,
 } from "@/lib/order-status-server";
 import { RuntimeSchemaError } from "@/lib/runtime-schema";
+import { getActiveShippingZones } from "@/lib/shipping-zones";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 import { isTransferPaymentEnabled } from "@/lib/transfer-config";
+import { createOrdersGetHandler } from "./handler";
 
 type JwtPayload = {
   id: number;
@@ -63,6 +66,8 @@ type ProductRow = RowDataPacket & {
   status_id: number | null;
   is_stock_available: number | boolean | null;
   stock_average: number | string | null;
+  min_per_order: number | string | null;
+  max_per_order: number | string | null;
 };
 
 type AddressRow = RowDataPacket & {
@@ -70,6 +75,8 @@ type AddressRow = RowDataPacket & {
   user_id: number;
   reference_notes: string | null;
   neighborhood: string | null;
+  latitude: string | number | null;
+  longitude: string | number | null;
 };
 
 type BusinessRow = RowDataPacket & {
@@ -187,19 +194,6 @@ function getOrderCreationErrorResponse(error: unknown) {
 async function ensureOrdersColumns(conn: PoolConnection | typeof pool) {
   await ensureOrdersRuntimeSchema(conn);
   await ensureOrderPaymentColumns(conn);
-}
-
-function parseAddressMeta(referenceNotes?: string | null) {
-  if (!referenceNotes) return {};
-
-  try {
-    return JSON.parse(referenceNotes) as {
-      estimatedDistanceKm?: number | null;
-      zone?: string;
-    };
-  } catch {
-    return {};
-  }
 }
 
 function resolvePaymentProvider(paymentMethodName: string) {
@@ -522,238 +516,42 @@ async function getOrderById(
   return { ...orderRows[0], items, notes, admin_messages: adminMessages };
 }
 
-export async function GET(req: NextRequest) {
-  const requestContext = getRequestLoggerContext(req);
-  try {
-    const authUser = getAuthUser(req);
-    if (!authUser) return unauthorized();
-    logDbUsage("/api/orders", {
-      userId: authUser.id,
-      role: authUser.roles ?? [],
-    });
-    await ensureOrdersColumns(pool);
-    await ensureOrderItemsTable(pool);
-    await ensureCoreOrderStatuses(pool);
-    await ensureAdminMessagesTable(pool);
-
-    const { searchParams } = new URL(req.url);
-    const requestedUserId = searchParams.get("user_id");
-    const businessId = searchParams.get("business_id");
-    const deliveryId = searchParams.get("delivery_id");
-    const statusId = searchParams.get("status_id");
-    const limitParam = Number(searchParams.get("limit") ?? 50);
-    const limit = Number.isFinite(limitParam)
-      ? Math.min(Math.max(limitParam, 1), 100)
-      : 50;
-
-    const filters: string[] = [];
-    const values: Array<string | number> = [];
-
-    const isAdminGeneral = authUser.roles?.includes("admin_general") ?? false;
-    const userId = toPositiveNumber(requestedUserId);
-    const parsedBusinessId = toPositiveNumber(businessId);
-    const businessAccess =
-      parsedBusinessId && !isAdminGeneral
-        ? await resolveBusinessAccess(authUser.id, parsedBusinessId)
-        : null;
-    const hasBusinessAccess = Boolean(
-      parsedBusinessId &&
-        (isAdminGeneral || businessAccess?.businessId === parsedBusinessId),
-    );
-
-    if (parsedBusinessId && !isAdminGeneral) {
-      if (!hasBusinessAccess) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: "No tienes permiso para ver pedidos de este negocio.",
-          },
-          { status: 403 },
-        );
-      }
-
-      filters.push("o.business_id = ?");
-      values.push(parsedBusinessId);
-    } else {
-      if (userId) {
-        filters.push("o.user_id = ?");
-        values.push(userId);
-      } else if (!isAdminGeneral) {
-        filters.push("o.user_id = ?");
-        values.push(authUser.id);
-      }
-
-      if (parsedBusinessId) {
-        filters.push("o.business_id = ?");
-        values.push(parsedBusinessId);
-      }
+const getOrdersHandler = createOrdersGetHandler(NextResponse.json, {
+  requireAuthenticatedUser: async (req) => {
+    const authUser = getAuthUser(req as NextRequest);
+    if (!authUser) {
+      return {
+        ok: false as const,
+        response: unauthorized(),
+      };
     }
 
-    if (deliveryId) {
-      filters.push("COALESCE(o.driver_id, d.driver_user_id) = ?");
-      values.push(deliveryId);
-    }
-
-    if (statusId) {
-      filters.push("o.order_status_id = ?");
-      values.push(statusId);
-    }
-
-    values.push(limit);
-
-    const [orders] = await pool.query<RowDataPacket[]>(
-      `
-        SELECT
-          o.id,
-          o.user_id,
-          CONCAT(u.first_name, ' ', COALESCE(u.last_name, '')) AS customer_name,
-          u.phone AS customer_phone,
-          o.business_id,
-          b.name AS business_name,
-          b.address AS pickup_address,
-          b.district AS pickup_district,
-          d.id AS delivery_id,
-          COALESCE(o.driver_id, d.driver_user_id) AS driver_user_id,
-          o.order_status_id AS status_id,
-          osc.name AS status_name,
-          o.address_id,
-          a.street,
-          a.external_number,
-          a.internal_number,
-          a.neighborhood,
-          a.city,
-          a.state,
-          o.total_amount,
-          o.subtotal,
-          o.terminal_fee,
-          o.delivery_fee,
-          o.service_fee,
-          o.platform_fee,
-          o.driver_fee,
-          COALESCE(o.payment_method, pm.name) AS payment_method,
-          o.comprobante_pago_url,
-          o.created_at,
-          o.updated_at,
-          COUNT(oi.id) AS items_count
-        FROM orders o
-        LEFT JOIN users u ON u.id = o.user_id
-        LEFT JOIN business b ON b.id = o.business_id
-        LEFT JOIN addresses a ON a.id = o.address_id
-        LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
-        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
-        LEFT JOIN delivery d ON d.order_id = o.id
-        LEFT JOIN order_items oi ON oi.order_id = o.id
-        ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
-        GROUP BY o.id
-        ORDER BY o.created_at DESC
-        LIMIT ?
-      `,
-      values,
-    );
-
-    const normalizedOrders = await Promise.all(
-      orders.map(async (order) => {
-        const [items] = await pool.query<RowDataPacket[]>(
-          `
-            SELECT
-              oi.id,
-              oi.product_id,
-              oi.product_name_snapshot AS product_name,
-              oi.quantity,
-              oi.unit_price,
-              oi.subtotal,
-              oi.notes
-            FROM order_items oi
-            WHERE oi.order_id = ?
-            ORDER BY oi.id ASC
-          `,
-          [order.id],
-        );
-
-        const [adminMessages] = await pool.query<AdminMessageRow[]>(
-          `
-            SELECT id, order_id, user_id, type, message, file_url, created_at
-            FROM admin_messages
-            WHERE order_id = ?
-            ORDER BY created_at ASC
-          `,
-          [order.id],
-        );
-
-        const addressParts = [
-          order.street,
-          [
-            order.external_number,
-            order.internal_number ? `Int. ${order.internal_number}` : "",
-          ]
-            .filter(Boolean)
-            .join(" "),
-          order.neighborhood,
-          order.city,
-          order.state,
-        ].filter(Boolean);
-
-        return {
-          id: Number(order.id),
-          status: resolveCanonicalOrderStatus(order.status_name),
-          statusLabel: getOrderStatusLabel(order.status_name),
-          customerName: String(order.customer_name ?? ""),
-          customerPhone: String(order.customer_phone ?? ""),
-          businessName: String(order.business_name ?? ""),
-          total: Number(order.total_amount ?? 0),
-          subtotal: Number(order.subtotal ?? 0),
-          terminalFee: Number(order.terminal_fee ?? 0),
-          shippingCost: Number(order.delivery_fee ?? 0),
-          serviceFee: Number(order.service_fee ?? 0),
-          platformFee: Number(order.platform_fee ?? 0),
-          driverFee: Number(order.driver_fee ?? 0),
-          paymentMethod: String(order.payment_method ?? ""),
-          paymentReceiptUrl: order.payment_receipt_url
-            ? String(order.payment_receipt_url)
-            : "",
-          transferProofUrl: order.payment_receipt_url
-            ? String(order.payment_receipt_url)
-            : "",
-          createdAt: order.created_at,
-          address: {
-            id: Number(order.address_id),
-            fullAddress: addressParts.join(", "),
-          },
-          products: items.map((item) => ({
-            id: Number(item.id),
-            productId: Number(item.product_id),
-            name: String(item.product_name ?? ""),
-            quantity: Number(item.quantity ?? 0),
-            unitPrice: Number(item.unit_price ?? 0),
-            totalPrice: Number(item.subtotal ?? 0),
-            notes: item.notes ? String(item.notes) : "",
-          })),
-          adminMessages: adminMessages.map((message) => ({
-            id: Number(message.id),
-            type: String(message.type),
-            message: String(message.message),
-            fileUrl: message.file_url ? String(message.file_url) : "",
-            createdAt: message.created_at,
-          })),
-        };
-      }),
-    );
-
-    return NextResponse.json({ success: true, orders: normalizedOrders });
-  } catch (error) {
-    logger.error("orders.list_error", "Error listando pedidos", {
-      ...requestContext,
-      error,
-    });
-    return NextResponse.json(
-      {
-        success: false,
-        error: "No pudimos cargar tus pedidos. Intenta nuevamente.",
+    return {
+      ok: true as const,
+      access: {
+        userId: authUser.id,
+        email: null,
+        roles: authUser.roles ?? [],
       },
-      { status: 500 },
-    );
-  }
-}
+    };
+  },
+  resolveBusinessAccess,
+  resolveDeliveryAccess,
+  ensureOrdersColumns: async () => ensureOrdersColumns(pool),
+  ensureOrderItemsTable: async () => ensureOrderItemsTable(pool),
+  ensureCoreOrderStatuses: async () => ensureCoreOrderStatuses(pool),
+  ensureAdminMessagesTable: async () => ensureAdminMessagesTable(pool),
+  logDbUsage,
+  query: async (sql, params) => {
+    const [rows] = await pool.query(sql, params);
+    return [rows as RowDataPacket[]];
+  },
+  resolveCanonicalOrderStatus,
+  getOrderStatusLabel,
+});
+
+export const GET = (req: NextRequest): Promise<Response> =>
+  getOrdersHandler(req) as Promise<Response>;
 
 export async function POST(req: NextRequest) {
   const requestContext = getRequestLoggerContext(req);
@@ -838,7 +636,7 @@ export async function POST(req: NextRequest) {
       ? await (async () => {
           const [rows] = await conn.query<AddressRow[]>(
             `
-              SELECT id, user_id, reference_notes, neighborhood
+              SELECT id, user_id, reference_notes, neighborhood, latitude, longitude
               FROM addresses
               WHERE id = ? AND user_id = ?
               LIMIT 1
@@ -927,7 +725,9 @@ export async function POST(req: NextRequest) {
         business_id,
         status_id,
         is_stock_available,
-        stock_average
+        stock_average,
+        min_per_order,
+        max_per_order
       FROM products
       WHERE id IN (${placeholders})
     `;
@@ -1047,25 +847,86 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const { zones } = await getActiveShippingZones();
+    const quoteResult = calculateAuthoritativeOrderQuote({
+      items: normalizedItems.map((item) => ({
+        productId: item.product_id as number,
+        quantity: item.quantity as number,
+      })),
+      products: products.map((product) => ({
+        id: Number(product.id),
+        name: String(product.name ?? "Producto"),
+        businessId: Number(product.business_id),
+        statusId: Number(product.status_id ?? 0),
+        isStockAvailable: Boolean(product.is_stock_available),
+        stockAverage: Number(product.stock_average ?? 0),
+        price: Number(product.price ?? 0),
+        discountPrice:
+          product.discount_price == null
+            ? null
+            : Number(product.discount_price),
+        minPerOrder:
+          product.min_per_order == null ? null : Number(product.min_per_order),
+        maxPerOrder:
+          product.max_per_order == null ? null : Number(product.max_per_order),
+      })),
+      address: {
+        neighborhood: addressRow?.neighborhood ?? null,
+        latitude:
+          addressRow?.latitude == null ? null : Number(addressRow.latitude),
+        longitude:
+          addressRow?.longitude == null ? null : Number(addressRow.longitude),
+      },
+      zones: zones.map((zone) => ({
+        id: Number(zone.id),
+        nombre: zone.nombre,
+        distanciaKm: Number(zone.distanciaKm),
+        activo: Boolean(zone.activo),
+      })),
+      clientQuote: {
+        subtotal:
+          body.subtotal == null || body.subtotal === ""
+            ? null
+            : Number(body.subtotal),
+        shippingCost:
+          body.shipping_cost == null || body.shipping_cost === ""
+            ? null
+            : Number(body.shipping_cost),
+        deliveryFee:
+          body.delivery_fee == null || body.delivery_fee === ""
+            ? null
+            : Number(body.delivery_fee),
+        total:
+          body.total == null || body.total === "" ? null : Number(body.total),
+      },
+    });
+
+    if (!quoteResult.ok) {
+      await conn.rollback();
+      return NextResponse.json(
+        {
+          success: false,
+          error: quoteResult.message,
+          code: quoteResult.code,
+          quote: quoteResult.quote ?? null,
+        },
+        {
+          status:
+            quoteResult.code === "PRICE_CHANGED" ||
+            quoteResult.code === "DELIVERY_FEE_CHANGED" ||
+            quoteResult.code === "QUOTE_CHANGED"
+              ? 409
+              : 400,
+        },
+      );
+    }
+
+    const commissionBreakdown = quoteResult.quote;
     const orderItems = normalizedItems.map((item) => {
       const product = productById.get(item.product_id as number);
-      const quantity = item.quantity as number;
-      const isActive = Number(product?.status_id ?? 0) === 1;
-      const stockAvailable = Boolean(product?.is_stock_available ?? 0);
-      const stockAverage = Number(product?.stock_average ?? 0);
-
-      if (!product || !isActive) {
-        throw new Error("Uno o más productos ya no están activos.");
-      }
-
-      if (!stockAvailable || stockAverage < quantity) {
-        throw new Error(
-          `El producto ${product.name} ya no tiene stock suficiente para este pedido.`,
-        );
-      }
-
-      const unitPrice = Number(product?.discount_price ?? product?.price ?? 0);
-      const subtotal = Number((unitPrice * quantity).toFixed(2));
+      const quotedItem = commissionBreakdown.items.find(
+        (candidate) => candidate.productId === item.product_id,
+      );
       const serializedItemNotes = [
         item.notes?.trim(),
         item.customizations?.trim(),
@@ -1078,62 +939,24 @@ export async function POST(req: NextRequest) {
         product_id: item.product_id as number,
         product_name_snapshot: product?.name ?? "Producto",
         product_snapshot_json: JSON.stringify({
-          id: Number(product.id),
-          name: String(product.name ?? "Producto"),
-          price: Number(product.price ?? 0),
+          id: Number(product?.id ?? 0),
+          name: String(product?.name ?? "Producto"),
+          price: Number(product?.price ?? 0),
           discount_price:
-            product.discount_price == null
+            product?.discount_price == null
               ? null
               : Number(product.discount_price),
-          business_id: Number(product.business_id),
-          status_id: Number(product.status_id ?? 0),
-          is_stock_available: Boolean(product.is_stock_available),
-          stock_average: Number(product.stock_average ?? 0),
+          business_id: Number(product?.business_id ?? 0),
+          status_id: Number(product?.status_id ?? 0),
+          is_stock_available: Boolean(product?.is_stock_available),
+          stock_average: Number(product?.stock_average ?? 0),
         }),
-        quantity,
-        unit_price: unitPrice,
-        subtotal,
+        quantity: quotedItem?.quantity ?? (item.quantity as number),
+        unit_price: quotedItem?.unitPrice ?? 0,
+        subtotal: quotedItem?.subtotal ?? 0,
         notes: serializedItemNotes || null,
       };
     });
-
-    const subtotal = Number(
-      orderItems.reduce((sum, item) => sum + item.subtotal, 0).toFixed(2),
-    );
-    const terminalFee =
-      paymentMethodName === "terminal" ? Number(body.terminal_fee ?? 0) : 0;
-    const tipAmount = Number(body.tip_amount ?? 0);
-    const discountAmount = Number(body.discount_amount ?? 0);
-    const addressMeta = parseAddressMeta(addressRow?.reference_notes);
-    const estimatedDistanceKm =
-      typeof addressMeta.estimatedDistanceKm === "number"
-        ? Number(addressMeta.estimatedDistanceKm)
-        : null;
-    const commissionBreakdown = calculateOrderCommissionBreakdown({
-      subtotal,
-      distanceKm: estimatedDistanceKm,
-      deliveryFeeOverride:
-        addressMeta.estimatedDistanceKm == null
-          ? Number(body.shipping_cost ?? body.delivery_fee ?? 0)
-          : null,
-      terminalFee,
-      tipAmount,
-      discountAmount,
-    });
-
-    if (
-      commissionBreakdown.subtotal <= 0 ||
-      commissionBreakdown.terminalFee < 0 ||
-      commissionBreakdown.serviceFee < 0 ||
-      commissionBreakdown.total <= 0 ||
-      commissionBreakdown.deliveryFee < 0
-    ) {
-      await conn.rollback();
-      return NextResponse.json(
-        { success: false, error: "Los montos del pedido no son válidos" },
-        { status: 400 },
-      );
-    }
 
     const requestFingerprint = buildOrderFingerprint({
       userId,

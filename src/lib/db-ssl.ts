@@ -7,6 +7,8 @@ import { logger } from "@/lib/logger";
 const CERTIFICATE_HEADER = "-----BEGIN CERTIFICATE-----";
 const RUNTIME_CA_FILENAME = "gogiet-aiven-ca.pem";
 
+type DbRuntimeEnvironment = "development" | "preview" | "production";
+
 function normalizePemValue(value: string) {
   return value.replace(/\\n/g, "\n").trim();
 }
@@ -119,6 +121,41 @@ export function getDbSslSummary(): DbSslSummary {
   };
 }
 
+export function getDbRuntimeEnvironment(
+  env: NodeJS.ProcessEnv = process.env,
+): DbRuntimeEnvironment {
+  const nodeEnv = String(env.NODE_ENV ?? "")
+    .trim()
+    .toLowerCase();
+  const vercelEnv = String(env.VERCEL_ENV ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (nodeEnv !== "production") {
+    return "development";
+  }
+
+  if (vercelEnv === "preview") {
+    return "preview";
+  }
+
+  return "production";
+}
+
+export function shouldUseDbSsl(
+  env: NodeJS.ProcessEnv = process.env,
+  host?: string | null,
+) {
+  const normalizedHost = String(host ?? env.DB_HOST ?? "").trim();
+  return (
+    normalizedHost.includes("aivencloud.com") ||
+    Boolean(resolveDbSslCaContent()) ||
+    String(env.DB_REQUIRE_SSL ?? "")
+      .trim()
+      .toLowerCase() === "true"
+  );
+}
+
 export function resolveDbSslCaContent() {
   const selected = selectDbCaCandidate();
 
@@ -181,7 +218,32 @@ export function ensureRuntimeCaFile() {
   return certificatePath;
 }
 
-export function applyMysqlSslParams(databaseUrl: string) {
+export function getMysqlSslConfig({
+  env = process.env,
+  host,
+}: {
+  env?: NodeJS.ProcessEnv;
+  host?: string | null;
+} = {}) {
+  if (!shouldUseDbSsl(env, host)) {
+    return undefined;
+  }
+
+  const caContent = resolveDbSslCaContent();
+
+  if (!caContent) {
+    return {};
+  }
+
+  return {
+    ca: caContent.replace(/\\n/g, "\n"),
+  };
+}
+
+export function applyMysqlSslParams(
+  databaseUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+) {
   const certificatePath = ensureRuntimeCaFile();
   const parsedUrl = new URL(databaseUrl);
 
@@ -189,13 +251,15 @@ export function applyMysqlSslParams(databaseUrl: string) {
   parsedUrl.searchParams.delete("sslcert");
   parsedUrl.searchParams.delete("sslaccept");
 
-  if (!certificatePath) {
-    parsedUrl.searchParams.set("sslaccept", "accept_invalid_certs");
+  if (!shouldUseDbSsl(env, parsedUrl.hostname)) {
     return parsedUrl.toString();
   }
 
-  parsedUrl.searchParams.set("sslaccept", "accept_invalid_certs");
-  parsedUrl.searchParams.set("sslcert", certificatePath);
+  parsedUrl.searchParams.set("sslaccept", "strict");
+
+  if (certificatePath) {
+    parsedUrl.searchParams.set("sslcert", certificatePath);
+  }
 
   return parsedUrl.toString();
 }

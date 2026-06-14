@@ -402,6 +402,10 @@ test("mercado pago credentials stay unverified unless clearly test-like", () => 
     "test",
   );
   assert.equal(
+    classifyMercadoPagoCredential("PEGA_AQUI_EL_ACCESS_TOKEN_DE_PRUEBA").state,
+    "placeholder",
+  );
+  assert.equal(
     classifyMercadoPagoCredential("APP_USR-f80bcd88-fda4").state,
     "unknown",
   );

@@ -1,9 +1,5 @@
 import type { RowDataPacket } from "mysql2/promise";
-import { type NextRequest, NextResponse } from "next/server";
-
-import { getAuthUser } from "@/lib/admin-security";
-import pool from "@/lib/db";
-import { ensureTrainingTables } from "@/lib/trainings";
+import { type NextRequest, NextResponse } from "next/server.js";
 
 type AssignmentRow = RowDataPacket & {
   passing_score: number | string | null;
@@ -18,6 +14,12 @@ export async function POST(
   req: NextRequest,
   context: { params: Promise<{ assignmentId: string }> },
 ) {
+  const [{ getAuthUser }, { default: pool }, { ensureTrainingTables }] =
+    await Promise.all([
+      import("../../../../../../lib/admin-security.ts"),
+      import("../../../../../../lib/db.ts"),
+      import("../../../../../../lib/trainings.ts"),
+    ]);
   const connection = await pool.getConnection();
 
   try {

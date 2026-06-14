@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     const cartId = Number(payload?.cart_id);
     const productId = Number(payload?.product_id);
     const quantity = Number(payload?.quantity);
-    const discountValue = Number(payload?.discount ?? 0);
     const authUserId = Number(auth.access.userId ?? 0);
 
     if (!(await isAuthUserActive(authUserId))) {
@@ -187,14 +186,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const basePrice = Number(
-      productRow[0].discount_price ??
-        productRow[0].price ??
-        payload?.price ??
-        0,
+    const finalPrice = Number(
+      productRow[0].discount_price ?? productRow[0].price ?? 0,
     );
-    const finalPrice = Math.max(basePrice - discountValue, 0);
-    const subtotal = finalPrice * quantity;
+    const subtotal = Number((finalPrice * quantity).toFixed(2));
     const cartRuntimeSchema = await getCartRuntimeSchema();
 
     const [exists] = await pool.query<ProductExistsRow[]>(
@@ -229,7 +224,7 @@ export async function POST(req: NextRequest) {
             SET quantity = ?, discount = ?, total = ?
             WHERE cart_id = ? AND product_id = ?
           `,
-          [quantity, discountValue, subtotal, cartId, productId],
+          [quantity, 0, subtotal, cartId, productId],
         );
       } else {
         throw new Error(
@@ -267,7 +262,7 @@ export async function POST(req: NextRequest) {
             INSERT INTO products_cart (cart_id, product_id, quantity, discount, total)
             VALUES (?, ?, ?, ?, ?)
           `,
-          [cartId, productId, quantity, discountValue, subtotal],
+          [cartId, productId, quantity, 0, subtotal],
         );
       } else {
         throw new Error(

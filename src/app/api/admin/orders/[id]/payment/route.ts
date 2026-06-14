@@ -1,7 +1,10 @@
-import type { RowDataPacket } from "mysql2/promise";
 import { type NextRequest, NextResponse } from "next/server";
-
-import { getSafeErrorMessage } from "@/lib/api-error";
+import {
+  getRequestId,
+  getSafeErrorMessage,
+  getStatusForErrorCode,
+  logServerError,
+} from "@/lib/api-error";
 import { recordAuditLog } from "@/lib/audit-log";
 import pool from "@/lib/db";
 import { createNotificationForBusinessSafely } from "@/lib/notifications";
@@ -19,292 +22,121 @@ import {
 import { requirePermission } from "@/lib/permissions";
 import { addSupportMessage, getOrCreateSupportThread } from "@/lib/support";
 
-function normalizeCatalogName(value: unknown, fallback: string) {
-  const normalized = String(value ?? "")
-    .trim()
-    .toLowerCase();
+import { createAdminOrderPaymentHandler } from "./handler";
 
-  return normalized || fallback;
-}
+const handler = createAdminOrderPaymentHandler<Response>(
+  (body, init) => NextResponse.json(body, init),
+  {
+    authorize: async (request) => {
+      const access = await requirePermission(
+        request as NextRequest,
+        "VALIDATE_PAYMENT",
+        undefined,
+        "No tienes permiso para validar pagos.",
+      );
+
+      if (!access.ok) {
+        return {
+          ok: false as const,
+          status: access.response.status as 401 | 403,
+        };
+      }
+
+      return {
+        ok: true as const,
+        access: { userId: access.access.userId },
+      };
+    },
+    query: async <T>(query: string, params?: Array<number | string | null>) => {
+      void (0 as T | undefined);
+      const [rows] = await pool.query(query, params);
+      return [rows];
+    },
+    getConnection: () => pool.getConnection(),
+    ensureOrderPaymentColumns: async (connection) =>
+      ensureOrderPaymentColumns(connection as never),
+    ensurePaymentsTable: async (connection) =>
+      ensurePaymentsTable(connection as never),
+    resolveCanonicalOrderStatus,
+    validateOrderStatusTransition,
+    applyValidatedOrderStatusTransition: async (connection, params) =>
+      applyValidatedOrderStatusTransition(connection as never, params as never),
+    upsertPaymentRecord: async (connection, payload) =>
+      upsertPaymentRecord(connection as never, payload as never),
+    getOrCreateSupportThread: async (params) =>
+      getOrCreateSupportThread(params),
+    addSupportMessage: async (params) =>
+      addSupportMessage({
+        threadId: Number(params.threadId),
+        senderId: params.senderId,
+        senderType: params.senderType,
+        message: params.message,
+        messageType: params.messageType,
+      }),
+    recordAuditLog: async (payload, connection) =>
+      recordAuditLog(payload as never, connection as never),
+    createNotificationForBusinessSafely: async (
+      businessId,
+      payload,
+      connection,
+    ) =>
+      createNotificationForBusinessSafely(
+        businessId,
+        payload as never,
+        connection as never,
+      ),
+    getRequestId,
+    logServerError: (event, error, context) =>
+      logServerError(event, error, {
+        request: context.request,
+        userId: context.userId,
+        orderId: context.orderId,
+        action: context.action,
+      }),
+    resolveKnownError: (error) => {
+      if (error instanceof OrderStatusTransitionError) {
+        return {
+          status: error.statusCode,
+          message: getSafeErrorMessage(
+            error,
+            "No fue posible procesar la información del pago",
+          ),
+        };
+      }
+
+      const errorLike = error as { statusCode?: unknown; code?: unknown };
+      const statusCode = Number(errorLike?.statusCode ?? 0);
+      const code = String(errorLike?.code ?? "").toUpperCase();
+
+      if (statusCode === 404 || code === "NOT_FOUND") {
+        return { status: 404, message: "Pedido no encontrado" };
+      }
+
+      if (statusCode >= 400 && statusCode < 500) {
+        return {
+          status: statusCode,
+          message: getSafeErrorMessage(
+            error,
+            "No fue posible procesar la información del pago",
+          ),
+        };
+      }
+
+      if (getStatusForErrorCode("SERVICE_UNAVAILABLE") === statusCode) {
+        return {
+          status: statusCode,
+          message: "No fue posible procesar la información del pago",
+        };
+      }
+
+      return null;
+    },
+  },
+);
 
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> },
-) {
-  try {
-    const access = await requirePermission(
-      req,
-      "VALIDATE_PAYMENT",
-      undefined,
-      "No tienes permiso para validar pagos.",
-    );
-    if (!access.ok) return access.response;
-
-    const { id } = await context.params;
-    const orderId = Number(id);
-
-    if (!Number.isInteger(orderId) || orderId <= 0) {
-      return NextResponse.json({ error: "ID inválido" }, { status: 400 });
-    }
-
-    const body = await req.json();
-    const action = String(body?.action ?? "")
-      .trim()
-      .toLowerCase();
-    const reason = String(body?.reason ?? "").trim();
-    if (action !== "approve" && action !== "reject") {
-      return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
-    }
-
-    if (action === "reject" && !reason) {
-      return NextResponse.json(
-        { error: "Debes indicar un motivo de rechazo" },
-        { status: 400 },
-      );
-    }
-
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `
-        SELECT
-          o.id,
-          o.user_id,
-          o.business_id,
-          o.payment_method_id,
-          o.total_amount,
-          COALESCE(o.payment_method, pm.name) AS payment_method,
-          osc.name AS status_name
-        FROM orders o
-        LEFT JOIN payment_methods pm ON pm.id = o.payment_method_id
-        LEFT JOIN order_status_catalog osc ON osc.id = o.order_status_id
-        WHERE o.id = ?
-        LIMIT 1
-      `,
-      [orderId],
-    );
-
-    const order = rows[0];
-
-    if (!order) {
-      return NextResponse.json(
-        { error: "Pedido no encontrado" },
-        { status: 404 },
-      );
-    }
-
-    if (normalizeCatalogName(order.payment_method, "") !== "transferencia") {
-      return NextResponse.json(
-        { error: "Solo se pueden validar pagos por transferencia" },
-        { status: 400 },
-      );
-    }
-
-    if (resolveCanonicalOrderStatus(order.status_name) !== "payment_review") {
-      return NextResponse.json(
-        { error: "Este pedido ya no está pendiente de validación" },
-        { status: 400 },
-      );
-    }
-
-    const nextStatus = action === "approve" ? "paid" : "cancelled";
-
-    const connection = await pool.getConnection();
-
-    try {
-      await connection.beginTransaction();
-      await ensureOrderPaymentColumns(connection);
-      await ensurePaymentsTable(connection);
-
-      const { currentStatus } = validateOrderStatusTransition({
-        currentStatus: order.status_name,
-        nextStatus,
-        role: "admin",
-        order: {
-          id: orderId,
-          businessId: Number(order.business_id),
-          customerUserId: Number(order.user_id),
-          driverUserId: null,
-          paymentMethod: String(order.payment_method ?? ""),
-          currentStatus: String(order.status_name ?? ""),
-        },
-        actorUserId: access.access.userId,
-        reason,
-      });
-
-      await applyValidatedOrderStatusTransition(connection, {
-        orderId,
-        nextStatus,
-        actorUserId: access.access.userId,
-        actorRole: "admin",
-        currentStatus,
-        reason,
-        metadata: {
-          endpoint: "/api/admin/orders/[id]/payment",
-          action,
-          payment_method: "transferencia",
-        },
-      });
-
-      await connection.query(
-        `
-          UPDATE orders
-          SET
-            payment_provider = 'TRANSFER',
-            payment_status = ?,
-            amount_paid = CASE
-              WHEN ? = 'approved' THEN total_amount
-              ELSE amount_paid
-            END,
-            paid_at = CASE
-              WHEN ? = 'approved' THEN COALESCE(paid_at, NOW())
-              ELSE paid_at
-            END,
-            updated_at = NOW()
-          WHERE id = ?
-        `,
-        [
-          action === "approve" ? "approved" : "rejected",
-          action === "approve" ? "approved" : "rejected",
-          action === "approve" ? "approved" : "rejected",
-          orderId,
-        ],
-      );
-
-      await upsertPaymentRecord(connection, {
-        orderId,
-        paymentMethodId: Number(order.payment_method_id ?? 0) || null,
-        paymentStatus: action === "approve" ? "approved" : "rejected",
-        transactionReference: `transfer-order-${orderId}`,
-        providerName: "Transferencia",
-        provider: "TRANSFER",
-        status: action === "approve" ? "approved" : "rejected",
-        amount: Number(order.total_amount ?? 0),
-        currency: "MXN",
-        paidAt: action === "approve" ? new Date() : null,
-        processedAt: new Date(),
-        rawResponse: {
-          action,
-          reason: reason || null,
-          validatedByUserId: access.access.userId,
-        },
-      });
-
-      const adminMessage =
-        action === "approve"
-          ? "ADMIN_GENERAL validó correctamente el pago por transferencia."
-          : `ADMIN_GENERAL rechazó el pago por transferencia. Motivo: ${reason}`;
-      const customerNotice =
-        action === "approve"
-          ? "Tu pago por transferencia fue validado. Tu pedido quedó pagado y ahora el negocio debe aceptarlo."
-          : `Tu pago por transferencia fue rechazado. Motivo: ${reason}`;
-
-      await connection.query(
-        `
-          INSERT INTO admin_messages (order_id, user_id, type, message, file_url)
-          VALUES (?, ?, 'payment_validation', ?, NULL)
-        `,
-        [orderId, access.access.userId, adminMessage],
-      );
-
-      await connection.query(
-        `
-          INSERT INTO order_notes (order_id, user_id, note_type, note_text)
-          VALUES (?, ?, 'system', ?)
-        `,
-        [orderId, access.access.userId, customerNotice],
-      );
-
-      const supportThreadId = await getOrCreateSupportThread({
-        userId: Number(order.user_id),
-        orderId,
-      });
-
-      await addSupportMessage({
-        threadId: supportThreadId,
-        senderId: access.access.userId,
-        senderType: "admin",
-        message:
-          action === "approve"
-            ? "Pago por transferencia aprobado por ADMIN_GENERAL."
-            : `Pago por transferencia rechazado por ADMIN_GENERAL. Motivo: ${reason}`,
-        messageType: "text",
-      });
-
-      await recordAuditLog(
-        {
-          userId: access.access.userId,
-          action: action === "approve" ? "VALIDATE_PAYMENT" : "REJECT_PAYMENT",
-          resourceType: "order",
-          resourceId: orderId,
-          oldValue: {
-            status: order.status_name,
-            payment_method: order.payment_method,
-          },
-          newValue: {
-            status: nextStatus,
-            reason,
-          },
-          ip: req.headers.get("x-forwarded-for"),
-          userAgent: req.headers.get("user-agent"),
-        },
-        connection,
-      );
-
-      if (action === "approve") {
-        await createNotificationForBusinessSafely(
-          Number(order.business_id),
-          {
-            type: "pago",
-            title: `Pago validado #${orderId}`,
-            message:
-              "El pago por transferencia fue validado. El negocio ya puede aceptarlo.",
-            relatedId: orderId,
-            dataJson: {
-              order_id: orderId,
-              status: nextStatus,
-              payment_method: "transferencia",
-            },
-          },
-          connection,
-        );
-      }
-
-      await connection.commit();
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
-
-    return NextResponse.json({
-      success: true,
-      message:
-        action === "approve"
-          ? "Pago aprobado correctamente"
-          : "Pago rechazado correctamente",
-      status: nextStatus,
-    });
-  } catch (error) {
-    console.error("Error PATCH /api/admin/orders/[id]/payment:", error);
-    if (error instanceof OrderStatusTransitionError) {
-      return NextResponse.json(
-        {
-          error: getSafeErrorMessage(error, "No se pudo validar el pago."),
-        },
-        { status: error.statusCode },
-      );
-    }
-    return NextResponse.json(
-      {
-        error: "No se pudo validar el pago.",
-        debug:
-          process.env.NODE_ENV === "production"
-            ? undefined
-            : error instanceof Error
-              ? error.message
-              : String(error),
-      },
-      { status: 500 },
-    );
-  }
+): Promise<Response> {
+  return handler(req, context);
 }

@@ -13,6 +13,7 @@ const {
 const DANGEROUS_WRITE_SCRIPTS = [
   "prisma/seed.js",
   "scripts/activate-verified-users.js",
+  "scripts/business-ownership-repair.js",
   "scripts/cleanup-business-owners.js",
   "scripts/cleanup-test-stores-products.ts",
   "scripts/cleanup-staging-qa.js",
@@ -58,6 +59,7 @@ function evaluateIsolationChecks({
     env.MERCADOPAGO_ACCESS_TOKEN,
   );
   const failures = [];
+  const packageLockPath = path.join(rootDir, "package-lock.json");
 
   if (!staging.verified) {
     failures.push("STAGING_ENVIRONMENT_NOT_VERIFIED");
@@ -115,6 +117,21 @@ function evaluateIsolationChecks({
     failures.push("TRACKED_REAL_ENV_FILE");
   }
 
+  const packageLockExists = fs.existsSync(packageLockPath);
+  const packageLockTracked = trackedFiles.includes("package-lock.json");
+  const packageLockIgnored =
+    trackedFiles.length === 0
+      ? false
+      : !packageLockTracked && fs.existsSync(packageLockPath);
+
+  if (!packageLockExists) {
+    failures.push("PACKAGE_LOCK_MISSING");
+  }
+
+  if (packageLockIgnored) {
+    failures.push("PACKAGE_LOCK_NOT_TRACKED");
+  }
+
   const dangerousScriptsWithoutGuard = [];
   for (const relativePath of DANGEROUS_WRITE_SCRIPTS) {
     const absolutePath = path.join(rootDir, relativePath);
@@ -152,6 +169,11 @@ function evaluateIsolationChecks({
       sharedHostAllowed: staging.sharedHostAllowed,
     },
     trackedRealEnvFiles: realTrackedEnvFiles,
+    packageLock: {
+      exists: packageLockExists,
+      tracked: packageLockTracked,
+      ignoredOrUntracked: packageLockIgnored,
+    },
     dangerousScriptsWithoutGuard,
     result:
       failures.length === 0

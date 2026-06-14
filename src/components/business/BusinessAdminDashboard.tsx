@@ -246,8 +246,7 @@ type SellerForm = {
 type SellerSearchResult = {
   id: number;
   name: string;
-  email: string;
-  phone?: string;
+  identifier: string;
 };
 
 type PromotionForm = {
@@ -1195,7 +1194,7 @@ export function BusinessAdminDashboard() {
         const results = Array.isArray(data.users)
           ? uniqueByKey(
               data.users as SellerSearchResult[],
-              (item) => `user-${item.id}-${item.email}`,
+              (item) => `user-${item.id}-${item.identifier}`,
             )
           : [];
 
@@ -4133,7 +4132,7 @@ export function BusinessAdminDashboard() {
                     }));
                   }
                 }}
-                placeholder="Busca por nombre, correo o teléfono"
+                placeholder="Busca por nombre o correo"
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none focus:border-orange-300"
               />
               <button
@@ -4156,7 +4155,7 @@ export function BusinessAdminDashboard() {
             {selectedSellerUser ? (
               <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                 Usuario seleccionado: {selectedSellerUser.name} —{" "}
-                {selectedSellerUser.email}
+                {selectedSellerUser.identifier}
               </div>
             ) : null}
             {!selectedSellerUser && sellerSearchLoading ? (
@@ -4173,7 +4172,7 @@ export function BusinessAdminDashboard() {
               <div className="max-h-60 overflow-y-auto rounded-2xl border border-slate-200 bg-white">
                 {sellerSearchResults.slice(0, 10).map((user) => (
                   <button
-                    key={`user-${user.id}-${user.email}`}
+                    key={`user-${user.id}-${user.identifier}`}
                     type="button"
                     onClick={() => {
                       setSelectedSellerUser(user);
@@ -4191,7 +4190,7 @@ export function BusinessAdminDashboard() {
                       {user.name}
                     </span>
                     <span className="text-xs font-semibold text-slate-500">
-                      {user.email}
+                      {user.identifier}
                     </span>
                   </button>
                 ))}
