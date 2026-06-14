@@ -1,9 +1,14 @@
 #!/usr/bin/env node
 
-const { evaluateStagingEnvironment } = require("./lib/staging-environment");
+const {
+  evaluateStagingEnvironment,
+  getProductionReference,
+  redactReferenceEdge,
+} = require("./lib/staging-environment");
 
 function formatVerificationOutput(env = process.env) {
   const summary = evaluateStagingEnvironment(env);
+  const productionReference = getProductionReference(env);
   return {
     appEnv: summary.appEnv,
     databaseEnv: summary.databaseEnv,
@@ -17,6 +22,13 @@ function formatVerificationOutput(env = process.env) {
     databaseUrlPresent: summary.databaseUrlPresent,
     databaseUrlParseable: summary.databaseUrlParseable,
     productionReferenceConfigured: summary.productionReferenceConfigured,
+    productionHostReference: redactReferenceEdge(
+      productionReference.hostFingerprint || productionReference.host,
+    ),
+    productionUserReference: redactReferenceEdge(
+      productionReference.userFingerprint || productionReference.user,
+    ),
+    productionDatabaseName: productionReference.databaseName ?? null,
     hostMatchesProduction: summary.hostMatchesProduction,
     userMatchesProduction: summary.userMatchesProduction,
     appUrlHost: summary.appUrlHost,

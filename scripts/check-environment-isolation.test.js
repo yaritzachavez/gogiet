@@ -9,16 +9,16 @@ const safeEnv = {
   NODE_ENV: "development",
   VERCEL_ENV: "preview",
   DATABASE_URL:
-    "mysql://staging_user:pass@staging-db.example.com:3306/gogi_staging",
+    "mysql://staging_user:pass@staging-db.gogieats-preview.net:3306/gogi_staging",
   DB_NAME: "gogi_staging",
-  DB_HOST: "staging-db.example.com",
-  NEXT_PUBLIC_APP_URL: "https://preview-staging.example.vercel.app",
-  NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: "APP_TEST-STAGING-PUBLIC",
-  MERCADOPAGO_ACCESS_TOKEN: "APP_TEST-STAGING-ACCESS",
+  DB_HOST: "staging-db.gogieats-preview.net",
+  NEXT_PUBLIC_APP_URL: "https://gogi-staging-preview-12345.vercel.app",
+  NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: "TEST-public-1234567890",
+  MERCADOPAGO_ACCESS_TOKEN: "TEST-access-1234567890",
   PRODUCTION_DB_NAME: "gogi_prod",
-  PRODUCTION_DB_HOST_FINGERPRINT: "prodhost0001",
+  PRODUCTION_DB_HOST_FINGERPRINT: "2a6ebe8307c4",
   PRODUCTION_DB_USER: "prod_writer",
-  PRODUCTION_DB_USER_FINGERPRINT: "produser0001",
+  PRODUCTION_DB_USER_FINGERPRINT: "77889900aabb",
 };
 
 const guardedSource = `
@@ -54,12 +54,12 @@ test("fails when a real env file is tracked", () => {
   assert(result.failures.includes("TRACKED_REAL_ENV_FILE"));
 });
 
-test("fails when preview credentials are not verified as test", () => {
+test("fails when preview credentials are placeholders or production-like", () => {
   const result = evaluateIsolationChecks({
     env: {
       ...safeEnv,
       NEXT_PUBLIC_MERCADOPAGO_PUBLIC_KEY: "APP_USR-ambiguous-public",
-      MERCADOPAGO_ACCESS_TOKEN: "APP_USR-ambiguous-access",
+      MERCADOPAGO_ACCESS_TOKEN: "PEGA_AQUI_EL_ACCESS_TOKEN_DE_PRUEBA",
     },
     trackedFiles: [".env.example", "package-lock.json"],
     readFile: () => guardedSource,
@@ -71,14 +71,58 @@ test("fails when preview credentials are not verified as test", () => {
   assert(result.failures.includes("PREVIEW_MERCADOPAGO_ACCESS_TOKEN_NOT_TEST"));
 });
 
-test("allows preview on a shared host when staging guard conditions are fully met", () => {
+test("passes with a truly isolated preview configuration", () => {
+  const result = evaluateIsolationChecks({
+    env: {
+      ...safeEnv,
+      ALLOW_STAGING_DB_WRITES: "true",
+    },
+    trackedFiles: [".env.example", "package-lock.json"],
+    readFile: () => guardedSource,
+    rootDir: process.cwd(),
+  });
+
+  assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK PASSED");
+  assert.equal(result.runtime.hostMatchesProduction, false);
+  assert.equal(result.runtime.sharedHostAllowed, false);
+});
+
+test("fails shared-host preview without the explicit shared-host flag", () => {
   const result = evaluateIsolationChecks({
     env: {
       ...safeEnv,
       DATABASE_URL:
-        "mysql://staging_user:pass@shared-db.example.com:3306/gogi_staging",
-      DB_HOST: "shared-db.example.com",
-      PRODUCTION_DB_HOST: "shared-db.example.com",
+        "mysql://staging_user:pass@shared-db.gogieats-preview.net:3306/gogi_staging",
+      DB_HOST: "shared-db.gogieats-preview.net",
+      PRODUCTION_DB_HOST: "shared-db.gogieats-preview.net",
+      PRODUCTION_DB_HOST_FINGERPRINT: "",
+      ALLOW_STAGING_DB_WRITES: "true",
+      ALLOW_SHARED_DB_HOST_FOR_STAGING: "false",
+    },
+    trackedFiles: [".env.example", "package-lock.json"],
+    readFile: () => guardedSource,
+    rootDir: process.cwd(),
+  });
+
+  assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK FAILED");
+  assert(result.failures.includes("PREVIEW_DATABASE_MATCHES_PRODUCTION"));
+  assert.equal(result.runtime.hostMatchesProduction, true);
+  assert.equal(result.runtime.sharedHostAllowed, false);
+  assert(
+    result.runtime.blockingReasons.includes(
+      "ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE",
+    ),
+  );
+});
+
+test("fails shared-host preview even with explicit flag because permission scope is not technically verifiable", () => {
+  const result = evaluateIsolationChecks({
+    env: {
+      ...safeEnv,
+      DATABASE_URL:
+        "mysql://staging_user:pass@shared-db.gogieats-preview.net:3306/gogi_staging",
+      DB_HOST: "shared-db.gogieats-preview.net",
+      PRODUCTION_DB_HOST: "shared-db.gogieats-preview.net",
       PRODUCTION_DB_HOST_FINGERPRINT: "",
       ALLOW_STAGING_DB_WRITES: "true",
       ALLOW_SHARED_DB_HOST_FOR_STAGING: "true",
@@ -88,30 +132,21 @@ test("allows preview on a shared host when staging guard conditions are fully me
     rootDir: process.cwd(),
   });
 
-  assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK PASSED");
-  assert.equal(result.runtime.hostMatchesProduction, true);
-  assert.equal(result.runtime.sharedHostAllowed, true);
-  assert.equal(result.runtime.userMatchesProduction, false);
-});
-
-test("fails preview shared host when the explicit shared-host flag is missing", () => {
-  const result = evaluateIsolationChecks({
-    env: {
-      ...safeEnv,
-      DATABASE_URL:
-        "mysql://staging_user:pass@shared-db.example.com:3306/gogi_staging",
-      DB_HOST: "shared-db.example.com",
-      PRODUCTION_DB_HOST: "shared-db.example.com",
-      PRODUCTION_DB_HOST_FINGERPRINT: "",
-      ALLOW_STAGING_DB_WRITES: "true",
-    },
-    trackedFiles: [".env.example", "package-lock.json"],
-    readFile: () => guardedSource,
-    rootDir: process.cwd(),
-  });
-
   assert.equal(result.result, "ENVIRONMENT ISOLATION CHECK FAILED");
-  assert(result.failures.includes("PREVIEW_DATABASE_MATCHES_PRODUCTION"));
+  assert(result.failures.includes("STAGING_ENVIRONMENT_NOT_VERIFIED"));
+  assert.equal(result.runtime.hostMatchesProduction, true);
+  assert.equal(result.runtime.sharedHostAllowed, false);
+  assert(
+    result.runtime.blockingReasons.includes(
+      "SHARED_DB_HOST_REQUIRES_VERIFIED_PERMISSION_SCOPE",
+    ),
+  );
+  assert.equal(
+    result.runtime.blockingReasons.includes(
+      "ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE",
+    ),
+    false,
+  );
 });
 
 test("fails when a dangerous script omits the guard import", () => {

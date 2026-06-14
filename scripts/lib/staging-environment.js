@@ -6,6 +6,24 @@ const PRODUCTION_APP_HOSTNAMES = new Set([
   "gogieats.shop",
   "www.gogieats.shop",
 ]);
+const PLACEHOLDER_TOKENS = [
+  "placeholder",
+  "replace-me",
+  "replace_me",
+  "replace_with",
+  "replacewith",
+  "changeme",
+  "change-me",
+  "example",
+  "todo",
+  "unknown",
+  "pega_aqui",
+  "your_",
+];
+const KNOWN_FAKE_MERCADOPAGO_TEST_VALUES = new Set([
+  "APP_TEST-STAGING-PUBLIC",
+  "APP_TEST-STAGING-ACCESS",
+]);
 const ALLOWED_WRITE_OPERATIONS = new Set([
   "prisma/seed.js",
   "scripts/activate-verified-users.js --apply",
@@ -31,6 +49,37 @@ function normalizeOptionalValue(value) {
   return normalized === "" ? null : normalized;
 }
 
+function hasPlaceholderToken(value) {
+  const normalized = normalizeEnvToken(value);
+  if (!normalized) {
+    return false;
+  }
+
+  return PLACEHOLDER_TOKENS.some((token) => normalized.includes(token));
+}
+
+function hasReasonableLength(value, minLength = 6) {
+  return String(value ?? "").trim().length >= minLength;
+}
+
+function isReliableReferenceValue(value, minLength = 4) {
+  const normalized = normalizeOptionalValue(value);
+  return Boolean(
+    normalized &&
+      hasReasonableLength(normalized, minLength) &&
+      !hasPlaceholderToken(normalized),
+  );
+}
+
+function isValidFingerprint(value) {
+  const normalized = normalizeOptionalValue(value);
+  return Boolean(
+    normalized &&
+      !hasPlaceholderToken(normalized) &&
+      /^[a-f0-9]{12,64}$/i.test(normalized),
+  );
+}
+
 function maskHost(host) {
   if (!host) {
     return null;
@@ -53,6 +102,19 @@ function createFingerprint(value) {
     .update(String(value))
     .digest("hex")
     .slice(0, 12);
+}
+
+function redactReferenceEdge(value) {
+  const normalized = normalizeOptionalValue(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized.length <= 8) {
+    return `${normalized.slice(0, 2)}...${normalized.slice(-2)}`;
+  }
+
+  return `${normalized.slice(0, 4)}...${normalized.slice(-4)}`;
 }
 
 function parseUrlTarget(rawUrl) {
@@ -135,20 +197,38 @@ function getProductionReference(env = process.env) {
     env.PRODUCTION_DATABASE_URL,
   );
   const parsedProductionUrl = parseUrlTarget(productionDatabaseUrl);
-  const host =
-    normalizeOptionalValue(env.PRODUCTION_DB_HOST) || parsedProductionUrl.host;
-  const databaseName =
-    normalizeOptionalValue(env.PRODUCTION_DB_NAME) ||
-    parsedProductionUrl.databaseName ||
-    "gogi_prod";
-  const user =
-    normalizeOptionalValue(env.PRODUCTION_DB_USER) || parsedProductionUrl.user;
-  const hostFingerprint =
-    normalizeOptionalValue(env.PRODUCTION_DB_HOST_FINGERPRINT) ||
-    createFingerprint(host);
-  const userFingerprint =
-    normalizeOptionalValue(env.PRODUCTION_DB_USER_FINGERPRINT) ||
-    createFingerprint(user);
+  const explicitHost = normalizeOptionalValue(env.PRODUCTION_DB_HOST);
+  const explicitDatabaseName = normalizeOptionalValue(env.PRODUCTION_DB_NAME);
+  const explicitUser = normalizeOptionalValue(env.PRODUCTION_DB_USER);
+  const explicitHostFingerprint = normalizeOptionalValue(
+    env.PRODUCTION_DB_HOST_FINGERPRINT,
+  );
+  const explicitUserFingerprint = normalizeOptionalValue(
+    env.PRODUCTION_DB_USER_FINGERPRINT,
+  );
+  const parsedUrlIsReliable =
+    Boolean(productionDatabaseUrl) &&
+    parsedProductionUrl.parseError == null &&
+    !hasPlaceholderToken(productionDatabaseUrl);
+  const host = explicitHost || parsedProductionUrl.host;
+  const databaseName = explicitDatabaseName || parsedProductionUrl.databaseName;
+  const user = explicitUser || parsedProductionUrl.user;
+  const hostFingerprint = explicitHostFingerprint;
+  const userFingerprint = explicitUserFingerprint;
+  const hostReliable = explicitHost
+    ? isReliableReferenceValue(explicitHost, 8)
+    : parsedUrlIsReliable &&
+      isReliableReferenceValue(parsedProductionUrl.host, 8);
+  const databaseNameReliable = explicitDatabaseName
+    ? isReliableReferenceValue(explicitDatabaseName, 4)
+    : parsedUrlIsReliable &&
+      isReliableReferenceValue(parsedProductionUrl.databaseName, 4);
+  const userReliable = explicitUser
+    ? isReliableReferenceValue(explicitUser, 4)
+    : parsedUrlIsReliable &&
+      isReliableReferenceValue(parsedProductionUrl.user, 4);
+  const hostFingerprintReliable = isValidFingerprint(explicitHostFingerprint);
+  const userFingerprintReliable = isValidFingerprint(explicitUserFingerprint);
 
   return {
     host,
@@ -156,8 +236,18 @@ function getProductionReference(env = process.env) {
     databaseName,
     user,
     userFingerprint,
+    hostReliable,
+    databaseNameReliable,
+    userReliable,
+    hostFingerprintReliable,
+    userFingerprintReliable,
+    parsedUrlIsReliable,
     configured: Boolean(
-      hostFingerprint || host || databaseName || userFingerprint,
+      hostReliable ||
+        databaseNameReliable ||
+        userReliable ||
+        hostFingerprintReliable ||
+        userFingerprintReliable,
     ),
   };
 }
@@ -194,23 +284,31 @@ function classifyMercadoPagoCredential(value) {
     };
   }
 
-  if (/pega_aqui|replace_me|your_|example|placeholder/i.test(normalized)) {
+  if (
+    hasPlaceholderToken(normalized) ||
+    KNOWN_FAKE_MERCADOPAGO_TEST_VALUES.has(normalized)
+  ) {
     return {
       state: "placeholder",
       fingerprint: createFingerprint(normalized),
     };
   }
 
-  if (/test|sandbox/i.test(normalized) || /^APP_TEST-/i.test(normalized)) {
+  if (/^APP_USR-/i.test(normalized)) {
     return {
-      state: "test",
+      state: "production",
       fingerprint: createFingerprint(normalized),
     };
   }
 
-  if (/^APP_USR-/i.test(normalized)) {
+  if (
+    /^TEST-/i.test(normalized) ||
+    /^MPTEST-/i.test(normalized) ||
+    /sandbox/i.test(normalized) ||
+    /test/i.test(normalized)
+  ) {
     return {
-      state: "unknown",
+      state: "test",
       fingerprint: createFingerprint(normalized),
     };
   }
@@ -247,6 +345,12 @@ function analyzeAppUrl(env = process.env) {
       hostname,
       maskedHost: maskHost(hostname),
       fingerprint: createFingerprint(hostname),
+      isHttps: parsed.protocol === "https:",
+      isLocalhost: Boolean(
+        hostname &&
+          ["localhost", "127.0.0.1", "::1"].includes(hostname.toLowerCase()),
+      ),
+      isPlaceholderHostname: hasPlaceholderToken(hostname),
       isProductionHostname: Boolean(
         hostname && PRODUCTION_APP_HOSTNAMES.has(hostname.toLowerCase()),
       ),
@@ -259,6 +363,9 @@ function analyzeAppUrl(env = process.env) {
       hostname: null,
       maskedHost: null,
       fingerprint: createFingerprint(rawUrl),
+      isHttps: false,
+      isLocalhost: false,
+      isPlaceholderHostname: hasPlaceholderToken(rawUrl),
       isProductionHostname: false,
       isPreviewHostname: false,
     };
@@ -281,6 +388,7 @@ function isForbiddenSharedHostUser(databaseTarget, productionReference) {
   }
 
   if (
+    productionReference.userReliable &&
     productionReference.user &&
     normalizedUser === normalizeEnvToken(productionReference.user)
   ) {
@@ -288,33 +396,36 @@ function isForbiddenSharedHostUser(databaseTarget, productionReference) {
   }
 
   return Boolean(
-    productionReference.userFingerprint &&
+    productionReference.userFingerprintReliable &&
+      productionReference.userFingerprint &&
       databaseTarget.userFingerprint &&
       productionReference.userFingerprint === databaseTarget.userFingerprint,
   );
 }
 
-function canAllowSharedHostForStaging({
+function getSharedHostStatus({
   operation,
   signals,
   databaseTarget,
   productionReference,
 }) {
-  return (
-    STAGING_RUNTIME_ENVIRONMENTS.has(signals.appEnv) &&
-    STAGING_RUNTIME_ENVIRONMENTS.has(signals.databaseEnv) &&
-    signals.allowStagingWrites &&
-    signals.allowSharedDbHostForStaging &&
-    signals.nodeEnv !== "production" &&
-    signals.vercelEnv !== "production" &&
-    databaseTarget.rawUrlPresent &&
-    databaseTarget.rawUrlParseable &&
-    isExactStagingDatabaseName(databaseTarget.databaseName) &&
-    normalizeEnvToken(databaseTarget.databaseName) !==
-      normalizeEnvToken(productionReference.databaseName) &&
-    !isForbiddenSharedHostUser(databaseTarget, productionReference) &&
-    isAllowedWriteOperation(operation)
-  );
+  return {
+    requested: signals.allowSharedDbHostForStaging,
+    operationAllowed: isAllowedWriteOperation(operation),
+    exactStagingDatabaseName: isExactStagingDatabaseName(
+      databaseTarget.databaseName,
+    ),
+    productionHostTrusted: Boolean(
+      productionReference.hostReliable ||
+        productionReference.hostFingerprintReliable,
+    ),
+    productionUserTrusted: Boolean(
+      productionReference.userReliable ||
+        productionReference.userFingerprintReliable,
+    ),
+    permissionScopeVerifiable: false,
+    eligible: false,
+  };
 }
 
 function evaluateWriteTarget({
@@ -376,16 +487,32 @@ function evaluateWriteTarget({
     reasons.push("DATABASE_TARGETS_PRODUCTION");
   }
 
-  if (!productionReference.hostFingerprint && !productionReference.host) {
+  if (!productionReference.configured) {
     reasons.push("PRODUCTION_HOST_REFERENCE_MISSING");
+  }
+
+  if (
+    productionReference.hostFingerprint &&
+    !productionReference.hostFingerprintReliable
+  ) {
+    reasons.push("PRODUCTION_HOST_FINGERPRINT_INVALID");
+  }
+
+  if (
+    productionReference.userFingerprint &&
+    !productionReference.userFingerprintReliable
+  ) {
+    reasons.push("PRODUCTION_USER_FINGERPRINT_INVALID");
   }
 
   const databaseHostMatchesProduction = Boolean(
     databaseTarget.host &&
-      ((productionReference.host &&
+      ((productionReference.hostReliable &&
+        productionReference.host &&
         normalizeEnvToken(databaseTarget.host) ===
           normalizeEnvToken(productionReference.host)) ||
-        (productionReference.hostFingerprint &&
+        (productionReference.hostFingerprintReliable &&
+          productionReference.hostFingerprint &&
           databaseTarget.hostFingerprint ===
             productionReference.hostFingerprint)),
   );
@@ -393,14 +520,16 @@ function evaluateWriteTarget({
     databaseTarget,
     productionReference,
   );
-  const sharedHostAllowed = canAllowSharedHostForStaging({
+  const sharedHostStatus = getSharedHostStatus({
     operation: normalizedOperation,
     signals,
     databaseTarget,
     productionReference,
   });
+  const sharedHostAllowed = sharedHostStatus.eligible;
 
   if (
+    productionReference.databaseNameReliable &&
     productionReference.databaseName &&
     databaseTarget.databaseName &&
     normalizeEnvToken(productionReference.databaseName) ===
@@ -417,6 +546,15 @@ function evaluateWriteTarget({
     reasons.push("DATABASE_HOST_MATCHES_PRODUCTION");
     if (!signals.allowSharedDbHostForStaging) {
       reasons.push("ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE");
+    }
+    if (!sharedHostStatus.productionHostTrusted) {
+      reasons.push("SHARED_HOST_PRODUCTION_REFERENCE_NOT_RELIABLE");
+    }
+    if (!sharedHostStatus.productionUserTrusted) {
+      reasons.push("SHARED_HOST_USER_NOT_VERIFIABLE");
+    }
+    if (!sharedHostStatus.permissionScopeVerifiable) {
+      reasons.push("SHARED_DB_HOST_REQUIRES_VERIFIED_PERMISSION_SCOPE");
     }
   }
 
@@ -444,9 +582,7 @@ function evaluateWriteTarget({
     allowStagingWrites: signals.allowStagingWrites,
     allowSharedDbHostForStaging: signals.allowSharedDbHostForStaging,
     sharedHostAllowed,
-    productionReferenceConfigured: Boolean(
-      productionReference.hostFingerprint || productionReference.host,
-    ),
+    productionReferenceConfigured: Boolean(productionReference.configured),
     blockingReasons: reasons,
     writeAllowed: reasons.length === 0,
   };
@@ -470,22 +606,25 @@ function evaluateStagingEnvironment(env = process.env) {
   const databaseNameLower = normalizeEnvToken(databaseTarget.databaseName);
   const hostMatchesProduction = Boolean(
     databaseTarget.host &&
-      ((productionReference.host &&
+      ((productionReference.hostReliable &&
+        productionReference.host &&
         normalizeEnvToken(databaseTarget.host) ===
           normalizeEnvToken(productionReference.host)) ||
-        (productionReference.hostFingerprint &&
+        (productionReference.hostFingerprintReliable &&
+          productionReference.hostFingerprint &&
           databaseTarget.hostFingerprint ===
             productionReference.hostFingerprint)),
   );
   const userMatchesProduction = Boolean(
     isForbiddenSharedHostUser(databaseTarget, productionReference),
   );
-  const sharedHostAllowed = canAllowSharedHostForStaging({
+  const sharedHostStatus = getSharedHostStatus({
     operation: "scripts/seed-staging-qa.js --write",
     signals,
     databaseTarget,
     productionReference,
   });
+  const sharedHostAllowed = sharedHostStatus.eligible;
 
   if (!STAGING_RUNTIME_ENVIRONMENTS.has(signals.appEnv)) {
     reasons.push("APP_ENV_NOT_STAGING_OR_TEST");
@@ -515,8 +654,22 @@ function evaluateStagingEnvironment(env = process.env) {
     reasons.push("DATABASE_NAME_IS_PRODUCTION");
   }
 
-  if (!productionReference.hostFingerprint && !productionReference.host) {
+  if (!productionReference.configured) {
     reasons.push("PRODUCTION_HOST_REFERENCE_MISSING");
+  }
+
+  if (
+    productionReference.hostFingerprint &&
+    !productionReference.hostFingerprintReliable
+  ) {
+    reasons.push("PRODUCTION_HOST_FINGERPRINT_INVALID");
+  }
+
+  if (
+    productionReference.userFingerprint &&
+    !productionReference.userFingerprintReliable
+  ) {
+    reasons.push("PRODUCTION_USER_FINGERPRINT_INVALID");
   }
 
   if (hostMatchesProduction && !sharedHostAllowed) {
@@ -524,9 +677,19 @@ function evaluateStagingEnvironment(env = process.env) {
     if (!signals.allowSharedDbHostForStaging) {
       reasons.push("ALLOW_SHARED_DB_HOST_FOR_STAGING_FALSE");
     }
+    if (!sharedHostStatus.productionHostTrusted) {
+      reasons.push("SHARED_HOST_PRODUCTION_REFERENCE_NOT_RELIABLE");
+    }
+    if (!sharedHostStatus.productionUserTrusted) {
+      reasons.push("SHARED_HOST_USER_NOT_VERIFIABLE");
+    }
+    if (!sharedHostStatus.permissionScopeVerifiable) {
+      reasons.push("SHARED_DB_HOST_REQUIRES_VERIFIED_PERMISSION_SCOPE");
+    }
   }
 
   if (
+    productionReference.databaseNameReliable &&
     productionReference.databaseName &&
     databaseTarget.databaseName &&
     normalizeEnvToken(productionReference.databaseName) === databaseNameLower
@@ -548,6 +711,18 @@ function evaluateStagingEnvironment(env = process.env) {
 
   if (appUrl.parseError) {
     reasons.push(appUrl.parseError);
+  }
+
+  if (!appUrl.parseError && !appUrl.isHttps) {
+    reasons.push("APP_URL_NOT_HTTPS");
+  }
+
+  if (appUrl.isLocalhost) {
+    reasons.push("APP_URL_LOCALHOST");
+  }
+
+  if (appUrl.isPlaceholderHostname) {
+    reasons.push("APP_URL_PLACEHOLDER");
   }
 
   if (appUrl.isProductionHostname) {
@@ -585,9 +760,7 @@ function evaluateStagingEnvironment(env = process.env) {
     databaseUrlParseable: databaseTarget.rawUrlParseable,
     allowStagingWrites: signals.allowStagingWrites,
     allowSharedDbHostForStaging: signals.allowSharedDbHostForStaging,
-    productionReferenceConfigured: Boolean(
-      productionReference.hostFingerprint || productionReference.host,
-    ),
+    productionReferenceConfigured: Boolean(productionReference.configured),
     hostMatchesProduction,
     userMatchesProduction,
     sharedHostAllowed,
@@ -612,6 +785,7 @@ module.exports = {
   analyzeAppUrl,
   classifyMercadoPagoCredential,
   createFingerprint,
+  redactReferenceEdge,
   evaluateStagingEnvironment,
   evaluateWriteTarget,
   getEnvironmentSignals,

@@ -16,13 +16,13 @@ const safeWriteEnv = {
   VERCEL_ENV: "preview",
   ALLOW_STAGING_DB_WRITES: "true",
   DATABASE_URL:
-    "mysql://staging_user:pass@staging-db.example.com:3306/gogi_staging",
+    "mysql://staging_user:pass@staging-db.gogieats-preview.net:3306/gogi_staging",
   DB_NAME: "gogi_staging",
-  DB_HOST: "staging-db.example.com",
+  DB_HOST: "staging-db.gogieats-preview.net",
   DB_USER: "staging_user",
   PRODUCTION_DB_NAME: "gogi_prod",
-  PRODUCTION_DB_HOST_FINGERPRINT: "prodhost0001",
-  PRODUCTION_DB_USER_FINGERPRINT: "produser0001",
+  PRODUCTION_DB_HOST_FINGERPRINT: "2a6ebe8307c4",
+  PRODUCTION_DB_USER_FINGERPRINT: "77889900aabb",
 };
 
 test("ownership repair defaults to dry-run", () => {
